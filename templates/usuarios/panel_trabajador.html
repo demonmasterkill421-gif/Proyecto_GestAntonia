@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="tarjeta" style="max-width:440px;margin:0 auto;text-align:center">
+  <p class="saludo">¡Bienvenid@</p>
+  <h1>{{ user.first_name|default:user.email }}!</h1>
+  <p>Último registro de asistencia:
+    {% if ultimo %}{{ ultimo.hora_salida|default:ultimo.hora_entrada|date:"d/m/y H:i" }}{% else %}sin registros{% endif %}</p>
+  <button class="btn" type="button" disabled title="Disponible en el Sprint 2">Marcar asistencia</button>
+  {% include "usuarios/_cerrar_sesion.html" %}
+</div>
+{% endblock %}

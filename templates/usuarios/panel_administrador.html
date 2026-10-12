@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="tarjeta">
+  <p class="saludo">¡Bienvenid@</p>
+  <h1>{{ user.first_name|default:user.email }}!</h1>
+  <p>Panel de administración de Estética Antonia.</p>
+  <a class="btn" href="{% url 'admin:index' %}">Gestionar locales, personal, inventario y ventas</a>
+  <p class="nota">Los reportes y estadísticas se agregan en el Sprint 3.</p>
+  {% include "usuarios/_cerrar_sesion.html" %}
+</div>
+{% endblock %}
