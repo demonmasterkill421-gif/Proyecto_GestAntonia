@@ -1,5 +1,5 @@
 """
-Buscar o registrar clienta (tarea 1.4 · Cristian).
+Buscar o registrar clienta
 
 VISTA PROVISIONAL: deja la ruta funcionando. Cristian reemplaza el contenido de este archivo
 con la búsqueda por teléfono y el alta con consentimiento.

@@ -1,5 +1,5 @@
 """
-Nueva reserva (tarea 1.3 · José).
+Nueva reserva 
 
 VISTA PROVISIONAL: deja la ruta funcionando para que la agenda pueda enlazarla.
 José reemplaza el contenido de este archivo con el formulario y la validación de disponibilidad.

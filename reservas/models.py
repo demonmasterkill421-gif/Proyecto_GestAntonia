@@ -1,5 +1,5 @@
 """
-Módulo «Reservas» del Equipo 4 (épica EP-04 · tarea 1.1 del Sprint 1).
+Módulo «Reservas» del Equipo 4 
 
 Versión inicial: dos tablas, Clienta y Reserva, conectadas con modelos que ya existen
 en el repositorio común (Local, Servicio y Usuario con rol Trabajador).

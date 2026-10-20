@@ -1,4 +1,4 @@
-"""Agenda del día (tarea 1.2 · Edson): la recepcionista ve las reservas de su local."""
+"""la recepcionista ve las reservas de su local."""
 from datetime import date
 
 from django.shortcuts import render
