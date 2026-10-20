@@ -7,61 +7,33 @@
   <p class="saludo">Agenda del día</p>
   <h1>{{ local|default:"Sin local asignado" }}</h1>
 
-  {% if locales %}
-  <form method="get" class="agenda-filtro">
-    <label for="id_local">Local</label>
-    <select name="local" id="id_local" onchange="this.form.submit()">
-      {% for l in locales %}<option value="{{ l.pk }}" {% if l == local %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-    <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+  <form method="get">
+    <label for="id_fecha">Fecha</label>
+    <input type="date" name="fecha" id="id_fecha" value="{{ fecha|date:'Y-m-d' }}" onchange="this.form.submit()">
   </form>
+
+  {% if reservas %}
+  <div class="tabla">
+    <table>
+      <thead><tr><th>Hora</th><th>Especialista</th><th>Clienta</th><th>Servicio</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for r in reservas %}
+        <tr>
+          <td>{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</td>
+          <td>{{ r.especialista.first_name }}</td>
+          <td>{{ r.clienta.nombre }}</td>
+          <td>{{ r.servicio.nombre }}</td>
+          <td>{{ r.get_estado_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="nota">No hay reservas para este día.</p>
   {% endif %}
-
-  {% if local %}
-  <nav class="agenda-dias" aria-label="Cambiar de día">
-    <a href="?fecha={{ anterior|date:'Y-m-d' }}{% if locales %}&local={{ local.pk }}{% endif %}">← {{ anterior|date:"d/m" }}</a>
-    <form method="get">
-      {% if locales %}<input type="hidden" name="local" value="{{ local.pk }}">{% endif %}
-      <input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" onchange="this.form.submit()" aria-label="Fecha">
-    </form>
-    <a href="?fecha={{ siguiente|date:'Y-m-d' }}{% if locales %}&local={{ local.pk }}{% endif %}">{{ siguiente|date:"d/m" }} →</a>
-    {% if fecha != hoy %}<a href="?{% if locales %}local={{ local.pk }}{% endif %}">Hoy</a>{% endif %}
-  </nav>
-
-  <p class="agenda-resumen">{{ fecha|date:"l j \d\e F" }} · {{ total }} reserva{{ total|pluralize }}</p>
-
-  {% for especialista, reservas in grupos %}
-  <section class="agenda-especialista">
-    <h2>{{ especialista.get_full_name|default:especialista.email }}{% if especialista.cargo %} <span>· {{ especialista.get_cargo_display }}</span>{% endif %}</h2>
-    {% if reservas %}
-    <div class="agenda-tabla">
-      <table>
-        <thead><tr><th>Hora</th><th>Clienta</th><th>Servicio</th><th>Estado</th></tr></thead>
-        <tbody>
-          {% for r in reservas %}
-          <tr>
-            <td class="hora">{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</td>
-            <td>{{ r.clienta.nombre }}</td>
-            <td>{{ r.servicio.nombre }}</td>
-            <td><span class="estado estado-{{ r.estado|lower }}">{{ r.get_estado_display }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="agenda-vacia">Sin reservas este día.</p>
-    {% endif %}
-  </section>
-  {% empty %}
-  <p class="agenda-vacia">Este local no tiene especialistas activas.</p>
-  {% endfor %}
 
   <a class="btn" href="{% url 'reservas:nueva' %}">Nueva reserva</a>
-  {% else %}
-  <p class="error">Tu cuenta no tiene un local asignado. Pide a la administradora que te asigne uno.</p>
-  {% endif %}
-
   <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
 </div>
 {% endblock %}

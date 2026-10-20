@@ -1,20 +1,6 @@
-/* Estilos del módulo de Reservas: usa las variables de la guía UX/UI (gestantonia.css). */
-.agenda-filtro { margin-bottom: 8px; }
-.agenda-filtro select, .agenda-dias input[type=date] {
-  padding: 8px 10px; border: 1px solid var(--borde); border-radius: 7px; font-size: 16px; color: var(--texto); background: #fff; }
-.agenda-dias { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 8px 0 4px; }
-.agenda-dias a { color: var(--primario); font-weight: 600; text-decoration: none; }
-.agenda-resumen { font-weight: 600; color: var(--primario-oscuro); }
-.agenda-resumen::first-letter { text-transform: uppercase; }
-.agenda-especialista { border-top: 1px solid var(--borde); padding-top: 14px; margin-top: 14px; }
-.agenda-especialista h2 { font-size: 20px; color: var(--primario-oscuro); margin: 0 0 8px; }
-.agenda-especialista h2 span { font-weight: 400; color: var(--texto); font-size: 16px; }
-.agenda-tabla { overflow-x: auto; }
-.agenda-tabla table { width: 100%; border-collapse: collapse; font-size: 16px; min-width: 420px; }
-.agenda-tabla th { text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; padding: 6px 8px; border-bottom: 2px solid var(--borde); }
-.agenda-tabla td { padding: 8px; border-bottom: 1px solid var(--borde); }
-.agenda-tabla .hora { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; color: var(--primario-oscuro); }
-.estado { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 14px; font-weight: 600; }
-.estado-agendada { background: var(--degradado); color: var(--primario-oscuro); }
-.estado-atendida { background: #DDEFE3; color: #1F5E37; }
-.agenda-vacia { font-style: italic; margin: 4px 0; }
+/* Tabla de la agenda; usa los colores de la guía UX/UI (gestantonia.css). */
+.tabla { overflow-x: auto; margin-top: 16px; }
+.tabla table { width: 100%; border-collapse: collapse; min-width: 480px; }
+.tabla th { text-align: left; font-size: 14px; padding: 8px; border-bottom: 2px solid var(--borde); }
+.tabla td { padding: 8px; border-bottom: 1px solid var(--borde); }
+input[type=date] { padding: 8px 10px; border: 1px solid var(--borde); border-radius: 7px; font-size: 16px; }
