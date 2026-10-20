@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} · GestAntonia{% endblock %}
+{% block contenido %}
+<div class="tarjeta">
+  <p class="saludo">Módulo de Reservas</p>
+  <h1>{{ titulo }}</h1>
+  <p>Esta pantalla está en desarrollo: tarea {{ tarea }} del Sprint 1, a cargo de {{ responsable }}.</p>
+  <a class="btn" href="{% url 'reservas:agenda' %}">Ir a la agenda del día</a>
+</div>
+{% endblock %}

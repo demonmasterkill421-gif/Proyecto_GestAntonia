@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "catalogo.apps.CatalogoConfig",
     "ventas.apps.VentasConfig",
     "asistencia.apps.AsistenciaConfig",
+    "reservas.apps.ReservasConfig",  # Equipo 4: Reservas
 ]
 
 MIDDLEWARE = [
