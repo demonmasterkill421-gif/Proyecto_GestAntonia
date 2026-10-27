@@ -17,7 +17,6 @@ def exportarVentaCSV(modeladmin, request, queryset):
 
     writer = csv.writer(respuesta, delimiter=';')
 
-    # Encabezados limpios para el reporte
     writer.writerow([
         'id', 'fecha', 'descripcion', 'metodo_pago', 'descuento', 
         'monto_base', 'monto_total', 'estado', 'folio', 'local', 
@@ -35,8 +34,10 @@ def exportarVentaCSV(modeladmin, request, queryset):
             venta.monto_total,
             venta.estado,
             venta.folio,
+
             # Aquí traemos el nombre del local en vez del ID
             venta.local.nombre if venta.local else '',
+            
             # Aquí traemos el nombre/representación del trabajador
             str(venta.trabajador) if venta.trabajador else '',
         ])
@@ -52,7 +53,7 @@ class RegistroDeVentaAdmin(admin.ModelAdmin):
     date_hierarchy = "fecha"
     readonly_fields = ("folio", "monto_base", "monto_total")
     inlines = [DetalleVentaInline]
-    actions = [exportarVentaCSV]  # <--- Aquí agregamos el botón de Excel al modelo correcto
+    actions = [exportarVentaCSV]
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
@@ -62,5 +63,5 @@ class RegistroDeVentaAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser or request.user.is_staff:
             return qs
-        # Si tienes campo de trabajador o recepcionista, puedes filtrarlo aquí si corresponde
+        
         return qs
