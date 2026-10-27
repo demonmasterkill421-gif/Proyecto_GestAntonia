@@ -11,7 +11,7 @@ class DetalleVentaInline(admin.TabularInline):
 
 
 @admin.action(description="Exportar ventas a CSV - EXCEL")
-def exportarVentaCSV(queryset):
+def exportarVentaCSV(modeladmin, request, queryset):
     respuesta = HttpResponse(content_type='text/csv; charset=utf-8')
     respuesta['Content-Disposition'] = 'attachment; filename="reporte_ventas.csv"'
 
