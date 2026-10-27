@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import logo from "../assets/logo.png";
 
-import api from "../api/usuario.api";
 import { iniciarSesion } from "../api/usuario.api";
+import { useAuth } from "../auth/AuthContext";
+import { INICIO_POR_ROL } from "../config/roles";
 
 export function Login() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -18,8 +20,6 @@ export function Login() {
     e.preventDefault();
     setError("");
 
-    const { data } = await iniciarSesion(email, password);
-
     if (!email.trim() || !password) {
       setError("Ingresa tu correo y tu contraseña.");
       return;
@@ -27,12 +27,12 @@ export function Login() {
 
     setLoading(true);
     try {
-      const { data } = await api.post("/api/login/", { email, password });
+      const { data } = await iniciarSesion(email, password);
 
-      localStorage.setItem("token", data.access);
-      localStorage.setItem("refresh", data.refresh);
-      navigate("/recepcionista/venta");
+      auth.iniciarSesion(data);
+      navigate(INICIO_POR_ROL[data.usuario.rol] ?? "/login", { replace: true });
     } catch (err) {
+      console.error(err);
       if (err.response?.status === 401) {
         setError("Correo o contraseña incorrectos.");
       } else {
@@ -44,7 +44,7 @@ export function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-tr from-[#f0cde8] via-[#f7e3f1] to-[#faeff5] flex flex-col items-center px-4 pt-24 pb-12">
+    <main className="fondo-animado min-h-screen flex flex-col items-center px-4 pt-24 pb-12">
       {/* Logo (colócalo en public/logo-antonia.png) */}
         <img src={logo} alt="Antonia, centro de depilación" className="w-52 h-auto" />
 

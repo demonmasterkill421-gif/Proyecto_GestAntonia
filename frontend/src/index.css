@@ -10,3 +10,36 @@ html, body {
 body {
   font-family: 'Roboto', sans-serif;
 }
+
+
+@theme {
+  --animate-aparecer: aparecer 0.7s ease-out both;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+
+.fondo-animado {
+  background: linear-gradient(120deg, #f0cde8, #f7e3f1, #faeff5, #f4cfe6, #f0cde8);
+  background-size: 300% 300%;
+  animation: mover-degradado 12s ease-in-out infinite;
+}
+
+@keyframes mover-degradado {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fondo-animado { animation: none; }
+}
