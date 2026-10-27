@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block contenido %}
+<div class="tarjeta">
+  <p class="saludo">¡Bienvenid@</p>
+  <h1>{{ user.first_name|default:user.email }}!</h1>
+  <p>Local: {{ user.local|default:"sin local asignado" }}</p>
+  <button class="btn" type="button" disabled title="Disponible en el Sprint 2">Registrar venta</button>
+  <p class="nota">El formulario de venta (EA_009) se desarrolla en el Sprint 2.</p>
+  {% include "usuarios/_cerrar_sesion.html" %}
+</div>
+{% endblock %}

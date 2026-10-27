@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar sesión · GestAntonia{% endblock %}
+{% block contenido %}
+<div class="tarjeta" style="max-width:440px;margin:40px auto">
+  <h1>Iniciar sesión</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label for="id_username">Correo</label>
+    <input type="email" name="username" id="id_username" autofocus required value="{{ form.username.value|default_if_none:'' }}">
+    <label for="id_password">Contraseña</label>
+    <input type="password" name="password" id="id_password" required>
+    {% if form.errors %}<p class="error">Correo o contraseña incorrectos.</p>{% endif %}
+    <button class="btn" type="submit">Ingresar</button>
+  </form>
+</div>
+{% endblock %}
