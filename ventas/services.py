@@ -1,11 +1,8 @@
 from django.db import transaction
 from .models import RegistroDeVenta
 
-
-#Registrar Venta
-
 @transaction.atomic
-def registrarVenta(local, recepcionista, trabajador, metodoPago, descuento, descripcion, itemsIniciales=None):
+def registrar_venta(local, recepcionista, trabajador, metodoPago, descuento, descripcion, itemsLista):
 
     venta = RegistroDeVenta.objects.create(
         local=local,
@@ -16,10 +13,10 @@ def registrarVenta(local, recepcionista, trabajador, metodoPago, descuento, desc
         descripcion=descripcion,
         estado=RegistroDeVenta.Estado.BORRADOR
     )
-
-    if itemsIniciales:
-        for item in itemsIniciales:
-            venta.agregar_item(item=item['item'], cantidad=item['cantidad'  ])
-
-
+    
+    for item in itemsLista:
+        venta.agregar_item(item=item['item'], cantidad=item['cantidad'])
+        
+    venta.confirmar_venta()
+    
     return venta
