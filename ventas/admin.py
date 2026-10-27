@@ -35,10 +35,8 @@ def exportarVentaCSV(queryset):
             venta.estado,
             venta.folio,
 
-            # Aquí traemos el nombre del local en vez del ID
             venta.local.nombre if venta.local else '',
             
-            # Aquí traemos el nombre/representación del trabajador
             str(venta.trabajador) if venta.trabajador else '',
         ])
          
