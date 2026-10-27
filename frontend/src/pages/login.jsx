@@ -1,7 +1,13 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import logo from "../assets/logo.png";
 
-export function Login({ onSuccess }) {
+import api from "../api/usuario.api";
+import { iniciarSesion } from "../api/usuario.api";
+
+export function Login() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -12,6 +18,8 @@ export function Login({ onSuccess }) {
     e.preventDefault();
     setError("");
 
+    const { data } = await iniciarSesion(email, password);
+
     if (!email.trim() || !password) {
       setError("Ingresa tu correo y tu contraseña.");
       return;
@@ -19,16 +27,17 @@ export function Login({ onSuccess }) {
 
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) throw new Error("Credenciales incorrectas.");
-      const data = await res.json();
-      onSuccess?.(data);
+      const { data } = await api.post("/api/login/", { email, password });
+
+      localStorage.setItem("token", data.access);
+      localStorage.setItem("refresh", data.refresh);
+      navigate("/recepcionista/venta");
     } catch (err) {
-      setError(err.message || "No pudimos iniciar sesión. Intenta de nuevo.");
+      if (err.response?.status === 401) {
+        setError("Correo o contraseña incorrectos.");
+      } else {
+        setError("No pudimos conectar con el servidor. Intenta de nuevo.");
+      }
     } finally {
       setLoading(false);
     }
@@ -37,11 +46,7 @@ export function Login({ onSuccess }) {
   return (
     <main className="min-h-screen bg-gradient-to-tr from-[#f0cde8] via-[#f7e3f1] to-[#faeff5] flex flex-col items-center px-4 pt-24 pb-12">
       {/* Logo (colócalo en public/logo-antonia.png) */}
-      <img
-        src="/logo-antonia.png"
-        alt="Antonia, centro de depilación"
-        className="w-52 h-auto"
-      />
+        <img src={logo} alt="Antonia, centro de depilación" className="w-52 h-auto" />
 
       {/* Título */}
       <h1 className="mt-12 text-4xl font-bold tracking-tight text-[#1f1218]">
@@ -69,7 +74,7 @@ export function Login({ onSuccess }) {
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Ej.: recepcion.mallplaza"
+            placeholder="Ej.: admin@gestantonia.cl"
             className="mt-2 h-11 w-full rounded-md border border-gray-200 bg-[#fbfbf9] px-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30"
           />
         </div>
@@ -90,7 +95,7 @@ export function Login({ onSuccess }) {
             />
             <button
               type="button"
-              onClick={() => setShowPassword((v) => !v)}
+              onClick={() => setShowPassword((f) => !f)}
               aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               className="flex h-11 w-11 items-center justify-center rounded-r-md border border-slate-400 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b5368f]/40"
             >
