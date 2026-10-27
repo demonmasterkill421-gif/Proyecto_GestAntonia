@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { INICIO_POR_ROL } from "../config/roles";
+import { SelectorSucursal } from "./SelectorSucursal";
 
 // Cada opción, su ícono y qué roles la ven
 const MENU = [
@@ -23,7 +24,7 @@ const MENU = [
   { ruta: "/ventas/registrar", etiqueta: "Registrar venta", icono: Receipt, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
   { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
-  { ruta: "/sucursales", etiqueta: "Sucursales", icono: Store, roles: ["ADMIN"] },
+  { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
   { ruta: "/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
 ];
 
@@ -69,12 +70,25 @@ export function Sidebar({ children }) {
         </Link>
 
         <div className="ml-auto flex items-center gap-2">
-          {usuario?.local && (
-            <span className="rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f]">
-              {usuario.local.nombre}
-            </span>
+          {/* La propietaria elige sucursal; la recepcionista ve solo la suya */}
+          {usuario?.rol === "ADMIN" ? (
+            <SelectorSucursal />
+          ) : (
+            usuario?.local && (
+              <span className="rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f]">
+                {usuario.local.nombre}
+              </span>
+            )
           )}
-          <span className="rounded-md border border-gray-200 px-4 py-1.5 text-[15px] text-gray-700">
+
+          {/* Etiqueta del rol: magenta intenso para la propietaria */}
+          <span
+            className={`rounded-md px-4 py-1.5 text-[15px] ${
+              usuario?.rol === "ADMIN"
+                ? "bg-gradient-to-r from-[#d61f9a] to-[#a8238f] font-semibold text-white shadow-md shadow-[#d61f9a]/30"
+                : "border border-gray-200 text-gray-700"
+            }`}
+          >
             {ETIQUETA_ROL[usuario?.rol]}
           </span>
         </div>

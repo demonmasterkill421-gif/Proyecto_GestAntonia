@@ -8,6 +8,7 @@ import { Login } from './pages/login'
 
 //ADMIN
 import { MainAdmin } from './pages/administrador/main/MainAdmin'
+import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
@@ -36,6 +37,7 @@ function App() {
 
           {/* 1. ADMINISTRADOR*/}
           <Route path='/admin/inicio' element={< MainAdmin/>}/>
+          <Route path='/admin/locales' element={< AdminSucursales/>}/>
 
 
           {/* 2. RECEPCIONISTA */}
@@ -45,6 +47,8 @@ function App() {
           {/* 3. TRABAJADOR */}
 
           <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
 
         </Routes>
       </BrowserRouter>

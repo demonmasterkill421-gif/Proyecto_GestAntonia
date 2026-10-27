@@ -53,7 +53,7 @@ export function Login() {
         Gest<span className="text-[#b5368f]">Antonia</span>
       </h1>
       <p className="mt-1 text-base text-gray-600">
-        Gestión de ventas y asistencia
+        Gestión de ventas, inventario y asistencia
       </p>
 
       {/* Tarjeta */}
