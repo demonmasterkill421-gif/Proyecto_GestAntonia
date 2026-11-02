@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Link, useNavigate } from "react-router-dom";
 import {
   House,
@@ -9,6 +9,7 @@ import {
   BadgeDollarSign,
   Store,
   ChartColumn,
+  ChevronDown,
   LogOut,
   Menu,
   X,
@@ -21,7 +22,7 @@ import { SelectorSucursal } from "./SelectorSucursal";
 const MENU = [
   { ruta: "/agenda", etiqueta: "Agenda", icono: CalendarDays, roles: ["ADMIN", "RECEP"] },
   { ruta: "/asistencia", etiqueta: "Asistencia", icono: UserCheck, roles: ["ADMIN", "RECEP"] },
-  { ruta: "/ventas/registrar", etiqueta: "Ventas", icono: Receipt, roles: ["RECEP"] },
+  { ruta: "/recepcionista/registrar-venta", etiqueta: "Registrar Venta", icono: Receipt, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
   { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
@@ -32,6 +33,8 @@ const ETIQUETA_ROL = { ADMIN: "Propietaria", RECEP: "Recepcionista" };
 
 export function Sidebar({ children }) {
   const [abierto, setAbierto] = useState(false);
+  const [menuUsuario, setMenuUsuario] = useState(false);
+  const menuRef = useRef(null);
   const { usuario, cerrarSesion } = useAuth();
   const navigate = useNavigate();
 
@@ -41,6 +44,23 @@ export function Sidebar({ children }) {
     cerrarSesion();
     navigate("/login", { replace: true });
   };
+
+  // Cierra la lista al tocar fuera de ella o al presionar Escape
+  useEffect(() => {
+    if (!menuUsuario) return;
+    const fuera = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuUsuario(false);
+    };
+    const tecla = (e) => {
+      if (e.key === "Escape") setMenuUsuario(false);
+    };
+    document.addEventListener("mousedown", fuera);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [menuUsuario]);
 
   // El primer botón siempre es Inicio y lleva a la página principal del rol
   const opciones = [
@@ -81,16 +101,43 @@ export function Sidebar({ children }) {
             )
           )}
 
-          {/* Etiqueta del rol: magenta intenso para la propietaria */}
-          <span
-            className={`rounded-md px-4 py-1.5 text-[15px] ${
-              usuario?.rol === "ADMIN"
-                ? "bg-gradient-to-r from-[#d61f9a] to-[#a8238f] font-semibold text-white shadow-md shadow-[#d61f9a]/30"
-                : "border border-gray-200 text-gray-700"
-            }`}
-          >
-            {ETIQUETA_ROL[usuario?.rol]}
-          </span>
+          {/* Etiqueta del rol: al tocarla se despliega la lista con "Cerrar sesión" */}
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuUsuario(!menuUsuario)}
+              aria-haspopup="menu"
+              aria-expanded={menuUsuario}
+              className={`flex cursor-pointer items-center gap-2 rounded-md px-4 py-1.5 text-[15px] transition active:scale-95 ${
+                usuario?.rol === "ADMIN"
+                  ? "bg-gradient-to-r from-[#d61f9a] to-[#a8238f] font-semibold text-white shadow-md shadow-[#d61f9a]/30 hover:brightness-110"
+                  : "border border-gray-200 text-gray-700 hover:border-[#b5368f] hover:bg-[#f7e3f1] hover:text-[#b5368f]"
+              }`}
+            >
+              {ETIQUETA_ROL[usuario?.rol]}
+              <ChevronDown
+                size={18}
+                className={`transition-transform duration-200 ${menuUsuario ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {menuUsuario && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-xl border border-[#e6b8d4] bg-white py-1 shadow-lg shadow-[#b5368f]/15"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={salir}
+                  className="flex h-12 w-full cursor-pointer items-center gap-3 px-4 text-left text-[16px] text-gray-700 transition hover:bg-[#f7e3f1] hover:text-[#b5368f]"
+                >
+                  <LogOut size={20} />
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

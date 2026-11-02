@@ -47,6 +47,15 @@ class VentaSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("La venta debe tener al menos un item")
         return value
+    
+    def validate(self, attrs):
+        detalles = attrs.get("detalles", [])
+        hay_servicio = any(not d["item"].es_producto for d in detalles)
+        if hay_servicio and attrs.get("trabajador") is None:
+            raise serializers.ValidationError(
+                {"trabajador": "Debes indicar la trabajadora que realiza el servicio."}
+            )
+        return attrs
 
     def create(self, validated_data):
         detalles = validated_data.pop("detalles")

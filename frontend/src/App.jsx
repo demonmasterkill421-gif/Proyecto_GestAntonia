@@ -13,6 +13,7 @@ import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
+import { RegistrarVenta } from './pages/recepcionista/venta/RegistrarVenta'
 
 //TRABAJADOR
 import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
@@ -46,6 +47,7 @@ function App() {
           {/* 2. RECEPCIONISTA: solo entra el rol RECEP */}
           <Route element={<RutaPrivada roles={["RECEP"]} />}>
             <Route path='/recepcionista/inicio' element={< MainRecepcionista/>} />
+            <Route path='/recepcionista/registrar-venta' element={< RegistrarVenta/>} />
           </Route>
 
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
