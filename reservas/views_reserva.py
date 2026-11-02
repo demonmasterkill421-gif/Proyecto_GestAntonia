@@ -1,7 +1,7 @@
 """
 Nueva reserva (tarea 1.3 · José).
 
-La recepcionista agenda una hora para una clienta en su local. La regla de «cero topes»
+La recepcionista agenda una hora para un cliente en su local. La regla de «cero topes»
 vive en Reserva.clean(): form.is_valid() la ejecuta, aquí no se programa de nuevo.
 """
 from django.shortcuts import redirect, render
@@ -16,10 +16,10 @@ from .forms import ReservaForm
 
 
 def _initial_desde_url(request):
-    """?clienta=<id> deja a esa clienta preseleccionada (conexión con la pantalla de Cristian)."""
-    clienta_id = request.GET.get("clienta", "")
-    if clienta_id.isdigit():
-        return {"clienta": int(clienta_id)}
+    """?cliente=<id> deja a ese cliente preseleccionado (conexión con la pantalla de Cristian)."""
+    cliente_id = request.GET.get("cliente", "")
+    if cliente_id.isdigit():
+        return {"cliente": int(cliente_id)}
     return {}
 
 

@@ -1,7 +1,7 @@
 """
 Módulo «Reservas» del Equipo 4 
 
-Versión inicial: dos tablas, Clienta y Reserva, conectadas con modelos que ya existen
+Versión inicial: dos tablas, Cliente y Reserva, conectadas con modelos que ya existen
 en el repositorio común (Local, Servicio y Usuario con rol Trabajador).
 """
 from datetime import timedelta
@@ -11,15 +11,15 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 
-class Clienta(models.Model):
+class Cliente(models.Model):
     """Persona que pide la hora. No usa el sistema: la recepcionista la registra."""
     nombre = models.CharField(max_length=100)
     telefono = models.CharField("teléfono", max_length=15, unique=True)
     consentimiento = models.BooleanField(default=False, help_text="Autorizó el uso de sus datos.")
 
     class Meta:
-        verbose_name = "clienta"
-        verbose_name_plural = "clientas"
+        verbose_name = "cliente"
+        verbose_name_plural = "clientes"
         ordering = ["nombre"]
 
     def __str__(self):
@@ -33,7 +33,7 @@ class Reserva(models.Model):
         CANCELADA = "CANCELADA", "Cancelada"
 
     local = models.ForeignKey("locales.Local", on_delete=models.PROTECT, related_name="reservas")
-    clienta = models.ForeignKey(Clienta, on_delete=models.PROTECT, related_name="reservas")
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="reservas")
     especialista = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
                                      related_name="reservas_asignadas", limit_choices_to={"rol": "TRAB"})
     servicio = models.ForeignKey("catalogo.Servicio", on_delete=models.PROTECT, related_name="reservas")
@@ -48,7 +48,7 @@ class Reserva(models.Model):
         ordering = ["inicio"]
 
     def __str__(self):
-        return f"{self.inicio:%d-%m-%Y %H:%M} · {self.clienta.nombre}"
+        return f"{self.inicio:%d-%m-%Y %H:%M} · {self.cliente.nombre}"
 
     def calcular_fin(self):
         """La hora de término sale de la duración del servicio (en minutos)."""

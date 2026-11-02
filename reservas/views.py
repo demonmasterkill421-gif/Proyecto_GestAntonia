@@ -20,6 +20,6 @@ def agenda_del_dia(request):
     local = request.user.local  # el local sale de la cuenta, no de la dirección (RF-22)
     reservas = (Reserva.objects.filter(local=local, inicio__date=fecha)
                 .exclude(estado=Reserva.Estado.CANCELADA)
-                .select_related("clienta", "especialista", "servicio"))
+                .select_related("cliente", "especialista", "servicio"))
 
     return render(request, "reservas/agenda.html", {"fecha": fecha, "local": local, "reservas": reservas})

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from catalogo.models import Servicio
 from locales.models import Local
-from reservas.models import Clienta, Reserva
+from reservas.models import Cliente, Reserva
 from usuarios.models import Usuario
 
 CLAVE = "Clave-de-prueba-1"
@@ -30,10 +30,10 @@ class ReservasTests(TestCase):
                                                first_name="Liz", rol=Usuario.Rol.TRABAJADOR, local=self.centro)
         Usuario.objects.create_user(username="paola", email="paola@x.cl", password=CLAVE,
                                     rol=Usuario.Rol.RECEPCIONISTA, local=self.mall)
-        self.maria = Clienta.objects.create(nombre="María González", telefono="987654321", consentimiento=True)
+        self.maria = Cliente.objects.create(nombre="María González", telefono="987654321", consentimiento=True)
 
     def nueva(self, especialista, inicio):
-        return Reserva(local=especialista.local, clienta=self.maria, especialista=especialista,
+        return Reserva(local=especialista.local, cliente=self.maria, especialista=especialista,
                        servicio=self.lifting, inicio=inicio)
 
     def test_fin_se_calcula_con_la_duracion_del_servicio(self):
@@ -51,18 +51,18 @@ class ReservasTests(TestCase):
 
     def test_cancelar_libera_el_bloque(self):
         r = self.nueva(self.camila, manana(11)); r.save()
-        r.cancelar("La clienta no puede asistir")
+        r.cancelar("El cliente no puede asistir")
         self.nueva(self.camila, manana(11)).full_clean()
 
     def test_recepcionista_ve_solo_su_local(self):
         self.nueva(self.camila, manana(11)).save()
-        otra = Clienta.objects.create(nombre="Clienta Centro", telefono="912345678")
-        Reserva.objects.create(local=self.centro, clienta=otra, especialista=self.liz,
+        otra = Cliente.objects.create(nombre="Cliente Centro", telefono="912345678")
+        Reserva.objects.create(local=self.centro, cliente=otra, especialista=self.liz,
                                servicio=self.lifting, inicio=manana(15))
         self.client.login(email="paola@x.cl", password=CLAVE)
         r = self.client.get(reverse("reservas:agenda"), {"fecha": manana(0).date().isoformat()})
         self.assertContains(r, "María González")
-        self.assertNotContains(r, "Clienta Centro")
+        self.assertNotContains(r, "Cliente Centro")
 
     def test_trabajadora_no_entra_a_la_agenda(self):
         self.client.login(email="camila@x.cl", password=CLAVE)
