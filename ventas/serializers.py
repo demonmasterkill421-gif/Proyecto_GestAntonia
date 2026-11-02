@@ -1,11 +1,7 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from models import DetalleVenta, RegistroDeVenta
-
-
-
-from django.core.exceptions import ValidationError as DjangoValidationError
-
+from .models import DetalleVenta, RegistroDeVenta
 from .services import registrar_venta
 
 
@@ -25,7 +21,7 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
 
 
 class VentaSerializer(serializers.ModelSerializer):
-    detalle = DetalleVentaSerializer(many=True)
+    detalles = DetalleVentaSerializer(many=True)
 
     class Meta:
         model = RegistroDeVenta
@@ -33,6 +29,7 @@ class VentaSerializer(serializers.ModelSerializer):
                   "monto_total", "estado", "detalles"]
         read_only_fields = ["folio", "fecha", "recepcionista", "monto_base", "monto_total", "estado"]
         extra_kwargs = {"local": {"required": False}}
+        validators = []
 
 
 
@@ -51,7 +48,7 @@ class VentaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("La venta debe tener al menos un item")
         return value
 
-    def create_venta(self, validated_data):
+    def create(self, validated_data):
         detalles = validated_data.pop("detalles")
 
         try:
