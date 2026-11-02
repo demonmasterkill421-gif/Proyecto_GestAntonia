@@ -1,18 +1,64 @@
 """
-Nueva reserva 
+Nueva reserva (tarea 1.3 · José).
 
-VISTA PROVISIONAL: deja la ruta funcionando para que la agenda pueda enlazarla.
-José reemplaza el contenido de este archivo con el formulario y la validación de disponibilidad.
+La recepcionista agenda una hora para una clienta en su local. La regla de «cero topes»
+vive en Reserva.clean(): form.is_valid() la ejecuta, aquí no se programa de nuevo.
 """
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
 from usuarios.models import Usuario
 from usuarios.permisos import rol_requerido
 
+from .disponibilidad import horarios_libres_cercanos
+from .forms import ReservaForm
+
+
+def _initial_desde_url(request):
+    """?clienta=<id> deja a esa clienta preseleccionada (conexión con la pantalla de Cristian)."""
+    clienta_id = request.GET.get("clienta", "")
+    if clienta_id.isdigit():
+        return {"clienta": int(clienta_id)}
+    return {}
+
+
+def _sugerencias(form):
+    """Si el formulario falló por un tope de horario, propone horarios libres cercanos."""
+    reserva = form.instance
+    if form.has_error("inicio") and reserva.inicio and reserva.especialista_id and reserva.servicio_id:
+        libres = horarios_libres_cercanos(reserva.especialista, reserva.servicio, reserva.inicio)
+        return [
+            {"valor": timezone.localtime(h).strftime("%Y-%m-%dT%H:%M"),
+             "etiqueta": timezone.localtime(h).strftime("%H:%M")}
+            for h in libres
+        ]
+    return []
+
 
 @rol_requerido(Usuario.Rol.RECEPCIONISTA)
 def nueva_reserva(request):
-    return render(request, "reservas/en_construccion.html", {
-        "titulo": "Nueva reserva", "tarea": "1.3 · Registro de reserva con validación de disponibilidad",
-        "responsable": "José Flores",
-    })
+    local = request.user.local 
+    if local is None:
+        return render(request, "reservas/nueva.html", {"sin_local": True})
+
+    if request.method == "POST":
+        form = ReservaForm(request.POST)
+    else:
+        form = ReservaForm(initial=_initial_desde_url(request))
+
+    form.fields["especialista"].queryset = Usuario.objects.filter(
+        rol=Usuario.Rol.TRABAJADOR, local=local, is_active=True
+    )
+    form.instance.local = local
+
+    sugerencias = []
+    if request.method == "POST":
+        if form.is_valid():
+            reserva = form.save()
+            fecha = timezone.localtime(reserva.inicio).date().isoformat()
+            return redirect(f"{reverse('reservas:agenda')}?fecha={fecha}")
+        sugerencias = _sugerencias(form)
+
+    return render(request, "reservas/nueva.html",
+                  {"form": form, "local": local, "sugerencias": sugerencias})
