@@ -9,6 +9,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class Cliente(models.Model):
@@ -48,7 +49,7 @@ class Reserva(models.Model):
         ordering = ["inicio"]
 
     def __str__(self):
-        return f"{self.inicio:%d-%m-%Y %H:%M} · {self.cliente.nombre}"
+        return f"{timezone.localtime(self.inicio):%d-%m-%Y %H:%M} · {self.cliente.nombre}"
 
     def calcular_fin(self):
         """La hora de término sale de la duración del servicio (en minutos)."""

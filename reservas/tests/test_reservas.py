@@ -67,3 +67,8 @@ class ReservasTests(TestCase):
     def test_trabajadora_no_entra_a_la_agenda(self):
         self.client.login(email="camila@x.cl", password=CLAVE)
         self.assertEqual(self.client.get(reverse("reservas:agenda")).status_code, 403)
+
+    def test_el_texto_de_la_reserva_usa_la_hora_de_chile(self):
+        r = self.nueva(self.camila, manana(10))
+        r.save()
+        self.assertTrue(str(r).endswith("10:00 · María González"))
