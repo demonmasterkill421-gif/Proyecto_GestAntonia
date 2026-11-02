@@ -3,7 +3,7 @@ import { TituloAnimado } from "../../../components/TituloAnimado";
 import { useTitulo } from "../../../hooks/useTitulo";
 
 export function MainRecepcionista() {
-  useTitulo(Inicio);
+  useTitulo("Inicio");
   return (
     <Sidebar>
       <TituloAnimado/>

@@ -99,7 +99,7 @@ export function Login() {
               aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               className="flex h-11 w-11 items-center justify-center rounded-r-md border border-slate-400 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b5368f]/40"
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
           </div>
         </div>

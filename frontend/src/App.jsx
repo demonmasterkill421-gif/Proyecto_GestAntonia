@@ -1,4 +1,5 @@
 import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom'
+import { RutaPrivada } from './auth/RutaPrivada'
 
 //Para agregar una página a una ruta seguir estos pasos:
 
@@ -20,7 +21,7 @@ import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
 
 import { AuthProvider } from "./auth/AuthContext";
 
-//2. Establecer un Route con la url como se ve abajo
+//2. Establecer un Route con la url como se ve abajo, DENTRO del grupo del rol que puede entrar
 //3. agregar la función exportada
 
 function App() {
@@ -35,18 +36,22 @@ function App() {
           <Route path='/login' element={<Login />} /> {/* Renderización de la página Login*/}
 
 
-          {/* 1. ADMINISTRADOR*/}
-          <Route path='/admin/inicio' element={< MainAdmin/>}/>
-          <Route path='/admin/locales' element={< AdminSucursales/>}/>
+          {/* 1. ADMINISTRADOR: solo entra el rol ADMIN */}
+          <Route element={<RutaPrivada roles={["ADMIN"]} />}>
+            <Route path='/admin/inicio' element={< MainAdmin/>}/>
+            <Route path='/admin/locales' element={< AdminSucursales/>}/>
+          </Route>
 
 
-          {/* 2. RECEPCIONISTA */}
+          {/* 2. RECEPCIONISTA: solo entra el rol RECEP */}
+          <Route element={<RutaPrivada roles={["RECEP"]} />}>
+            <Route path='/recepcionista/inicio' element={< MainRecepcionista/>} />
+          </Route>
 
-          <Route path='/recepcionista/inicio' element={< MainRecepcionista/>} />
-
-          {/* 3. TRABAJADOR */}
-
-          <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+          {/* 3. TRABAJADOR: solo entra el rol TRAB */}
+          <Route element={<RutaPrivada roles={["TRAB"]} />}>
+            <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+          </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
 

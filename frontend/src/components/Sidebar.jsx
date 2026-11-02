@@ -21,7 +21,7 @@ import { SelectorSucursal } from "./SelectorSucursal";
 const MENU = [
   { ruta: "/agenda", etiqueta: "Agenda", icono: CalendarDays, roles: ["ADMIN", "RECEP"] },
   { ruta: "/asistencia", etiqueta: "Asistencia", icono: UserCheck, roles: ["ADMIN", "RECEP"] },
-  { ruta: "/ventas/registrar", etiqueta: "Registrar venta", icono: Receipt, roles: ["RECEP"] },
+  { ruta: "/ventas/registrar", etiqueta: "Ventas", icono: Receipt, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
   { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
@@ -51,7 +51,7 @@ export function Sidebar({ children }) {
   return (
     <div className="min-h-screen bg-[#faf9f7]">
       {/* Encabezado */}
-      <header className="flex h-20 items-center gap-4 border-b border-gray-200 bg-white px-5">
+      <header className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-gray-200 bg-white px-5">
         <button
           type="button"
           onClick={() => setAbierto(true)}
