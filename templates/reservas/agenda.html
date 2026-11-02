@@ -15,13 +15,13 @@
   {% if reservas %}
   <div class="tabla">
     <table>
-      <thead><tr><th>Hora</th><th>Especialista</th><th>Clienta</th><th>Servicio</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Hora</th><th>Especialista</th><th>Cliente</th><th>Servicio</th><th>Estado</th></tr></thead>
       <tbody>
         {% for r in reservas %}
         <tr>
           <td>{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</td>
           <td>{{ r.especialista.first_name }}</td>
-          <td>{{ r.clienta.nombre }}</td>
+          <td>{{ r.cliente.nombre }}</td>
           <td>{{ r.servicio.nombre }}</td>
           <td>{{ r.get_estado_display }}</td>
         </tr>
@@ -33,7 +33,7 @@
   <p class="nota">No hay reservas para este día.</p>
   {% endif %}
 
-  <a class="btn" href="{% url 'reservas:buscar_clienta' %}">Nueva reserva</a>
+  <a class="btn" href="{% url 'reservas:buscar_cliente' %}">Nueva reserva</a>
   <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
 </div>
 {% endblock %}

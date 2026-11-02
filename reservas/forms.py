@@ -8,9 +8,9 @@ from .models import Reserva
 class ReservaForm(forms.ModelForm):
     class Meta:
         model = Reserva
-        fields = ["clienta", "especialista", "servicio", "inicio"]
+        fields = ["cliente", "especialista", "servicio", "inicio"]
         labels = {
-            "clienta": "Clienta",
+            "cliente": "Cliente",
             "especialista": "Especialista",
             "servicio": "Servicio",
             "inicio": "Fecha y hora de inicio",

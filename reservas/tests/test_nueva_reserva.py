@@ -8,7 +8,7 @@ from django.utils import timezone
 from catalogo.models import Servicio
 from locales.models import Local
 from reservas.disponibilidad import horarios_libres_cercanos
-from reservas.models import Clienta, Reserva
+from reservas.models import Cliente, Reserva
 from usuarios.models import Usuario
 
 CLAVE = "Clave-de-prueba-1"
@@ -36,19 +36,19 @@ class NuevaReservaTests(TestCase):
                                                first_name="Liz", rol=Usuario.Rol.TRABAJADOR, local=self.centro)
         self.paola = Usuario.objects.create_user(username="paola", email="paola@x.cl", password=CLAVE,
                                                  rol=Usuario.Rol.RECEPCIONISTA, local=self.mall)
-        self.maria = Clienta.objects.create(nombre="María González", telefono="987654321", consentimiento=True)
+        self.maria = Cliente.objects.create(nombre="María González", telefono="987654321", consentimiento=True)
 
     # utilidades
     def datos(self, especialista=None, inicio=None):
         return {
-            "clienta": self.maria.pk,
+            "cliente": self.maria.pk,
             "especialista": (especialista or self.camila).pk,
             "servicio": self.lifting.pk,
             "inicio": valor(inicio or manana(11)),
         }
 
     def reservar(self, especialista, inicio):
-        return Reserva.objects.create(local=especialista.local, clienta=self.maria, especialista=especialista,
+        return Reserva.objects.create(local=especialista.local, cliente=self.maria, especialista=especialista,
                                       servicio=self.lifting, inicio=inicio)
 
     def entrar(self, usuario):
@@ -91,16 +91,16 @@ class NuevaReservaTests(TestCase):
         self.assertEqual(Reserva.objects.count(), 0)
 
     #  otras reglas de la tarea
-    def test_clienta_preseleccionada_desde_la_url(self):
+    def test_cliente_preseleccionada_desde_la_url(self):
         self.entrar(self.paola)
-        r = self.client.get(reverse(URL), {"clienta": self.maria.pk})
-        self.assertEqual(r.context["form"].initial["clienta"], self.maria.pk)
+        r = self.client.get(reverse(URL), {"cliente": self.maria.pk})
+        self.assertEqual(r.context["form"].initial["cliente"], self.maria.pk)
 
-    def test_clienta_invalida_en_la_url_se_ignora(self):
+    def test_cliente_invalida_en_la_url_se_ignora(self):
         self.entrar(self.paola)
-        r = self.client.get(reverse(URL), {"clienta": "abc"})
+        r = self.client.get(reverse(URL), {"cliente": "abc"})
         self.assertEqual(r.status_code, 200)
-        self.assertNotIn("clienta", r.context["form"].initial)
+        self.assertNotIn("cliente", r.context["form"].initial)
 
     def test_solo_ofrece_especialistas_del_local(self):
         self.entrar(self.paola)
@@ -146,6 +146,6 @@ class NuevaReservaTests(TestCase):
         for h in libres:
             self.assertFalse(h < activa.fin and h + timedelta(minutes=60) > activa.inicio)
 
-        activa.cancelar("La clienta no puede asistir")
+        activa.cancelar("El cliente no puede asistir")
         libres = horarios_libres_cercanos(self.camila, self.lifting, manana(11, 30))
         self.assertIn(manana(11), libres)                       # el bloque cancelado vuelve a estar libre
