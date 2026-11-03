@@ -1,7 +1,7 @@
 """
 Módulo «Reservas» del Equipo 4 
 
-Versión inicial: dos tablas, Cliente y Reserva, conectadas con modelos que ya existen
+Versión inicial: dos tablas, Clienta y Reserva, conectadas con modelos que ya existen
 en el repositorio común (Local, Servicio y Usuario con rol Trabajador).
 """
 from datetime import timedelta
@@ -75,8 +75,34 @@ class Reserva(models.Model):
             self.fin = self.calcular_fin()
         super().save(*args, **kwargs)
 
+    def reprogramar(self, nuevo_inicio):
+        """Mueve la reserva a otra hora (tarea 2.1).
+
+        El bloque anterior queda libre solo: el bloque ES el par inicio–fin de esta fila,
+        así que al cambiar esas dos horas el hueco viejo deja de estar ocupado.
+        Si el nuevo horario no es válido, la reserva vuelve a sus horas originales.
+        """
+        if self.estado == self.Estado.CANCELADA:
+            raise ValidationError("No se puede reprogramar una reserva cancelada.")
+        if self.estado == self.Estado.ATENDIDA:
+            raise ValidationError("No se puede reprogramar una reserva ya atendida.")
+
+        inicio_anterior, fin_anterior = self.inicio, self.fin
+        self.inicio = nuevo_inicio
+        self.fin = self.calcular_fin()
+        try:
+            self.full_clean()  # vuelve a validar topes (clean() ignora a la propia reserva)
+        except ValidationError:
+            self.inicio, self.fin = inicio_anterior, fin_anterior
+            raise
+        self.save()
+
     def cancelar(self, motivo):
         """Cancela con motivo. La reserva no se borra: queda el registro y el bloque se libera."""
+        if self.estado == self.Estado.CANCELADA:
+            raise ValidationError("La reserva ya está cancelada.")
+        if self.estado == self.Estado.ATENDIDA:
+            raise ValidationError("No se puede cancelar una reserva ya atendida.")
         if not (motivo or "").strip():
             raise ValidationError("Indique el motivo de la cancelación.")
         self.estado = self.Estado.CANCELADA

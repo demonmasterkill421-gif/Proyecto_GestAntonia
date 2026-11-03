@@ -19,7 +19,7 @@
       <tbody>
         {% for r in reservas %}
         <tr>
-          <td>{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</td>
+          <td><a href="{% url 'reservas:detalle' r.pk %}">{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</a></td>
           <td>{{ r.especialista.first_name }}</td>
           <td>{{ r.cliente.nombre }}</td>
           <td>{{ r.servicio.nombre }}</td>

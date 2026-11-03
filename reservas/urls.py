@@ -15,4 +15,9 @@ urlpatterns = [
     path("especialistas/nueva/", views_especialistas.nueva_especialista, name="nueva_especialista"),
     path("especialistas/<int:pk>/editar/", views_especialistas.editar_especialista, name="editar_especialista"),
     path("especialistas/<int:pk>/estado/", views_especialistas.cambiar_estado_especialista, name="estado_especialista"),
+    path("<int:pk>/", views_reserva.detalle_reserva, name="detalle"),
+    path("<int:pk>/reprogramar/", views_reserva.reprogramar_reserva, name="reprogramar"),
+    path("<int:pk>/cancelar/", views_reserva.cancelar_reserva, name="cancelar"),
 ]
+
+
