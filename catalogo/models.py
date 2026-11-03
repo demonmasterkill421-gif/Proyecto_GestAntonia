@@ -65,6 +65,7 @@ class Producto(Item):
 
     tipo = models.CharField(max_length=6, choices=Tipo.choices, default=Tipo.INSUMO)
     costo = models.PositiveIntegerField("costo (CLP)", default=0)
+    marca = models.CharField(max_length= 100, blank=True, default="")
 
     class Meta:
         verbose_name = "producto"

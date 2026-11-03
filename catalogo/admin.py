@@ -17,9 +17,9 @@ class InventarioInline(admin.TabularInline):
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "tipo", "precio", "costo", "activo")
-    list_filter = ("tipo", "activo")
-    search_fields = ("nombre",)
+    list_display = ("nombre", "marca","tipo", "precio", "costo", "activo")
+    list_filter = ("tipo", "marca","activo")
+    search_fields = ("nombre","marca","descripcion")
     inlines = [InventarioInline]
 
 

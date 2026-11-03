@@ -98,3 +98,72 @@ Usuarios de prueba (creados por cargar_datos_demo, clave Antonia2026! para todos
 - paola@gestantonia.cl - Recepcionista, Local Mall Plaza Calama
 - fernanda@gestantonia.cl - Trabajadora, manicurista
 - liz@gestantonia.cl - Trabajadora, depiladora
+
+_______REACT______________________________________________________
+
+5. Dependencias para trabajar con React
+
+Backend (paquetes extra para que React se conecte con Django; deben estar en requirements.txt):
+
+- djangorestframework
+- djangorestframework-simplejwt
+- django-cors-headers
+
+Si falta alguno, instalarlo con:
+
+    python -m pip install djangorestframework djangorestframework-simplejwt django-cors-headers
+
+Frontend (carpeta frontend):
+
+- Node.js 20.19 o superior (incluye npm).
+- Paquetes: react, react-dom, react-router-dom, axios, lucide-react, tailwindcss, @tailwindcss/vite, vite y
+  @vitejs/plugin-react. Las versiones exactas están en frontend/package.json, y se instalan todos juntos con:
+
+    cd frontend
+    npm install
+
+- Tailwind es la versión 4: no se usa tailwind.config.js, postcss ni autoprefixer. No instalar Tailwind 3.
+- Crear el archivo frontend/.env (no se sube a GitHub) con esta línea, dejándola vacía:
+
+    VITE_API_URL=
+
+- Para correr el frontend (con el backend corriendo en otra terminal):
+
+    npm run dev
+
+
+
+Testing_____________________________________________________________________
+
+6. Compartir la aplicación para pruebas
+
+Siempre deben estar corriendo las dos partes: el backend (python manage.py runserver) y el frontend (npm run dev).
+Se comparte únicamente el puerto 5173 (el frontend). El puerto 8000 es Django y no se comparte.
+Para que el login funcione desde otro computador, frontend/.env debe tener VITE_API_URL= vacío.
+
+Opción A: puerto de prueba en Visual Studio Code (por internet)
+
+- Abrir la pestaña Puertos (abajo, junto a la terminal).
+- Reenviar el puerto 5173 (Forward a Port).
+- Clic derecho sobre el 5173 > Port Visibility > Public.
+- Copiar la dirección que termina en -5173 y enviarla.
+- Al terminar, volver a poner el puerto en Private o detener el reenvío.
+- Si la persona ve un error 403, el puerto sigue en Private.
+- La cámara del QR solo funciona en páginas https, como la de este puerto.
+
+Si Vite responde "Blocked request. This host is not allowed", agregar esto en frontend/vite.config.js, dentro de server:
+
+    allowedHosts: true
+
+
+
+
+Opción B: red local (mismo wifi) (PARA TELÉFONOS)
+
+- Iniciar el frontend así:
+
+    npm run dev -- --host
+
+- Vite muestra una dirección parecida a http://192.168.x.x:5173. Abrirla en el otro computador o en el celular.
+- Ambos dispositivos deben estar en la misma red wifi.
+- Esta dirección es http, por lo que sirve para ver el diseño pero no para la cámara del QR.
