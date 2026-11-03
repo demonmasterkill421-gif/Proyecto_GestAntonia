@@ -3,37 +3,75 @@ import { Download } from 'lucide-react';
 import IndicadorCard from './components/IndicadorCard.jsx';
 import { GraficoGanancias, GraficoServicios } from './components/Graficos.jsx';
 import TablaTrabajadores from './components/TablaTrabajadores.jsx';
-import { BRANCHES, DEMO_RANGE } from './data/demoReportes.js';
-import { exportarReporteCSV, formatoCLP, formatoFecha, obtenerReporteDemo } from './services/reportesApi.js';
+import { exportarReporteCSV, formatoCLP, formatoFecha, obtenerReporte } from './services/reportesApi.js';
+
+function fechaISOLocal(fecha) {
+  const year = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${year}-${mes}-${dia}`;
+}
+
+function rangoInicial() {
+  const hoy = new Date();
+  return {
+    desde: fechaISOLocal(new Date(hoy.getFullYear(), hoy.getMonth(), 1)),
+    hasta: fechaISOLocal(hoy),
+  };
+}
 
 export default function Reportes({ selectedSucursal, mostrarAviso }) {
-  const [desde, setDesde] = useState(DEMO_RANGE.start);
-  const [hasta, setHasta] = useState(DEMO_RANGE.end);
-  const [aplicado, setAplicado] = useState({ desde: DEMO_RANGE.start, hasta: DEMO_RANGE.end, sucursal: selectedSucursal });
+  const [rango] = useState(rangoInicial);
+  const [desde, setDesde] = useState(rango.desde);
+  const [hasta, setHasta] = useState(rango.hasta);
+  const [aplicado, setAplicado] = useState({ desde: rango.desde, hasta: rango.hasta, sucursal: selectedSucursal });
   const [reporte, setReporte] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => { setAplicado((f) => ({ ...f, sucursal: selectedSucursal })); }, [selectedSucursal]);
-  useEffect(() => { let active = true; obtenerReporteDemo(aplicado).then((value) => { if (active) setReporte(value); }); return () => { active = false; }; }, [aplicado]);
+  useEffect(() => {
+    setAplicado((actual) => ({ ...actual, sucursal: selectedSucursal }));
+  }, [selectedSucursal]);
+
+  useEffect(() => {
+    let activo = true;
+    setCargando(true);
+    setError('');
+    setReporte(null);
+    obtenerReporte(aplicado)
+      .then((datos) => { if (activo) setReporte(datos); })
+      .catch((err) => {
+        if (activo) setError(err.response?.data?.detail || 'No se pudo consultar el reporte en Django. Verifica que esté encendido.');
+      })
+      .finally(() => { if (activo) setCargando(false); });
+    return () => { activo = false; };
+  }, [aplicado]);
 
   function aplicarFiltros(event) {
     event.preventDefault();
-    if (!desde || !hasta || desde > hasta) { mostrarAviso('Selecciona un período válido: la fecha inicial no puede superar la final.'); return; }
+    if (!desde || !hasta || desde > hasta) {
+      mostrarAviso('Selecciona un período válido: la fecha inicial no puede superar la final.');
+      return;
+    }
+    const diferencia = Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000);
+    if (diferencia > 92) {
+      mostrarAviso('Selecciona un período de hasta 93 días.');
+      return;
+    }
     setAplicado({ desde, hasta, sucursal: selectedSucursal });
-    mostrarAviso('Filtros aplicados a los datos de demostración.');
   }
 
   function exportar() {
     if (!reporte) return;
     exportarReporteCSV(reporte);
-    mostrarAviso('Reporte de demostración exportado como CSV.');
+    mostrarAviso('Reporte consultado desde Django exportado como CSV.');
   }
 
+  const indicadores = reporte?.indicadores;
   return (
-    <section className="reports-page" aria-label="Reportes de gestión">
+    <section className="reports-page" aria-label="Panel de control">
       <div className="reports-intro">
-          <div>
-            <h1>Panel de control</h1>
-          </div>
+        <div><h1>Panel de control</h1></div>
         <button type="button" className="export-button" onClick={exportar} disabled={!reporte}>
           <Download size={14}/><span>Exportar reporte</span>
         </button>
@@ -43,28 +81,51 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
         <div className="field-date">
           <label>Período</label>
           <div className="date-fields">
-            <label className="date-entry"><span className="sr-only">Fecha inicial</span><input aria-label="Fecha inicial" type="date" min={DEMO_RANGE.start} max={DEMO_RANGE.end} value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
+            <label className="date-entry"><span className="sr-only">Fecha inicial</span><input aria-label="Fecha inicial" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
             <span className="dates-separator">–</span>
-            <label className="date-entry"><span className="sr-only">Fecha final</span><input aria-label="Fecha final" type="date" min={DEMO_RANGE.start} max={DEMO_RANGE.end} value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
+            <label className="date-entry"><span className="sr-only">Fecha final</span><input aria-label="Fecha final" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
           </div>
         </div>
         <div className="field-branch">
           <label>Sucursal seleccionada en el encabezado</label>
           <div className="report-branch-readonly" aria-label="Sucursal del reporte">
-            {BRANCHES.find((b) => b.id === selectedSucursal)?.name ?? 'Mall Plaza Calama'}
+            {reporte?.sucursal?.name || `Local #${selectedSucursal}`}
           </div>
         </div>
         <button className="apply-button" type="submit">Aplicar filtros</button>
         <div className="applied-period" aria-live="polite">{formatoFecha(aplicado.desde)} – {formatoFecha(aplicado.hasta)}</div>
       </form>
 
-      {!reporte ? <p className="loading-report">Cargando datos de demostración…</p> : (
+      {cargando && <p className="loading-report">Consultando PostgreSQL mediante Django…</p>}
+      {!cargando && error && <p role="alert" className="loading-report">{error}</p>}
+      {!cargando && !error && reporte && (
         <>
           <div className="stats-grid">
-            <IndicadorCard titulo="Ganancias del período" valor={formatoCLP(reporte.indicadores.ganancias)} detalle={reporte.hayDatos ? `+${reporte.indicadores.variacionGanancias}% vs. período anterior` : 'Sin datos para este período'} tono="positive" />
-            <IndicadorCard titulo="Servicios realizados" valor={reporte.indicadores.servicios} detalle={reporte.hayDatos ? `+${reporte.indicadores.variacionServicios} servicios` : 'Sin datos para este período'} tono="accent" />
-            <IndicadorCard titulo="Trabajadores activos" valor={reporte.indicadores.trabajadoresActivos} detalle={`${reporte.indicadores.sucursales} ${reporte.indicadores.sucursales === 1 ? 'sucursal' : 'sucursales'}`} />
-            <IndicadorCard titulo="Asistencia promedio" valor={`${reporte.indicadores.asistencia}%`} detalle={reporte.hayDatos ? `+${reporte.indicadores.variacionAsistencia}% respecto al mes anterior` : 'Sin datos para este período'} tono="positive" />
+            <IndicadorCard
+              titulo="Ganancias del período"
+              valor={formatoCLP(indicadores.ganancias)}
+              detalle={indicadores.variacionGanancias === null
+                ? 'Ingresos de ventas confirmadas' : `${indicadores.variacionGanancias}% vs. período anterior`}
+              tono="positive"
+            />
+            <IndicadorCard
+              titulo="Servicios realizados"
+              valor={indicadores.servicios}
+              detalle={indicadores.variacionServicios === null
+                ? 'Servicios de ventas confirmadas' : `${indicadores.variacionServicios >= 0 ? '+' : ''}${indicadores.variacionServicios} servicios`}
+              tono="accent"
+            />
+            <IndicadorCard
+              titulo="Trabajadores activos"
+              valor={indicadores.trabajadoresActivos}
+              detalle={`${indicadores.sucursales} ${indicadores.sucursales === 1 ? 'sucursal' : 'sucursales'}`}
+            />
+            <IndicadorCard
+              titulo="Asistencia promedio"
+              valor={indicadores.asistencia === null ? '—' : `${indicadores.asistencia}%`}
+              detalle={indicadores.asistencia === null
+                ? 'Pendiente definir jornadas programadas' : 'Asistencia registrada'}
+            />
           </div>
           <div className="charts-grid">
             <GraficoGanancias data={reporte.gananciasDiarias}/>
