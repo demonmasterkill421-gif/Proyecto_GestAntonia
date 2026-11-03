@@ -71,13 +71,14 @@ class RegistroDeVenta(models.Model):
         if self.estado != self.Estado.BORRADOR:
             raise ValidationError("Solo se puede modificar una venta que aún no ha sido confirmada.")
 
-    def agregar_item(self, item, cantidad=1):
+    def agregar_item(self, item, cantidad=1, trabajador=None):
         """agregarItem(idItem): agrega un servicio, producto o insumo (o suma cantidad si ya estaba)."""
         self._validar_editable()
         if cantidad < 1:
             raise ValidationError("La cantidad debe ser al menos 1.")
         detalle, creado = self.detalles.get_or_create(
-            item=item, defaults={"cantidad": cantidad, "precio_unitario": item.precio},
+            item=item, trabajador=trabajador,
+            defaults={"cantidad": cantidad, "precio_unitario": item.precio},
         )
         if not creado:
             detalle.cantidad += cantidad
@@ -164,10 +165,15 @@ class DetalleVenta(models.Model):
     cantidad = models.PositiveSmallIntegerField(default=1)
     precio_unitario = models.PositiveIntegerField("precio unitario (CLP)")
 
+    trabajador = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="servicios_realizados", limit_choices_to={"rol": "TRAB"},
+        help_text="Trabajadora que realizó este servicio (base de su comisión).",
+    )
+
     class Meta:
         verbose_name = "detalle de venta"
         verbose_name_plural = "detalles de venta"
-        constraints = [models.UniqueConstraint(fields=["venta", "item"], name="item_unico_por_venta")]
 
     def __str__(self):
         return f"{self.item.nombre} x{self.cantidad}"

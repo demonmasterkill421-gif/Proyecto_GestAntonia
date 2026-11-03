@@ -45,9 +45,6 @@ export function RegistrarVenta() {
   const pendientes = [];
   if (servicios.length === 0) pendientes.push("Agrega al menos un servicio");
   if (servicios.some((s) => s.precioVariable)) pendientes.push("El servicio «Otro» aún no se puede registrar");
-  if (new Set(servicios.map((s) => s.id)).size !== servicios.length) {
-    pendientes.push("Por ahora no se puede repetir un servicio en la misma venta");
-  }
   if (errorDescuento) pendientes.push("Corrige el descuento");
   if (!metodoPago) pendientes.push("Selecciona un método de pago");
   const listo = pendientes.length === 0;
@@ -77,12 +74,14 @@ export function RegistrarVenta() {
       tipoDescuento === "%" ? valor : Number(((valor / subtotal) * 100).toFixed(2));
 
     const datos = {
-      detalles: servicios.map((s) => ({ item: s.id, cantidad: 1 })),
+      detalles: servicios.map((s) => ({
+        item: s.id,
+        cantidad: 1,
+        trabajador: s.especialistas[0].id,
+      })),
       metodo_pago: metodoPago,
       descuento: porcentaje,
       descripcion: descripcion.trim(),
-      // Provisorio: la trabajadora del primer servicio. Después será una por línea.
-      trabajador: servicios[0].especialistas[0].id,
     };
 
     try {

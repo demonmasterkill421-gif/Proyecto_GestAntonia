@@ -10,15 +10,18 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DetalleVenta
-        fields = ["item", "cantidad", "precio_unitario", "subtotal"]
+        fields = ["item", "cantidad", "precio_unitario", "subtotal", "trabajador"]
         read_only_fields = ["precio_unitario"]
-
 
     def validate_cantidad(self, value):
         if value < 1:
             raise serializers.ValidationError("La cantidad debe ser mayor a 0")
         return value
 
+    def validate_trabajador(self, value):
+        if value is not None and value.rol != "TRAB":
+            raise serializers.ValidationError("El usuario debe tener rol de Trabajador.")
+        return value
 
 class VentaSerializer(serializers.ModelSerializer):
     detalles = DetalleVentaSerializer(many=True)
@@ -50,11 +53,20 @@ class VentaSerializer(serializers.ModelSerializer):
     
     def validate(self, attrs):
         detalles = attrs.get("detalles", [])
-        hay_servicio = any(not d["item"].es_producto for d in detalles)
-        if hay_servicio and attrs.get("trabajador") is None:
-            raise serializers.ValidationError(
-                {"trabajador": "Debes indicar la trabajadora que realiza el servicio."}
-            )
+        trabajador_venta = attrs.get("trabajador")
+
+        for d in detalles:
+            if d.get("trabajador") is None and trabajador_venta is not None:
+                d["trabajador"] = trabajador_venta
+            if not d["item"].es_producto and d.get("trabajador") is None:
+                raise serializers.ValidationError(
+                    {"detalles": "Cada servicio debe tener la trabajadora que lo realiza."}
+                )
+            
+        if trabajador_venta is None:
+            primera = next((d["trabajador"] for d in detalles if d.get("trabajador")), None)
+            attrs["trabajador"] = primera
+
         return attrs
 
     def create(self, validated_data):
