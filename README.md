@@ -134,7 +134,7 @@ python manage.py runserver
 |---|---|
 | `migrate` | Una lista de `Applying ... OK` (la primera vez) |
 | `cargar_demo_reservas` | `Demo de Reservas lista para el <fecha de hoy>` |
-| `test` | `Ran 45 tests ... OK` |
+| `test` | `Ran 89 tests ... OK` |
 | `runserver` | `Starting development server at http://127.0.0.1:8000/` |
 
 Abra `http://127.0.0.1:8000/` en el navegador e ingrese con una de las cuentas de la
@@ -214,11 +214,11 @@ python manage.py test reservas -k tope -v 2   # solo las pruebas cuyo nombre con
 
 | Módulo | Pruebas | Qué revisan |
 |---|---|---|
-| `reservas` | 25 | Fin calculado por el servicio, cero topes, bloques seguidos, cancelación, filtro por local, permisos por rol, nueva reserva con horarios sugeridos, búsqueda y registro de clientes con consentimiento, datos de demostración |
+| `reservas` | 69 | Fin calculado por el servicio, cero topes, bloques seguidos, cancelación con motivo, reprogramación con liberación del bloque, agenda por bloques ocupados y libres, filtro por local, permisos por rol, nueva reserva con horarios sugeridos, búsqueda y registro de clientes con consentimiento y teléfono normalizado, especialistas por local, datos de demostración |
 | `usuarios` | 10 | Inicio de sesión con correo y acceso por rol |
 | `ventas` | 6 | Registro de ventas, descuento de stock y folio por local |
 | `asistencia` | 4 | Marcaje de entrada y salida con QR |
-| **Total** | **45** | |
+| **Total** | **89** | |
 
 Las pruebas usan una base temporal (`test_gestantonia`) que se crea y se borra sola: no tocan los
 datos de `gestantonia`. Sin PostgreSQL, se pueden correr con SQLite:

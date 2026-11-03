@@ -13,33 +13,35 @@
     <input type="date" name="fecha" id="id_fecha" value="{{ fecha|date:'Y-m-d' }}" onchange="this.form.submit()">
   </form>
 
+  {% if especialistas %}
   <div class="tabla">
-    <table>
+    <table class="agenda-bloques">
       <thead>
         <tr>
           <th>Hora</th>
-          <!-- Imprimimos el nombre de cada especialista como columna -->
+          <!-- Una columna por especialista (2.3) -->
           {% for esp in especialistas %}
             <th>{{ esp.first_name }}</th>
           {% endfor %}
         </tr>
       </thead>
       <tbody>
-        <!-- Imprimimos cada bloque de 30 minutos como una fila -->
+        <!-- Una fila por cada bloque de 30 minutos -->
         {% for fila in bloques %}
         <tr>
           <td><strong>{{ fila.hora_texto }}</strong></td>
-          
-          <!-- Imprimimos si la especialista está ocupada o libre -->
           {% for celda in fila.celdas %}
             {% if celda.estado == 'Ocupado' %}
-              <td style="background-color: #f8f9fa; border-left: 4px solid #44403C; color: #44403C;">
-                <strong>Ocupado</strong><br>
-                <small>{{ celda.clienta }}</small>
+              <td class="bloque-ocupado">
+                <!-- Al tocar la reserva se abre su detalle para reprogramar o cancelar (2.1 y 2.2) -->
+                <a href="{% url 'reservas:detalle' celda.reserva.pk %}">
+                  <strong>Ocupado</strong><br>
+                  <small>{{ celda.reserva.cliente.nombre }} · {{ celda.reserva.servicio.nombre }}</small>
+                </a>
               </td>
             {% else %}
-              <td style="background-color: #F0FDF4; border-left: 4px solid #15803D;">
-                <span style="color: #15803D; font-weight: bold;">Libre</span><br>
+              <td class="bloque-libre">
+                <span>Libre</span><br>
                 <a href="{% url 'reservas:buscar_cliente' %}">Agendar</a>
               </td>
             {% endif %}
@@ -49,7 +51,11 @@
       </tbody>
     </table>
   </div>
+  {% else %}
+  <p class="nota">Este local todavía no tiene especialistas activas.</p>
+  {% endif %}
 
+  <a class="btn" href="{% url 'reservas:buscar_cliente' %}">Nueva reserva</a>
   <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
 </div>
 {% endblock %}

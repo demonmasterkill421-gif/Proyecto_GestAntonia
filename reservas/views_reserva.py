@@ -3,7 +3,6 @@ Pantallas de reservas de José: nueva (1.3), detalle, reprogramar (2.1) y cancel
 
 La recepcionista agenda una hora para un cliente en su local. La regla de «cero topes»
 vive en Reserva.clean(): form.is_valid() la ejecuta, aquí no se programa de nuevo.
-""
 Las reglas de negocio viven en el modelo (Reserva.clean, reprogramar y cancelar);
 las vistas solo piden los datos, llaman al modelo y muestran el resultado.
 """
@@ -62,7 +61,7 @@ def _mostrar_detalle(request, reserva, form_reprogramar=None, form_cancelar=None
 
 # ------------------------------------------------------------- nueva (1.3)
 def _initial_desde_url(request):
-    """?cliente=<id> deja a esa cliente preseleccionada (conexión con la pantalla de Cristian)."""
+    """?cliente=<id> deja a ese cliente preseleccionado (conexión con la pantalla de Cristian)."""
     cliente_id = request.GET.get("cliente", "")
     if cliente_id.isdigit():
         return {"cliente": int(cliente_id)}

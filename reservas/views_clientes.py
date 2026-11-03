@@ -12,12 +12,14 @@ from usuarios.permisos import rol_requerido
 from .models import Cliente
 
 
-# <--- AGREGADO 2: Función básica que deja solo los números
+# <--- AGREGADO 2: Función básica que deja solo los números (y el + inicial)
 def normalizar_telefono(telefono_bruto):
     if not telefono_bruto:
         return ""
-    # '\D' significa "todo lo que NO sea un número". Lo reemplaza por nada ('').
-    return re.sub(r'\D', '', str(telefono_bruto))
+    # Quita espacios, guiones y paréntesis, pero conserva el "+" inicial (+56...), porque así
+    # quedaron guardados los clientes anteriores. '(?!^\+)\D' = todo lo que NO sea número,
+    # salvo un "+" al comienzo.
+    return re.sub(r'(?!^\+)\D', '', str(telefono_bruto).strip())
 
 
 @rol_requerido(Usuario.Rol.RECEPCIONISTA)
