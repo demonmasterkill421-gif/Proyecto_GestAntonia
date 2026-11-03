@@ -9,6 +9,7 @@ import { Login } from './pages/login'
 
 //ADMIN
 import { MainAdmin } from './pages/administrador/main/MainAdmin'
+import { ReportesAdmin } from './pages/administrador/reportes/ReportesAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 
 //RECEPCIONISTA
@@ -40,6 +41,7 @@ function App() {
           <Route element={<RutaPrivada roles={["ADMIN"]} />}>
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
+            <Route path='/reportes' element={<ReportesAdmin/>} />
           </Route>
 
 
