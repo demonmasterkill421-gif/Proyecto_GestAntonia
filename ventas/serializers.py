@@ -25,10 +25,11 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
 
 class VentaSerializer(serializers.ModelSerializer):
     detalles = DetalleVentaSerializer(many=True)
+    local_nombre = serializers.CharField(source="local.nombre", read_only=True)
 
     class Meta:
         model = RegistroDeVenta
-        fields = ["id", "folio", "fecha", "local", "recepcionista", "trabajador", "metodo_pago", "descuento", "descripcion", "monto_base",
+        fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "trabajador", "metodo_pago", "descuento", "descripcion", "monto_base",
                   "monto_total", "estado", "detalles"]
         read_only_fields = ["folio", "fecha", "recepcionista", "monto_base", "monto_total", "estado"]
         extra_kwargs = {"local": {"required": False}}

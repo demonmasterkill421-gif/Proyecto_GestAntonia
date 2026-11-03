@@ -5,6 +5,7 @@ import {
   CalendarDays,
   UserCheck,
   Receipt,
+  ShoppingBag,
   Users,
   BadgeDollarSign,
   Store,
@@ -24,10 +25,11 @@ const MENU = [
   { ruta: "/agenda", etiqueta: "Agenda", icono: CalendarDays, roles: ["ADMIN", "RECEP"] },
   { ruta: "/asistencia", etiqueta: "Asistencia", icono: UserCheck, roles: ["ADMIN", "RECEP"] },
   { ruta: "/recepcionista/registrar-venta", etiqueta: "Registrar Venta", icono: Receipt, roles: ["RECEP"] },
+  { ruta: "/recepcionista/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
   { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
-  { ruta: "/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
+  { ruta: "/admin/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
 ];
 
 const ETIQUETA_ROL = { ADMIN: "Propietaria", RECEP: "Recepcionista" };

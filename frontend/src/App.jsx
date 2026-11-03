@@ -10,10 +10,12 @@ import { Login } from './pages/login'
 //ADMIN
 import { MainAdmin } from './pages/administrador/main/MainAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
+import { VentasAdmin } from './pages/administrador/venta/VentasAdmin'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
 import { RegistrarVenta } from './pages/recepcionista/venta/RegistrarVenta'
+import { VentasRecepcionista } from './pages/recepcionista/venta/VentasRecepcionista'
 
 //TRABAJADOR
 import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
@@ -41,6 +43,7 @@ function App() {
           <Route element={<RutaPrivada roles={["ADMIN"]} />}>
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
+            <Route path='/admin/reportes' element={<VentasAdmin/>}/>
           </Route>
 
 
@@ -48,6 +51,7 @@ function App() {
           <Route element={<RutaPrivada roles={["RECEP"]} />}>
             <Route path='/recepcionista/inicio' element={< MainRecepcionista/>} />
             <Route path='/recepcionista/registrar-venta' element={< RegistrarVenta/>} />
+            <Route path='/recepcionista/ventas' element={<VentasRecepcionista/>} />
           </Route>
 
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
