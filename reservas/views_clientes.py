@@ -2,12 +2,22 @@
 Tarea 1.4: Buscar o registrar cliente
 Responsable: Cristian Salgado
 """
+import re  # <--- AGREGADO 1: Librería de Python para limpiar texto
+
 from django.shortcuts import render, redirect
 from django.urls import reverse
 
 from usuarios.models import Usuario
 from usuarios.permisos import rol_requerido
 from .models import Cliente
+
+
+# <--- AGREGADO 2: Función básica que deja solo los números
+def normalizar_telefono(telefono_bruto):
+    if not telefono_bruto:
+        return ""
+    # '\D' significa "todo lo que NO sea un número". Lo reemplaza por nada ('').
+    return re.sub(r'\D', '', str(telefono_bruto))
 
 
 @rol_requerido(Usuario.Rol.RECEPCIONISTA)
@@ -24,20 +34,23 @@ def buscar_cliente(request):
         telefono_post = request.POST.get("telefono")
         consentimiento = request.POST.get("consentimiento")
 
+        # <--- AGREGADO 3: Limpiamos el teléfono ingresado
+        telefono_limpio = normalizar_telefono(telefono_post)
+
         # 1. Validar que no falten datos
         if not nombre or not telefono_post:
             mensaje_error = "El nombre y el teléfono son obligatorios."
         # 2. Validar las leyes 19.628 y 21.719 (Declarado en los informes)
         elif consentimiento != "on":
             mensaje_error = "Debe aceptar el consentimiento para cumplir la ley de datos."
-        # 3. Validar que el teléfono no esté repetido
-        elif Cliente.objects.filter(telefono=telefono_post).exists():
+        # 3. Validar que el teléfono no esté repetido (usamos el LIMPIO)
+        elif Cliente.objects.filter(telefono=telefono_limpio).exists():
             mensaje_error = "Ese teléfono ya está registrado en el sistema."
         else:
-            # 4. Si todo está correcto, guardamos y redirigimos
+            # 4. Si todo está correcto, guardamos y redirigimos (guardamos el LIMPIO)
             nuevo_cliente = Cliente.objects.create(
                 nombre=nombre,
-                telefono=telefono_post,
+                telefono=telefono_limpio, 
                 consentimiento=True
             )
             # Redirige a agendar la hora llevando el ID del cliente nuevo
@@ -51,10 +64,14 @@ def buscar_cliente(request):
     # CASO B: El usuario solo está BUSCANDO un teléfono (GET)
     else:
         telefono_buscado = request.GET.get("telefono", "")
-        if telefono_buscado:
+        
+        # <--- AGREGADO 4: Limpiamos el teléfono que se está buscando
+        telefono_limpio = normalizar_telefono(telefono_buscado)
+        
+        if telefono_limpio:
             busqueda_realizada = True
-            # Buscamos el cliente en la base de datos (HU-03 CA-3)
-            cliente_encontrado = Cliente.objects.filter(telefono=telefono_buscado).first()
+            # Buscamos el cliente en la base de datos con el teléfono LIMPIO
+            cliente_encontrado = Cliente.objects.filter(telefono=telefono_limpio).first()
 
     # Enviar los datos a la plantilla HTML
     contexto = {

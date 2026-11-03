@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block titulo %}Agenda del día · GestAntonia{% endblock %}
+
 {% block contenido %}
 <link rel="stylesheet" href="{% static 'css/reservas.css' %}">
 <div class="tarjeta">
@@ -12,28 +13,43 @@
     <input type="date" name="fecha" id="id_fecha" value="{{ fecha|date:'Y-m-d' }}" onchange="this.form.submit()">
   </form>
 
-  {% if reservas %}
   <div class="tabla">
     <table>
-      <thead><tr><th>Hora</th><th>Especialista</th><th>Cliente</th><th>Servicio</th><th>Estado</th></tr></thead>
-      <tbody>
-        {% for r in reservas %}
+      <thead>
         <tr>
-          <td><a href="{% url 'reservas:detalle' r.pk %}">{{ r.inicio|time:"H:i" }}–{{ r.fin|time:"H:i" }}</a></td>
-          <td>{{ r.especialista.first_name }}</td>
-          <td>{{ r.cliente.nombre }}</td>
-          <td>{{ r.servicio.nombre }}</td>
-          <td>{{ r.get_estado_display }}</td>
+          <th>Hora</th>
+          <!-- Imprimimos el nombre de cada especialista como columna -->
+          {% for esp in especialistas %}
+            <th>{{ esp.first_name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Imprimimos cada bloque de 30 minutos como una fila -->
+        {% for fila in bloques %}
+        <tr>
+          <td><strong>{{ fila.hora_texto }}</strong></td>
+          
+          <!-- Imprimimos si la especialista está ocupada o libre -->
+          {% for celda in fila.celdas %}
+            {% if celda.estado == 'Ocupado' %}
+              <td style="background-color: #f8f9fa; border-left: 4px solid #44403C; color: #44403C;">
+                <strong>Ocupado</strong><br>
+                <small>{{ celda.clienta }}</small>
+              </td>
+            {% else %}
+              <td style="background-color: #F0FDF4; border-left: 4px solid #15803D;">
+                <span style="color: #15803D; font-weight: bold;">Libre</span><br>
+                <a href="{% url 'reservas:buscar_cliente' %}">Agendar</a>
+              </td>
+            {% endif %}
+          {% endfor %}
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% else %}
-  <p class="nota">No hay reservas para este día.</p>
-  {% endif %}
 
-  <a class="btn" href="{% url 'reservas:buscar_cliente' %}">Nueva reserva</a>
   <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
 </div>
 {% endblock %}
