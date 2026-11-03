@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "ventas.apps.VentasConfig",
     "asistencia.apps.AsistenciaConfig",
     "reservas.apps.ReservasConfig",  # Equipo 4: Reservas
+    "reportes.apps.ReportesConfig",  # Panel de control (dashboard)
     # API para el frontend en React (Solución 1)
     "rest_framework",
     "corsheaders",

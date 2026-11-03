@@ -24,6 +24,10 @@ export function SelectorSucursal() {
   const elegir = (sucursal) => {
     setActual(sucursal);
     setAbierto(false);
+    // Informar al Dashboard de cambios hechos desde el selector compartido.
+    window.dispatchEvent(new CustomEvent('gestantonia:sucursal-cambiada', {
+      detail: { id: sucursal.id },
+    }));
     try {
       localStorage.setItem("sucursal", sucursal.id);
     } catch {

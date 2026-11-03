@@ -17,4 +17,5 @@ urlpatterns = [
     path("api/me/", MeView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
     path("api/ventas/", include("ventas.urls")),
+    path("api/reportes/", include("reportes.urls")),
 ]
