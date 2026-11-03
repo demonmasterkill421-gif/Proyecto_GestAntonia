@@ -11,6 +11,9 @@ from .permissions import EsRecepcionista, MismoLocal
 from .serializers import VentaSerializer
 
 
+from catalogo.models import Servicio
+
+
 class VentaViewSet(viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
@@ -50,5 +53,12 @@ class VentaViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({"detail": e.messages}, status=400)
         return Response(self.get_serializer(venta).data)
+    
+    @action(detail=False, methods=["get"])
+    def servicios(self, request):
+        datos = Servicio.objects.filter(activo=True).order_by("nombre").values(
+            "id", "nombre", "precio", "duracion", "tipo"
+        )
+        return Response(list(datos))
 
     

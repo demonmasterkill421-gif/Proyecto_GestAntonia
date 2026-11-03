@@ -10,6 +10,7 @@ import {
   Store,
   ChartColumn,
   ChevronDown,
+  CircleUser,
   LogOut,
   Menu,
   X,
@@ -69,52 +70,56 @@ export function Sidebar({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#faf9f7]">
+    <div className="min-h-screen overflow-x-clip bg-[#faf9f7]">
       {/* Encabezado */}
-      <header className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-gray-200 bg-white px-5">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-gray-200 bg-white px-3 sm:h-20 sm:gap-4 sm:px-5">
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          className="cursor-pointer rounded-lg p-2 text-[#1f1218] transition hover:bg-[#f7e3f1] hover:text-[#b5368f] active:scale-95"
+          className="shrink-0 cursor-pointer rounded-lg p-2 text-[#1f1218] transition hover:bg-[#f7e3f1] hover:text-[#b5368f] active:scale-95"
           aria-label="Abrir menú"
         >
-          <Menu size={30} />
+          <Menu className="h-6 w-6 sm:h-[30px] sm:w-[30px]" />
         </button>
 
         {/* GestAntonia es un botón que lleva al inicio del rol */}
         <Link
           to={inicio}
-          className="cursor-pointer text-[22px] font-bold text-[#1f1218]"
+          className="shrink-0 cursor-pointer text-lg font-bold text-[#1f1218] sm:text-[22px]"
         >
           Gest<span className="text-[#b5368f]">Antonia</span>
         </Link>
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* La propietaria elige sucursal; la recepcionista ve solo la suya */}
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {/* La propietaria elige sucursal; la recepcionista ve solo la suya (en el teléfono va dentro de la lista) */}
           {usuario?.rol === "ADMIN" ? (
-            <SelectorSucursal />
+            <div className="min-w-0">
+              <SelectorSucursal />
+            </div>
           ) : (
             usuario?.local && (
-              <span className="rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f]">
+              <span className="hidden max-w-[14rem] truncate rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f] sm:inline-block">
                 {usuario.local.nombre}
               </span>
             )
           )}
 
-          {/* Etiqueta del rol: al tocarla se despliega la lista con "Cerrar sesión" */}
-          <div ref={menuRef} className="relative">
+          {/* Rol: al tocarlo se despliega la lista con "Cerrar sesión" */}
+          <div ref={menuRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setMenuUsuario(!menuUsuario)}
               aria-haspopup="menu"
               aria-expanded={menuUsuario}
-              className={`flex cursor-pointer items-center gap-2 rounded-md px-4 py-1.5 text-[15px] transition active:scale-95 ${
+              aria-label={ETIQUETA_ROL[usuario?.rol] ?? "Usuario"}
+              className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[15px] transition active:scale-95 sm:px-4 ${
                 usuario?.rol === "ADMIN"
                   ? "bg-gradient-to-r from-[#d61f9a] to-[#a8238f] font-semibold text-white shadow-md shadow-[#d61f9a]/30 hover:brightness-110"
                   : "border border-gray-200 text-gray-700 hover:border-[#b5368f] hover:bg-[#f7e3f1] hover:text-[#b5368f]"
               }`}
             >
-              {ETIQUETA_ROL[usuario?.rol]}
+              <CircleUser size={20} className="sm:hidden" />
+              <span className="hidden sm:inline">{ETIQUETA_ROL[usuario?.rol]}</span>
               <ChevronDown
                 size={18}
                 className={`transition-transform duration-200 ${menuUsuario ? "rotate-180" : ""}`}
@@ -124,8 +129,18 @@ export function Sidebar({ children }) {
             {menuUsuario && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-xl border border-[#e6b8d4] bg-white py-1 shadow-lg shadow-[#b5368f]/15"
+                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-[#e6b8d4] bg-white py-1 shadow-lg shadow-[#b5368f]/15"
               >
+                {/* Datos del usuario: en el teléfono se ven aquí porque no caben en el encabezado */}
+                <div className="border-b border-gray-100 px-4 py-3 sm:hidden">
+                  <p className="text-base font-semibold text-[#1f1218]">
+                    {ETIQUETA_ROL[usuario?.rol]}
+                  </p>
+                  {usuario?.local && (
+                    <p className="text-sm text-[#b5368f]">{usuario.local.nombre}</p>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   role="menuitem"
@@ -200,7 +215,7 @@ export function Sidebar({ children }) {
         </button>
       </aside>
 
-      <main className="p-6 sm:p-8">{children}</main>
+      <main className="p-4 sm:p-8">{children}</main>
     </div>
   );
 }

@@ -3,11 +3,11 @@ import { Sidebar } from "../../../components/Sidebar";
 import { PanelServicio } from "../../../components/PanelServicio";
 import { SeccionPlegable } from "../../../components/SeccionPlegable";
 import { useTitulo } from "../../../hooks/useTitulo";
+import { registrarVenta } from "../../../api/ventas.api";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
-// "valor" es lo que espera el backend en metodo_pago
 const METODOS_PAGO = [
   { valor: "EFECTIVO", etiqueta: "Efectivo" },
   { valor: "DEBITO", etiqueta: "Débito" },
@@ -25,6 +25,8 @@ export function RegistrarVenta() {
   const [valorDescuento, setValorDescuento] = useState("");
   const [metodoPago, setMetodoPago] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState("");
 
   const subtotal = servicios.reduce((suma, s) => suma + s.precio, 0);
   const valor = Number(valorDescuento) || 0;
@@ -42,6 +44,10 @@ export function RegistrarVenta() {
 
   const pendientes = [];
   if (servicios.length === 0) pendientes.push("Agrega al menos un servicio");
+  if (servicios.some((s) => s.precioVariable)) pendientes.push("El servicio «Otro» aún no se puede registrar");
+  if (new Set(servicios.map((s) => s.id)).size !== servicios.length) {
+    pendientes.push("Por ahora no se puede repetir un servicio en la misma venta");
+  }
   if (errorDescuento) pendientes.push("Corrige el descuento");
   if (!metodoPago) pendientes.push("Selecciona un método de pago");
   const listo = pendientes.length === 0;
@@ -61,20 +67,38 @@ export function RegistrarVenta() {
     setMetodoPago("");
   };
 
-  const confirmar = () => {
-    if (!listo) return;
-    // Simulación: más adelante aquí se llama a registrarVenta() de la API.
-    console.log("Venta a registrar:", {
-      servicios,
-      descripcion: descripcion.trim(),
-      descuento: { tipo: tipoDescuento, valor },
+  const confirmar = async () => {
+    if (!listo || enviando) return;
+    setEnviando(true);
+    setErrorEnvio("");
+
+    // El backend recibe el descuento solo en porcentaje (0 a 100).
+    const porcentaje =
+      tipoDescuento === "%" ? valor : Number(((valor / subtotal) * 100).toFixed(2));
+
+    const datos = {
+      detalles: servicios.map((s) => ({ item: s.id, cantidad: 1 })),
       metodo_pago: metodoPago,
-      subtotal,
-      total,
-    });
-    reiniciar();
-    setMensaje("Venta registrada (simulación)");
-    setTimeout(() => setMensaje(""), 4000);
+      descuento: porcentaje,
+      descripcion: descripcion.trim(),
+      // Provisorio: la trabajadora del primer servicio. Después será una por línea.
+      trabajador: servicios[0].especialistas[0].id,
+    };
+
+    try {
+      await registrarVenta(datos);
+      reiniciar();
+      setMensaje(`Venta registrada correctamente por ${clp(total)}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => setMensaje(""), 5000);
+    } catch (err) {
+      console.log("Error al registrar:", err.response?.data);
+      setErrorEnvio(
+        "No se pudo registrar la venta: " + JSON.stringify(err.response?.data ?? "sin conexión con el servidor"),
+      );
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const botonTipo = (tipo) =>
@@ -88,6 +112,12 @@ export function RegistrarVenta() {
   return (
     <Sidebar>
       <h1 className="mb-6 text-3xl font-bold text-[#1f1218]">Registrar venta</h1>
+
+      {mensaje && (
+        <p className="mb-6 rounded-2xl border border-green-200 bg-green-100 px-5 py-4 text-lg font-medium text-green-800">
+          {mensaje}
+        </p>
+      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="flex flex-col gap-6">
@@ -230,10 +260,8 @@ export function RegistrarVenta() {
           </section>
 
           <section className={tarjeta}>
-            {mensaje && (
-              <p className="mb-4 rounded-lg bg-green-100 px-4 py-3 text-base font-medium text-green-800">
-                {mensaje}
-              </p>
+            {errorEnvio && (
+              <p className="mb-4 text-base font-medium text-[#b5368f]">{errorEnvio}</p>
             )}
 
             {listo ? (
@@ -259,10 +287,10 @@ export function RegistrarVenta() {
               <button
                 type="button"
                 onClick={confirmar}
-                disabled={!listo}
+                disabled={!listo || enviando}
                 className="h-14 cursor-pointer rounded-lg bg-[#b5368f] text-lg font-semibold text-white hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#b5368f]"
               >
-                Confirmar venta
+                {enviando ? "Registrando..." : "Confirmar venta"}
               </button>
             </div>
           </section>

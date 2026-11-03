@@ -43,3 +43,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .fondo-animado { animation: none; }
 }
+
+/* En teléfonos todo se ve un poco más pequeño */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}

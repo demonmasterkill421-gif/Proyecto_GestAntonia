@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { ESPECIALISTAS, SERVICIOS } from "../data/catalogo";
+import { ESPECIALISTAS } from "../data/catalogo";
+import { useDatos } from "../hooks/useDatos";
+import { obtenerServiciosVenta } from "../api/ventas.api";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -7,23 +9,29 @@ const clp = (n) =>
 const MONTO_MAXIMO = 1000000;
 const NOMBRE_MAXIMO = 40;
 
+// Servicio libre (nombre y monto a mano). Aún no existe en la base de datos.
+const OTRO = { id: "otro", nombre: "Otro", precio: 0, precioVariable: true };
+
 export function PanelServicio({ servicios, setServicios }) {
+  const { datos: serviciosApi, cargando, error } = useDatos(obtenerServiciosVenta, { cadaMs: 60000 });
+
   const [abierto, setAbierto] = useState(false);
   const [elegido, setElegido] = useState("");
-  const [elegidas, setElegidas] = useState([]); // ids de las especialistas elegidas
   const [nombreOtro, setNombreOtro] = useState("");
-  const [monto, setMonto] = useState("");
+  const [montoOtro, setMontoOtro] = useState("");
+  const [especialista, setEspecialista] = useState("");
   const [errores, setErrores] = useState({});
-  const disponibles = ESPECIALISTAS.filter((e) => e.presente);
 
-  const servicioElegido = SERVICIOS.find((s) => s.id === Number(elegido));
-  const esOtro = Boolean(servicioElegido?.precioVariable);
+  const presentes = ESPECIALISTAS.filter((e) => e.presente);
+  const catalogo = [...serviciosApi, OTRO];
+  const servicioElegido = catalogo.find((s) => String(s.id) === String(elegido));
+  const esOtro = servicioElegido?.precioVariable;
 
   const limpiar = () => {
     setElegido("");
-    setElegidas([]);
     setNombreOtro("");
-    setMonto("");
+    setMontoOtro("");
+    setEspecialista("");
     setErrores({});
   };
 
@@ -32,65 +40,58 @@ export function PanelServicio({ servicios, setServicios }) {
     setAbierto(false);
   };
 
-  const cambiarEspecialista = (indice, valor) => {
-    setElegidas(elegidas.map((id, i) => (i === indice ? valor : id)));
-  };
-
-  const agregarSelector = () => {
-    if (elegidas.length >= disponibles.length) {
-      setErrores({ ...errores, especialista: "No hay más especialistas presentes" });
-      return;
-    }
-    setErrores({ ...errores, especialista: undefined });
-    setElegidas([...elegidas, ""]);
-  };
-
-  const quitarSelector = (indice) => {
-    setElegidas(elegidas.filter((_, i) => i !== indice));
-  };
-
   const guardar = () => {
     const nuevos = {};
-    if (!elegido) nuevos.servicio = "Selecciona un servicio";
-    if (elegidas.length === 0) {
-      nuevos.especialista = "Agrega al menos una especialista";
-    } else if (elegidas.some((id) => !id)) {
-      nuevos.especialista = "Selecciona todas las especialistas o quita las que sobran";
-    }
-    if (esOtro && nombreOtro.trim().length < 2) nuevos.nombre = "Escribe el nombre del servicio";
-    if (esOtro && !(Number(monto) > 0)) nuevos.monto = "Ingresa un monto mayor a 0";
-    else if (esOtro && Number(monto) > MONTO_MAXIMO) nuevos.monto = `El monto máximo es ${clp(MONTO_MAXIMO)}`;
-    if (!esOtro && servicioElegido && servicios.some((s) => s.id === servicioElegido.id)) {
-      nuevos.servicio = "Ese servicio ya está agregado";
-    }
+    if (!servicioElegido) nuevos.servicio = "Selecciona un servicio";
+    if (esOtro && !nombreOtro.trim()) nuevos.nombre = "Escribe el nombre del servicio";
+    if (esOtro && !(Number(montoOtro) > 0)) nuevos.monto = "Escribe un monto mayor a 0";
+    if (esOtro && Number(montoOtro) > MONTO_MAXIMO) nuevos.monto = `El monto máximo es ${clp(MONTO_MAXIMO)}`;
+    if (!especialista) nuevos.especialista = "Selecciona una especialista";
     setErrores(nuevos);
     if (Object.keys(nuevos).length > 0) return;
 
-    const trabajadoras = elegidas
-      .map((id) => ESPECIALISTAS.find((e) => e.id === Number(id)))
-      .filter(Boolean);
-    if (!servicioElegido || trabajadoras.length === 0) return;
-
+    const persona = presentes.find((e) => String(e.id) === String(especialista));
     setServicios([
       ...servicios,
       {
         ...servicioElegido,
         uid: `${Date.now()}-${Math.random()}`,
         nombre: esOtro ? nombreOtro.trim() : servicioElegido.nombre,
-        precio: esOtro ? Number(monto) : servicioElegido.precio,
-        especialistas: trabajadoras.map((t) => ({ id: t.id, nombre: t.nombre })),
+        precio: esOtro ? Number(montoOtro) : Number(servicioElegido.precio),
+        especialistas: [{ id: persona.id, nombre: persona.nombre, porcentaje: 100 }],
       },
     ]);
     cerrar();
   };
 
-  const selector = (hayError) =>
-    `h-12 w-full cursor-pointer rounded-lg border bg-white px-3 text-lg ${
-      hayError ? "border-red-500" : "border-gray-200"
-    }`;
+  const campo = (hayError) =>
+    `h-12 w-full rounded-lg border bg-white px-3 text-lg ${hayError ? "border-red-500" : "border-gray-200"}`;
 
   return (
     <div className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-2">
+        {servicios.length === 0 && <li className="text-base text-gray-500">Aún no has agregado servicios.</li>}
+        {servicios.map((s) => (
+          <li key={s.uid} className="flex items-center justify-between gap-3 rounded-xl bg-white/70 px-4 py-3">
+            <div>
+              <p className="text-lg font-semibold text-[#b5368f]">{s.nombre}</p>
+              <p className="text-base text-gray-600">{s.especialistas.map((e) => e.nombre).join(", ")}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-medium text-[#1f1218]">{clp(s.precio)}</span>
+              <button
+                type="button"
+                onClick={() => setServicios(servicios.filter((x) => x.uid !== s.uid))}
+                className="cursor-pointer text-lg text-gray-500 hover:text-red-600"
+                aria-label="Quitar servicio"
+              >
+                ✕
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
       {!abierto && (
         <button
           type="button"
@@ -117,90 +118,64 @@ export function PanelServicio({ servicios, setServicios }) {
                   setElegido(e.target.value);
                   setErrores({});
                 }}
-                className={selector(errores.servicio)}
+                className={`${campo(errores.servicio)} cursor-pointer`}
               >
-                <option value="">Selecciona un servicio</option>
-                {SERVICIOS.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                <option value="">
+                  {cargando ? "Cargando servicios..." : "Selecciona un servicio"}
+                </option>
+                {catalogo.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.precioVariable ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
+                  </option>
                 ))}
               </select>
+              {error && <p className="mt-1 text-base text-[#b5368f]">{error}</p>}
               {errores.servicio && <p className="mt-1 text-base text-red-600">{errores.servicio}</p>}
             </div>
 
             {esOtro && (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <>
                 <div>
-                  <label className="mb-1 block text-base font-medium text-[#1f1218]">
-                    Nombre del servicio *
-                  </label>
+                  <label className="mb-1 block text-base font-medium text-[#1f1218]">Nombre del servicio *</label>
                   <input
                     type="text"
                     maxLength={NOMBRE_MAXIMO}
                     value={nombreOtro}
                     onChange={(e) => setNombreOtro(e.target.value)}
-                    placeholder="Ej: Corte especial"
-                    className={`${selector(errores.nombre)} cursor-text`}
+                    className={`${campo(errores.nombre)} cursor-text`}
                   />
                   {errores.nombre && <p className="mt-1 text-base text-red-600">{errores.nombre}</p>}
                 </div>
-
                 <div>
                   <label className="mb-1 block text-base font-medium text-[#1f1218]">Monto (CLP) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={String(MONTO_MAXIMO).length}
-                      value={monto}
-                      onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
-                      placeholder="Ej: 12000"
-                      className={`${selector(errores.monto)} cursor-text pl-7`}
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={7}
+                    value={montoOtro}
+                    onChange={(e) => setMontoOtro(e.target.value.replace(/\D/g, ""))}
+                    className={`${campo(errores.monto)} cursor-text`}
+                  />
                   {errores.monto && <p className="mt-1 text-base text-red-600">{errores.monto}</p>}
                 </div>
-              </div>
+              </>
             )}
 
-            <div className="flex flex-col gap-3">
-              {elegidas.map((id, i) => (
-                <div key={i}>
-                  <label className="mb-1 block text-base font-medium text-[#1f1218]">
-                    {elegidas.length === 1 ? "Especialista *" : `Especialista ${i + 1} *`}
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={id}
-                      onChange={(e) => cambiarEspecialista(i, e.target.value)}
-                      className={selector(errores.especialista && !id)}
-                    >
-                      <option value="">Seleccionar un especialista</option>
-                      {disponibles
-                        .filter((e) => !elegidas.some((otra, j) => j !== i && Number(otra) === e.id))
-                        .map((e) => (
-                          <option key={e.id} value={e.id}>{e.nombre}</option>
-                        ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => quitarSelector(i)}
-                      className="h-12 w-12 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-white text-lg text-gray-600 hover:bg-gray-50"
-                      aria-label="Quitar especialista"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {errores.especialista && <p className="text-base text-red-600">{errores.especialista}</p>}
-              <button
-                type="button"
-                onClick={agregarSelector}
-                className="h-11 cursor-pointer rounded-lg border border-[#b5368f] bg-white text-base font-semibold text-[#b5368f] hover:bg-[#fbeef6]"
+            <div>
+              <label className="mb-1 block text-base font-medium text-[#1f1218]">Especialista *</label>
+              <select
+                value={especialista}
+                onChange={(e) => setEspecialista(e.target.value)}
+                className={`${campo(errores.especialista)} cursor-pointer`}
               >
-                + Agregar especialista
-              </button>
+                <option value="">Selecciona una especialista</option>
+                {presentes.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}
+                  </option>
+                ))}
+              </select>
+              {errores.especialista && <p className="mt-1 text-base text-red-600">{errores.especialista}</p>}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

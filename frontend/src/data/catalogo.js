@@ -14,8 +14,6 @@ export const INSUMOS = [
 ];
 
 export const ESPECIALISTAS = [
-  { id: 3, nombre: "Camila Rojas", presente: true },
-  { id: 4, nombre: "Fernanda Díaz", presente: true },
-  { id: 5, nombre: "Javiera Muñoz", presente: true },
-  { id: 6, nombre: "Valentina Soto", presente: true },
+  { id: 3, nombre: "Fernanda", presente: true },
+  { id: 4, nombre: "Liz", presente: true },
 ];
