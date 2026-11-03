@@ -20,3 +20,7 @@ media/
 .settings/
 Thumbs.db
 .DS_Store
+
+# Vercel
+.vercel/
+.env.local

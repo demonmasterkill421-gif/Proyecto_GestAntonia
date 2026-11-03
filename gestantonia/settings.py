@@ -6,6 +6,7 @@ que NO se sube a GitHub. Use .env.example como plantilla.
 """
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from dotenv import load_dotenv
 
@@ -46,7 +47,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173"] + [
+    o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()   # p. ej. el frontend en Vercel
+]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -80,7 +83,24 @@ WSGI_APPLICATION = "gestantonia.wsgi.application"
 # Base de datos: PostgreSQL (valores en .env)
 # DB_ENGINE=sqlite solo para pruebas rápidas sin PostgreSQL instalado.
 # ---------------------------------------------------------------------------
-if os.getenv("DB_ENGINE", "postgresql") == "sqlite":
+# En Vercel (u otro servidor) la conexión llega en una sola variable: DATABASE_URL.
+if os.getenv("DATABASE_URL"):
+    _db = urlparse(os.environ["DATABASE_URL"])
+    _opciones = {k: v[0] for k, v in parse_qs(_db.query).items() if k in ("sslmode",)}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db.path.lstrip("/"),
+            "USER": _db.username,
+            "PASSWORD": _db.password,
+            "HOST": _db.hostname,
+            "PORT": _db.port or 5432,
+            "OPTIONS": _opciones or {"sslmode": "require"},
+            "CONN_MAX_AGE": 0,
+            "DISABLE_SERVER_SIDE_CURSORS": True,   # necesario con el pooler de conexiones de Neon
+        }
+    }
+elif os.getenv("DB_ENGINE", "postgresql") == "sqlite":
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 else:
     DATABASES = {
@@ -125,5 +145,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"        # collectstatic deja aquí los archivos (Vercel lo ejecuta solo)
+
+# ---------------------------------------------------------------------------
+# Producción (Vercel): solo se activa con DJANGO_DEBUG=False
+# ---------------------------------------------------------------------------
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")   # Vercel atiende por HTTPS delante de Django
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
