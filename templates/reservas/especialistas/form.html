@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}{{ titulo }} · GestAntonia{% endblock %}
+{% block contenido %}
+<link rel="stylesheet" href="{% static 'css/reservas.css' %}">
+<div class="tarjeta">
+  <p class="nota"><a href="{% url 'reservas:especialistas' %}">Especialistas</a> › {{ titulo }}</p>
+  <h1>{{ titulo }}</h1>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="aviso-error" role="alert">{% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}</div>
+    {% endif %}
+
+    {% for campo in form %}
+      <div class="campo">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% if campo.help_text %}<p class="ayuda">{{ campo.help_text }}</p>{% endif %}
+        {% for error in campo.errors %}<p class="error-campo">{{ error }}</p>{% endfor %}
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="btn">Guardar</button>
+    <p><a class="btn-sec" href="{% url 'reservas:especialistas' %}">← Volver a la lista</a></p>
+  </form>
+</div>
+{% endblock %}
