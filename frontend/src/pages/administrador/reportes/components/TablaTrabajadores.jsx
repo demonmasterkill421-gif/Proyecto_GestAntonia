@@ -15,12 +15,12 @@ export default function TablaTrabajadores({ trabajadores }) {
                   <td className="worker-name">{w.nombre}</td>
                   <td>{w.servicios}</td>
                   <td>{formatoCLP(w.ventas)}</td>
-                  <td>{w.asistencia}%</td>
+                  <td>{w.asistencia === null ? '—' : `${w.asistencia}%`}</td>
                   <td>{w.horas} h</td>
                   <td>{formatoCLP(w.comision)}</td>
                   <td><span className="worker-status">{w.estado}</span></td>
                 </tr>
-              )) : <tr><td colSpan="7" className="empty-row">No hay datos de demostración para la selección actual.</td></tr>}
+              )) : <tr><td colSpan="7" className="empty-row">No hay trabajadores registrados para la selección actual.</td></tr>}
             </tbody>
           </table>
         </div>

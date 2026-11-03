@@ -4,36 +4,28 @@ import { useTitulo } from '../../../hooks/useTitulo';
 import Reportes from './Reportes';
 import './reportes.css';
 
-// Mapeo TEMPORAL de IDs del selector compartido a los datos de demostración.
-// Cuando la API esté disponible, reemplazarlo por los IDs reales de /api/locales/.
-const SUCURSALES_DEMO = Object.freeze({
-  1: 'mall',
-  2: 'vargas',
-  3: 'espinosa',
-});
-
-function leerSucursalDemo() {
+function leerLocalActual() {
   try {
-    const guardada = Number(window.localStorage.getItem('sucursal'));
-    return SUCURSALES_DEMO[guardada] ?? 'mall';
+    const localId = Number(window.localStorage.getItem('sucursal'));
+    return Number.isInteger(localId) && localId > 0 ? localId : 1;
   } catch {
-    return 'mall';
+    return 1;
   }
 }
 
 export function ReportesAdmin() {
-  useTitulo('Reportes');
-  const [sucursal, setSucursal] = useState(leerSucursalDemo);
+  useTitulo('Panel de control');
+  const [sucursal, setSucursal] = useState(leerLocalActual);
   const [aviso, setAviso] = useState('');
 
   useEffect(() => {
     function actualizarSucursal(event) {
       const id = Number(event?.detail?.id);
-      setSucursal(SUCURSALES_DEMO[id] ?? leerSucursalDemo());
+      setSucursal(Number.isInteger(id) && id > 0 ? id : leerLocalActual());
     }
 
     function actualizarDesdeOtraPestana() {
-      setSucursal(leerSucursalDemo());
+      setSucursal(leerLocalActual());
     }
 
     window.addEventListener('gestantonia:sucursal-cambiada', actualizarSucursal);

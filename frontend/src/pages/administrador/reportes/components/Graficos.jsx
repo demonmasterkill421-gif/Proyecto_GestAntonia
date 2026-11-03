@@ -23,7 +23,7 @@ export function GraficoGanancias({ data }) {
             );
           })}
         </div>
-      ) : <div className="panel-empty">No hay datos de demostración para ese período.</div>}
+      ) : <div className="panel-empty">No hay servicios o ventas registradas para ese período.</div>}
     </section>
   );
 }
@@ -43,7 +43,7 @@ export function GraficoServicios({ data }) {
             </div>
           ))}
         </div>
-      ) : <div className="panel-empty">No hay datos de demostración para ese período.</div>}
+      ) : <div className="panel-empty">No hay servicios o ventas registradas para ese período.</div>}
     </section>
   );
 }
