@@ -1,6 +1,7 @@
 import { Inventario } from "./pages/administrador/inventario/Inventario";
 import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom'
 import { RutaPrivada } from './auth/RutaPrivada'
+import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
 
 //Para agregar una página a una ruta seguir estos pasos:
 
@@ -42,6 +43,7 @@ function App() {
             <Route path="/admin/inventario" element={<Inventario />} />
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
+            <Route path="/admin/inventario/registrar/" element={<RegistrarProducto/>}/>
           </Route>
 
 

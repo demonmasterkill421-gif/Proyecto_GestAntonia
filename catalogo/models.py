@@ -60,8 +60,8 @@ class Servicio(Item):
 
 class Producto(Item):
     class Tipo(models.TextChoices):
-        VENTA = "VENTA", "Producto de venta"
-        INSUMO = "INSUMO", "Insumo de servicio"
+        VENTA = "VENTA", "VENTA"
+        INSUMO = "INSUMO", "INSUMO"
 
     tipo = models.CharField(max_length=6, choices=Tipo.choices, default=Tipo.INSUMO)
     costo = models.PositiveIntegerField("costo (CLP)", default=0)

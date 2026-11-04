@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from locales.models import Local
 from .models import Inventario
+from django.db import transaction
+from rest_framework import status
+from .models import Producto
 
 
 class EsAdministrador(BasePermission):
@@ -60,3 +63,82 @@ class LocalesInventarioView(APIView):
 
     def get(self, request):
         return Response(list(Local.objects.order_by("nombre").values("id", "nombre")))
+
+class RegistrarProductoSerializer(serializers.ModelSerializer):
+    local = serializers.PrimaryKeyRelatedField(
+        queryset=Local.objects.filter(estado=Local.Estado.ACTIVO)
+    )
+    cantidad = serializers.IntegerField(
+        min_value=0,
+        max_value=2147483647,
+    )
+    stock_minimo = serializers.IntegerField(
+        min_value=0,
+        max_value=2147483647,
+    )
+
+    class Meta:
+        model = Producto
+        fields = [
+            "id",
+            "nombre",
+            "marca",
+            "descripcion",
+            "tipo",
+            "precio",
+            "costo",
+            "local",
+            "cantidad",
+            "stock_minimo",
+        ]
+        read_only_fields = ["id"]
+
+    @transaction.atomic
+    def create(self, validated_data):
+        local = validated_data.pop("local")
+        cantidad = validated_data.pop("cantidad")
+        stock_minimo = validated_data.pop("stock_minimo")
+
+        producto = Producto.objects.create(**validated_data)
+
+        Inventario.objects.create(
+            producto=producto,
+            local=local,
+            cantidad=cantidad,
+            stock_minimo=stock_minimo,
+        )
+
+        return producto
+
+
+class RegistrarProductoView(APIView):
+    permission_classes = [IsAuthenticated, EsAdministrador]
+
+    def get(self, request):
+        # Opciones reales para los selectores del formulario.
+        locales = Local.objects.filter(
+            estado=Local.Estado.ACTIVO
+        ).order_by("nombre").values("id", "nombre")
+
+        tipos = [
+            {"valor": valor, "nombre": nombre}
+            for valor, nombre in Producto.Tipo.choices
+        ]
+
+        return Response({
+            "locales": list(locales),
+            "tipos": tipos,
+        })
+
+    def post(self, request):
+        serializer = RegistrarProductoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        producto = serializer.save()
+
+        return Response(
+            {
+                "id": producto.pk,
+                "mensaje": "Producto registrado correctamente.",
+            },
+            status=status.HTTP_201_CREATED,
+        )

@@ -4,6 +4,7 @@ import { BuscadorInventario } from "../../../components/inventario/BuscadorInven
 import { TablaInventario } from "../../../components/inventario/TablaInventario";
 import { ResumenInventario } from "../../../components/inventario/ResumenInventario";
 import { obtenerInventario, obtenerLocales } from "../../../api/inventario.api";
+import { Link } from "react-router-dom";
 
 // Se monta solo cuando la sesión de administración está verificada.
 export function Inventario() {
@@ -57,9 +58,18 @@ export function Inventario() {
 
   return <Sidebar mostrarSelectorSucursal={false}>
     <div className="mx-auto max-w-7xl space-y-6">
-      <div><p className="text-sm font-semibold uppercase tracking-widest text-[#b5368f]">Administración</p>
-        <h1 className="mt-2 text-3xl font-bold text-[#1f1218]">Inventario</h1>
-        <p className="mt-2 text-gray-600">Consulta productos, insumos y existencias por local.</p></div>
+<div className="flex flex-wrap items-center justify-between gap-4">
+  <div><p className="text-sm font-semibold uppercase tracking-widest text-[#b5368f]">Administración</p>
+    <h1 className="mt-2 text-3xl font-bold text-[#1f1218]">Inventario</h1>
+    <p className="mt-2 text-gray-600">Consulta productos, insumos y existencias por local.</p>
+  </div>
+<Link
+  to="/admin/inventario/registrar"
+  className="inline-block rounded-lg bg-[#b5368f] px-5 py-3 font-semibold text-white transition hover:bg-[#922b73]"
+>
+  + Registrar producto
+</Link>
+</div>
       <BuscadorInventario filtros={filtros} onChange={cambiarFiltros} locales={locales} />
       <div aria-live="polite" aria-busy={cargando}>
         {cargando ? <p className="py-8 text-gray-600">Cargando inventario…</p> : error ?
