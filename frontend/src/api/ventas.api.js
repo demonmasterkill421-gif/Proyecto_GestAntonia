@@ -11,3 +11,9 @@ export const obtenerProductosVenta = async () => {
   const { data } = await api.get("/api/ventas/productos/");
   return data;
 };
+
+
+export const exportarVentas = async (ids) => {
+  const { data } = await api.post("/api/ventas/exportar/", { ids }, { responseType: "blob" });
+  return data;
+};

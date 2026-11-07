@@ -1,3 +1,7 @@
+from django.http import HttpResponse
+
+from .exportarExcel import construir_excel
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers, viewsets
 
@@ -12,6 +16,8 @@ from .serializers import VentaSerializer
 
 
 from catalogo.models import Producto, Servicio
+
+LIMITE_EXPORTAR = 20000  # tope de ventas por archivo
 
 
 class VentaViewSet(viewsets.ModelViewSet):
@@ -53,6 +59,36 @@ class VentaViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({"detail": e.messages}, status=400)
         return Response(self.get_serializer(venta).data)
+
+    @action(detail=False, methods=["post"])
+    def exportar(self, request):
+        """Excel con las ventas indicadas (las que la administradora ve filtradas). Solo ADMIN."""
+        if request.user.rol != "ADMIN":
+            return Response({"detail": "Solo la administradora puede exportar ventas."}, status=403)
+
+        ids = request.data.get("ids")
+        if (
+            not isinstance(ids, list)
+            or not ids
+            or len(ids) > LIMITE_EXPORTAR
+            or not all(isinstance(i, int) for i in ids)
+        ):
+            return Response({"detail": "No hay ventas para exportar."}, status=400)
+
+        ventas = (
+            self.get_queryset()
+            .filter(id__in=ids)
+            .exclude(estado="BORRADOR")
+            .prefetch_related("detalles__item", "detalles__trabajador")
+            .order_by("-fecha")
+        )
+
+        respuesta = HttpResponse(
+            construir_excel(ventas),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        respuesta["Content-Disposition"] = 'attachment; filename="ventas.xlsx"'
+        return respuesta
 
     @action(detail=False, methods=["get"])
     def servicios(self, request):

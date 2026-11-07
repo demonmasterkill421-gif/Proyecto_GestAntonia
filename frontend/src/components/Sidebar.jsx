@@ -4,7 +4,6 @@ import {
   House,
   CalendarDays,
   UserCheck,
-  Receipt,
   ShoppingBag,
   Users,
   BadgeDollarSign,
@@ -24,11 +23,11 @@ import { SelectorSucursal } from "./SelectorSucursal";
 const MENU = [
   { ruta: "/agenda", etiqueta: "Agenda", icono: CalendarDays, roles: ["ADMIN", "RECEP"] },
   { ruta: "/asistencia", etiqueta: "Asistencia", icono: UserCheck, roles: ["ADMIN", "RECEP"] },
-  { ruta: "/recepcionista/registrar-venta", etiqueta: "Registrar Venta", icono: Receipt, roles: ["RECEP"] },
   { ruta: "/recepcionista/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
   { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
+  { ruta: "/admin/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["ADMIN"] },
   { ruta: "/admin/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
 ];
 
@@ -95,7 +94,7 @@ export function Sidebar({ children }) {
         <div className="ml-auto flex min-w-0 items-center gap-2">
           {/* La propietaria elige sucursal; la recepcionista ve solo la suya (en el teléfono va dentro de la lista) */}
           {usuario?.rol === "ADMIN" ? (
-            <div className="min-w-0">
+            <div className="min-w-0 max-w-[9.5rem] sm:max-w-none [&_button]:h-10 [&_button]:max-w-full [&_button]:whitespace-nowrap [&_span]:min-w-0 [&_span]:truncate [&_span]:whitespace-nowrap">
               <SelectorSucursal />
             </div>
           ) : (

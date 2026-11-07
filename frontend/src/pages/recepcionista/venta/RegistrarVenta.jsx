@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { User, ShoppingBag, Droplets, CreditCard, ChevronDown } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown } from "lucide-react";
 import { Sidebar } from "../../../components/Sidebar";
 import { PanelServicio } from "../../../components/PanelServicio";
 import { PanelItems } from "../../../components/PanelItems";
@@ -134,7 +135,19 @@ export function RegistrarVenta() {
 
   return (
     <Sidebar>
-      <h1 className="mb-6 text-3xl font-bold text-[#1f1218]">Registrar venta</h1>
+      {/* Título con botón para volver a la lista de ventas */}
+      <div className="mb-6 flex flex-wrap items-center gap-3 sm:gap-4">
+        <Link
+          to="/recepcionista/ventas"
+          aria-label="Volver a ventas"
+          title="Volver a ventas"
+          className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-[#b5368f] bg-white px-3 text-base font-semibold text-[#b5368f] hover:bg-[#fbeef6] sm:px-4"
+        >
+          <ArrowLeft size={22} />
+          <span className="hidden sm:inline">Volver a ventas</span>
+        </Link>
+        <h1 className="text-3xl font-bold text-[#1f1218]">Registrar venta</h1>
+      </div>
 
       {mensaje && (
         <p className="mb-6 rounded-2xl border border-green-200 bg-green-100 px-5 py-4 text-lg font-medium text-green-800">

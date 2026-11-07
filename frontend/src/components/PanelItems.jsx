@@ -87,18 +87,21 @@ export function PanelItems({ tipo, items, setItems }) {
         {items.map((x) => (
           <li
             key={x.id}
-            className="flex items-center justify-between gap-3 rounded-xl border-l-4 border-[#b5368f] bg-white px-4 py-3 shadow-sm shadow-[#b5368f]/10"
+            className="flex flex-col gap-3 rounded-xl border-l-4 border-[#b5368f] bg-white px-4 py-3 shadow-sm shadow-[#b5368f]/10 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div className="flex items-center gap-3">
+            {/* Ícono, nombre y precio unitario */}
+            <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7e3f1] text-[#b5368f]">
                 <Icono size={20} />
               </span>
-              <div>
-                <p className="text-lg font-bold text-[#b5368f]">{x.nombre}</p>
-                <p className="text-base text-gray-600">{esInsumo ? "Sin costo" : `${clp(x.precio)} c/u`}</p>
+              <div className="min-w-0">
+                <p className="break-words text-lg font-bold text-[#b5368f]">{x.nombre}</p>
+                <p className="text-base font-medium text-[#9c2d7b]">{esInsumo ? "Sin costo" : `${clp(x.precio)} c/u`}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Cantidad, total y quitar: en el celular van en una segunda línea */}
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -120,17 +123,22 @@ export function PanelItems({ tipo, items, setItems }) {
                   <Plus size={18} />
                 </button>
               </div>
-              {!esInsumo && (
-                <span className="w-24 text-right text-lg font-bold text-[#9c2d7b]">{clp(x.precio * x.cantidad)}</span>
-              )}
-              <button
-                type="button"
-                onClick={() => quitar(x.id)}
-                className="cursor-pointer rounded-full px-2 py-1 text-lg text-gray-500 hover:bg-red-50 hover:text-red-600"
-                aria-label="Quitar"
-              >
-                ✕
-              </button>
+
+              <div className="flex items-center gap-2">
+                {!esInsumo && (
+                  <span className="text-right text-lg font-bold text-[#9c2d7b] sm:w-24">
+                    {clp(x.precio * x.cantidad)}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => quitar(x.id)}
+                  className="cursor-pointer rounded-full px-2 py-1 text-lg text-gray-500 hover:bg-red-50 hover:text-red-600"
+                  aria-label="Quitar"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           </li>
         ))}
@@ -175,10 +183,14 @@ export function PanelItems({ tipo, items, setItems }) {
                 {disponibles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {esInsumo ? p.nombre : `${p.nombre} - ${clp(p.precio)}`}
-                    {p.stock != null ? ` (stock ${p.stock})` : ""}
                   </option>
                 ))}
               </select>
+              {productoElegido && productoElegido.stock != null && (
+                <p className="mt-1 text-base font-medium text-[#b5368f]">
+                  Stock disponible: {productoElegido.stock}
+                </p>
+              )}
               {error && <p className="mt-1 text-base text-[#b5368f]">{error}</p>}
             </div>
 
