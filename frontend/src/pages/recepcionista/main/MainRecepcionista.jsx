@@ -30,7 +30,7 @@ export function MainRecepcionista() {
 
       <div className="mt-6">
         <PanelAtajo
-          titulo="Registrar Venta"
+          titulo="Ver Asistencia"
           boton="Nueva Venta"
           ruta="/recepcionista/registrar-venta"
           icono={UserCheck}

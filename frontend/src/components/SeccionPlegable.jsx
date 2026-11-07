@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 
-export function SeccionPlegable({ numero, titulo, detalle, abiertaInicial = false, children }) {
+// icono: componente de lucide-react (ej. Sparkles). Si no se pasa, se usa el número como antes.
+// detalle: texto pequeño que se muestra solo cuando la sección está cerrada.
+export function SeccionPlegable({ icono: Icono, numero, titulo, detalle, abiertaInicial = false, children }) {
   const [abierta, setAbierta] = useState(abiertaInicial);
 
   return (
@@ -11,18 +14,17 @@ export function SeccionPlegable({ numero, titulo, detalle, abiertaInicial = fals
         aria-expanded={abierta}
         className="flex w-full cursor-pointer items-center gap-4 p-6 text-left"
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1f1218] text-base font-bold text-white">
-          {numero}
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#b5368f] text-base font-bold text-white shadow-md shadow-[#b5368f]/30">
+          {Icono ? <Icono size={22} /> : numero}
         </span>
         <h2 className="flex-1 text-2xl font-bold text-[#1f1218]">{titulo}</h2>
-        {detalle && <span className="text-base text-[#b5368f]">{detalle}</span>}
-        <span
-          className={`text-xl text-[#1f1218] transition-transform duration-300 ${
-            abierta ? "rotate-180" : ""
-          }`}
-        >
-          ▾
-        </span>
+        {detalle && !abierta && (
+          <span className="text-base font-medium text-[#b5368f]">{detalle}</span>
+        )}
+        <ChevronDown
+          size={24}
+          className={`shrink-0 text-[#b5368f] transition-transform duration-300 ${abierta ? "rotate-180" : ""}`}
+        />
       </button>
 
       <div

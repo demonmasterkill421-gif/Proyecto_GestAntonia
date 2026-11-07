@@ -11,7 +11,7 @@ from .permissions import EsRecepcionista, MismoLocal
 from .serializers import VentaSerializer
 
 
-from catalogo.models import Servicio
+from catalogo.models import Producto, Servicio
 
 
 class VentaViewSet(viewsets.ModelViewSet):
@@ -53,7 +53,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({"detail": e.messages}, status=400)
         return Response(self.get_serializer(venta).data)
-    
+
     @action(detail=False, methods=["get"])
     def servicios(self, request):
         datos = Servicio.objects.filter(activo=True).order_by("nombre").values(
@@ -61,4 +61,17 @@ class VentaViewSet(viewsets.ModelViewSet):
         )
         return Response(list(datos))
 
-    
+    @action(detail=False, methods=["get"])
+    def productos(self, request):
+        """Productos de venta e insumos activos, con el stock del local del usuario."""
+        local = request.user.local if request.user.local_id else None
+        datos = []
+        for p in Producto.objects.filter(activo=True).order_by("nombre"):
+            datos.append({
+                "id": p.id,
+                "nombre": p.nombre,
+                "tipo": p.tipo,  # "VENTA" o "INSUMO"
+                "precio": 0 if p.tipo == Producto.Tipo.INSUMO else p.precio,
+                "stock": p.stock_en(local) if local else None,
+            })
+        return Response(datos)
