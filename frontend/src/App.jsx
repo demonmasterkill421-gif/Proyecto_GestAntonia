@@ -43,7 +43,7 @@ function App() {
           <Route element={<RutaPrivada roles={["ADMIN"]} />}>
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
-            <Route path='/admin/reportes' element={<VentasAdmin/>}/>
+            <Route path='/admin/ventas' element={<VentasAdmin/>}/>
           </Route>
 
 
