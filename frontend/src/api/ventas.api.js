@@ -17,3 +17,17 @@ export const exportarVentas = async (ids) => {
   const { data } = await api.post("/api/ventas/exportar/", { ids }, { responseType: "blob" });
   return data;
 };
+
+
+export const anularVenta = (id, motivo) => api.post(`/api/ventas/${id}/anular/`, { motivo });
+
+export const solicitarAnulacion = (id, motivo) =>
+  api.post(`/api/ventas/${id}/solicitar-anulacion/`, { motivo });
+
+export const obtenerSolicitudes = (params) => api.get("/api/solicitudes-anulacion/", { params });
+
+export const aprobarSolicitud = (id, respuesta = "") =>
+  api.post(`/api/solicitudes-anulacion/${id}/aprobar/`, { respuesta });
+
+export const rechazarSolicitud = (id, respuesta = "") =>
+  api.post(`/api/solicitudes-anulacion/${id}/rechazar/`, { respuesta });

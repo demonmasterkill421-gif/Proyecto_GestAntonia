@@ -3,6 +3,8 @@ from django.http import HttpResponse
 from .exportarExcel import construir_excel
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import serializers, viewsets
 
@@ -11,9 +13,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 
-from .models import RegistroDeVenta
-from .permissions import EsRecepcionista, MismoLocal
-from .serializers import VentaSerializer
+from .models import RegistroDeVenta, SolicitudAnulacion
+from .permissions import EsAdministrador, EsRecepcionista, MismoLocal
+from .serializers import (
+    ResponderSolicitudSerializer,
+    SolicitarAnulacionSerializer,
+    SolicitudAnulacionSerializer,
+    VentaSerializer,
+)
 
 
 from catalogo.models import Producto, Servicio
@@ -29,10 +36,21 @@ def _fecha_o_none(texto):
         return None
 
 
+def _error(texto, codigo=400):
+    return Response({"detail": texto}, status=codigo)
+
+
 class VentaViewSet(viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
     http_method_names = ["get", "post", "head", "options"]
+
+    def get_permissions(self):
+        # Anular una venta directamente: solo la administradora.
+        # La recepcionista no anula: usa "solicitar-anulacion".
+        if self.action == "anular":
+            return [IsAuthenticated(), EsAdministrador(), MismoLocal()]
+        return super().get_permissions()
 
     def get_queryset(self):
         qs = RegistroDeVenta.objects.select_related("local", "trabajador").prefetch_related("detalles")
@@ -69,14 +87,80 @@ class VentaViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=True, methods=["post"])
-    def anular(self,request, pk=None):
+    def anular(self, request, pk=None):
+        """La administradora anula una venta confirmada. Exige un motivo y devuelve el stock."""
         venta = self.get_object()
 
+        datos = SolicitarAnulacionSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+        motivo = datos.validated_data["motivo"]
+
         try:
-            venta.anular()
+            with transaction.atomic():
+                # Se bloquea la venta para que nadie más la anule al mismo tiempo
+                bloqueada = RegistroDeVenta.objects.select_for_update().get(pk=venta.pk)
+                bloqueada.anular()
+
+                ahora = timezone.now()
+
+                # Si la recepcionista había pedido anularla, ese pedido queda aprobado
+                SolicitudAnulacion.objects.filter(
+                    venta=bloqueada, estado=SolicitudAnulacion.Estado.PENDIENTE
+                ).update(
+                    estado=SolicitudAnulacion.Estado.APROBADA,
+                    resuelta_por=request.user,
+                    fecha_resolucion=ahora,
+                    respuesta="La administradora anuló la venta directamente.",
+                )
+
+                # Queda el registro de quién anuló, cuándo y por qué
+                SolicitudAnulacion.objects.create(
+                    venta=bloqueada,
+                    solicitante=request.user,
+                    motivo=motivo,
+                    estado=SolicitudAnulacion.Estado.APROBADA,
+                    resuelta_por=request.user,
+                    fecha_resolucion=ahora,
+                    respuesta="Anulada directamente por la administradora.",
+                )
         except DjangoValidationError as e:
-            return Response({"detail": e.messages}, status=400)
+            return _error(" ".join(e.messages))
+
+        venta.refresh_from_db()
         return Response(self.get_serializer(venta).data)
+
+    @action(detail=True, methods=["post"], url_path="solicitar-anulacion")
+    def solicitar_anulacion(self, request, pk=None):
+        """La recepcionista pide anular una venta confirmada de su local. La administradora decide."""
+        if request.user.rol == "ADMIN":
+            return _error("La administradora anula las ventas directamente.", 403)
+
+        venta = self.get_object()
+
+        datos = SolicitarAnulacionSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+
+        if venta.estado != RegistroDeVenta.Estado.CONFIRMADA:
+            return _error("Solo se puede pedir la anulación de una venta confirmada.")
+
+        if venta.solicitudes_anulacion.filter(estado=SolicitudAnulacion.Estado.PENDIENTE).exists():
+            return _error("Esta venta ya tiene una solicitud de anulación pendiente.")
+
+        try:
+            with transaction.atomic():
+                solicitud = SolicitudAnulacion.objects.create(
+                    venta=venta,
+                    solicitante=request.user,
+                    motivo=datos.validated_data["motivo"],
+                )
+        except IntegrityError:
+            # Dos pedidos al mismo tiempo: la base de datos deja pasar solo uno
+            return _error("Esta venta ya tiene una solicitud de anulación pendiente.")
+
+        solicitud = SolicitudAnulacion.objects.select_related(
+            "venta__local", "solicitante", "resuelta_por"
+        ).get(pk=solicitud.pk)
+        return Response(SolicitudAnulacionSerializer(solicitud).data, status=201)
 
     @action(detail=False, methods=["post"])
     def exportar(self, request):
@@ -129,3 +213,85 @@ class VentaViewSet(viewsets.ModelViewSet):
                 "stock": p.stock_en(local) if local else None,
             })
         return Response(datos)
+
+
+class SolicitudAnulacionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Solicitudes de anulación.
+    - La administradora ve todas (puede filtrar por ?estado= y ?local=) y las aprueba o rechaza.
+    - La recepcionista ve solo las que ella pidió.
+    """
+    serializer_class = SolicitudAnulacionSerializer
+    permission_classes = [IsAuthenticated, EsRecepcionista]
+
+    def get_permissions(self):
+        if self.action in ("aprobar", "rechazar"):
+            return [IsAuthenticated(), EsAdministrador()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        qs = SolicitudAnulacion.objects.select_related("venta__local", "solicitante", "resuelta_por")
+        user = self.request.user
+
+        if user.rol != "ADMIN":
+            return qs.filter(solicitante=user)
+
+        estado = self.request.query_params.get("estado")
+        if estado:
+            qs = qs.filter(estado=estado)
+
+        local = self.request.query_params.get("local")
+        if local:
+            qs = qs.filter(venta__local_id=local)
+
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def aprobar(self, request, pk=None):
+        """Aprueba el pedido: anula la venta (devuelve el stock) y cierra la solicitud."""
+        solicitud = self.get_object()
+
+        datos = ResponderSolicitudSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                bloqueada = SolicitudAnulacion.objects.select_for_update().get(pk=solicitud.pk)
+                if bloqueada.estado != SolicitudAnulacion.Estado.PENDIENTE:
+                    return _error("Esta solicitud ya fue resuelta.")
+
+                venta = RegistroDeVenta.objects.select_for_update().get(pk=bloqueada.venta_id)
+                venta.anular()
+
+                bloqueada.estado = SolicitudAnulacion.Estado.APROBADA
+                bloqueada.resuelta_por = request.user
+                bloqueada.fecha_resolucion = timezone.now()
+                bloqueada.respuesta = datos.validated_data.get("respuesta", "")
+                bloqueada.save(update_fields=["estado", "resuelta_por", "fecha_resolucion", "respuesta"])
+        except DjangoValidationError as e:
+            return _error(" ".join(e.messages))
+
+        solicitud.refresh_from_db()
+        return Response(self.get_serializer(solicitud).data)
+
+    @action(detail=True, methods=["post"])
+    def rechazar(self, request, pk=None):
+        """Rechaza el pedido: la venta queda como estaba."""
+        solicitud = self.get_object()
+
+        datos = ResponderSolicitudSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            bloqueada = SolicitudAnulacion.objects.select_for_update().get(pk=solicitud.pk)
+            if bloqueada.estado != SolicitudAnulacion.Estado.PENDIENTE:
+                return _error("Esta solicitud ya fue resuelta.")
+
+            bloqueada.estado = SolicitudAnulacion.Estado.RECHAZADA
+            bloqueada.resuelta_por = request.user
+            bloqueada.fecha_resolucion = timezone.now()
+            bloqueada.respuesta = datos.validated_data.get("respuesta", "")
+            bloqueada.save(update_fields=["estado", "resuelta_por", "fecha_resolucion", "respuesta"])
+
+        solicitud.refresh_from_db()
+        return Response(self.get_serializer(solicitud).data)

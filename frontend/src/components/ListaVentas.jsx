@@ -1,5 +1,7 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import {
+  Ban,
   ChevronDown,
   Download,
   FileSpreadsheet,
@@ -10,7 +12,15 @@ import {
   X,
 } from "lucide-react";
 import { useDatos } from "../hooks/useDatos";
-import { obtenerAllVentas, obtenerServiciosVenta, obtenerProductosVenta, exportarVentas } from "../api/ventas.api";
+import {
+  obtenerAllVentas,
+  obtenerServiciosVenta,
+  obtenerProductosVenta,
+  exportarVentas,
+  anularVenta,
+  solicitarAnulacion,
+  obtenerSolicitudes,
+} from "../api/ventas.api";
 import { ESPECIALISTAS } from "../data/catalogo";
 import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
 
@@ -21,6 +31,7 @@ const clp = (n) =>
 // (Las ventas se piden dentro del componente porque dependen de los filtros.)
 const cargarServicios = () => obtenerServiciosVenta();
 const cargarProductos = () => obtenerProductosVenta();
+const cargarPendientes = () => obtenerSolicitudes({ estado: "PENDIENTE" });
 
 const fechaLocal = (fecha) => new Date(fecha).toLocaleDateString("sv-SE"); // aaaa-mm-dd
 const fechaCorta = (fecha) =>
@@ -44,6 +55,19 @@ const ESTADOS = {
   ANULADA: { texto: "Anulada", clase: "bg-gray-200 text-gray-600" },
 };
 
+// El motivo de la anulación: mínimo y máximo de letras (el servidor exige lo mismo)
+const MOTIVO_MINIMO = 5;
+const MOTIVO_MAXIMO = 500;
+
+// Saca un texto legible del error que devuelve el servidor
+const mensajeError = (err) => {
+  const d = err?.response?.data;
+  if (!d) return "No hay conexión con el servidor.";
+  if (typeof d === "string") return "No se pudo completar la acción.";
+  const t = d.detail ?? d.motivo ?? Object.values(d)[0];
+  return Array.isArray(t) ? t.join(" ") : String(t);
+};
+
 // Mismo estilo que Registrar venta
 const campo =
   "h-12 w-full rounded-lg border border-[#e6b8d4] bg-white px-3 text-base text-[#1f1218] focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30";
@@ -53,6 +77,15 @@ const etiqueta = "mb-2 block text-base font-semibold text-[#9c2d7b]";
 function EtiquetaHoy() {
   return (
     <span className="rounded-full bg-yellow-200 px-2.5 py-0.5 text-sm font-bold uppercase text-yellow-900">Hoy</span>
+  );
+}
+
+// Etiqueta naranja: la venta tiene una solicitud de anulación esperando respuesta
+function EtiquetaPendiente() {
+  return (
+    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm font-semibold text-amber-800">
+      Anulación pendiente
+    </span>
   );
 }
 
@@ -98,9 +131,16 @@ export function ListaVentas({ rol }) {
   const [panel, setPanel] = useState(false); // panel de filtros
   const [descarga, setDescarga] = useState(false); // panel de descarga (Excel / PDF)
   const [abierta, setAbierta] = useState(null); // id de la venta desplegada
-  const [aviso, setAviso] = useState("");
   const [errorDescarga, setErrorDescarga] = useState("");
   const [exportando, setExportando] = useState(false);
+
+  // Ventana para anular (propietaria) o solicitar la anulación (recepcionista)
+  const [dialogo, setDialogo] = useState(false); // ventana abierta o cerrada
+  const [anulando, setAnulando] = useState(null); // venta de la ventana (se conserva mientras se cierra)
+  const [motivo, setMotivo] = useState("");
+  const [enviandoAnulacion, setEnviandoAnulacion] = useState(false);
+  const [errorMotivo, setErrorMotivo] = useState("");
+  const motivoRef = useRef(null);
 
   // Las ventas se piden al servidor ya filtradas por período (y por local, si es la administradora),
   // en vez de traer todo el historial. Al cambiar estos filtros, useDatos vuelve a pedirlas.
@@ -114,9 +154,13 @@ export function ListaVentas({ rol }) {
     [filtros.desde, filtros.hasta, filtros.local, esAdmin],
   );
 
-  const { datos: ventas, cargando, error } = useDatos(cargarVentas, { cadaMs: 30000 });
+  const { datos: ventas, cargando, error, recargar } = useDatos(cargarVentas, { cadaMs: 30000 });
+  const { datos: pendientes, recargar: recargarPendientes } = useDatos(cargarPendientes, { cadaMs: 30000 });
   const { datos: servicios } = useDatos(cargarServicios, { cadaMs: 60000 });
   const { datos: productos } = useDatos(cargarProductos, { cadaMs: 60000 });
+
+  // Ids de las ventas que tienen una solicitud de anulación esperando respuesta
+  const idsPendientes = new Set((pendientes ?? []).map((s) => s.venta));
 
   // La administradora sigue la sucursal elegida en el encabezado (igual que Reportes)
   useEffect(() => {
@@ -124,7 +168,7 @@ export function ListaVentas({ rol }) {
   }, [sucursalId]);
 
   // Con un panel abierto: Escape lo cierra y la página de atrás no se desplaza
-  const hayPanel = panel || descarga;
+  const hayPanel = panel || descarga || dialogo;
   useEffect(() => {
     if (!hayPanel) return;
     const tecla = (e) => {
@@ -132,6 +176,7 @@ export function ListaVentas({ rol }) {
         document.activeElement?.blur(); // el foco no puede quedar dentro del panel oculto
         setPanel(false);
         setDescarga(false);
+        if (!enviandoAnulacion) setDialogo(false);
       }
     };
     document.addEventListener("keydown", tecla);
@@ -141,7 +186,14 @@ export function ListaVentas({ rol }) {
       document.removeEventListener("keydown", tecla);
       document.body.style.overflow = anterior;
     };
-  }, [hayPanel]);
+  }, [hayPanel, enviandoAnulacion]);
+
+  // Al abrir la ventana de anulación, el cursor queda listo para escribir el motivo
+  useEffect(() => {
+    if (!dialogo) return;
+    const id = setTimeout(() => motivoRef.current?.focus(), 60);
+    return () => clearTimeout(id);
+  }, [dialogo]);
 
   const abrirPanel = () => {
     setBorrador(filtros);
@@ -165,6 +217,45 @@ export function ListaVentas({ rol }) {
     setDescarga(false);
   };
   const cambiarBorrador = (nombre) => (valor) => setBorrador({ ...borrador, [nombre]: valor });
+
+  // Anulación: abrir y cerrar la ventana del motivo
+  const abrirAnulacion = (venta) => {
+    setAnulando(venta);
+    setMotivo("");
+    setErrorMotivo("");
+    setDialogo(true);
+  };
+  const cerrarAnulacion = () => {
+    if (enviandoAnulacion) return;
+    document.activeElement?.blur();
+    setDialogo(false);
+  };
+
+  const motivoLimpio = motivo.trim();
+  const motivoValido = motivoLimpio.length >= MOTIVO_MINIMO;
+
+  // La propietaria anula la venta; la recepcionista envía la solicitud
+  const confirmarAnulacion = async () => {
+    if (!anulando || enviandoAnulacion || !motivoValido) return;
+    setEnviandoAnulacion(true);
+    setErrorMotivo("");
+    try {
+      if (esAdmin) {
+        await anularVenta(anulando.id, motivoLimpio);
+        toast.success(`Venta con folio ${anulando.folio ?? "—"} anulada.`);
+      } else {
+        await solicitarAnulacion(anulando.id, motivoLimpio);
+        toast.success("Solicitud enviada. La propietaria la revisará.");
+      }
+      document.activeElement?.blur();
+      setDialogo(false);
+      await Promise.all([recargar(), recargarPendientes()]);
+    } catch (err) {
+      setErrorMotivo(mensajeError(err));
+    } finally {
+      setEnviandoAnulacion(false);
+    }
+  };
 
   // Atajo de sucursal: cambia el local de la lista al instante, sin abrir los filtros
   const elegirLocal = (valor) => setFiltros((f) => ({ ...f, local: valor }));
@@ -285,19 +376,24 @@ export function ListaVentas({ rol }) {
 
       {v.estado === "CONFIRMADA" && (
         <div className="pt-3">
-          <button
-            type="button"
-            onClick={() =>
-              setAviso(
-                esAdmin
-                  ? "Anular se conecta en el siguiente paso."
-                  : "Solicitar anulación se conecta en el siguiente paso.",
-              )
-            }
-            className="h-11 w-full cursor-pointer rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#f7e3f1]"
-          >
-            {esAdmin ? "Anular venta" : "Solicitar anulación"}
-          </button>
+          {idsPendientes.has(v.id) && (
+            <p className="mb-3 rounded-lg bg-amber-100 px-3 py-2 text-base font-semibold text-amber-800">
+              {esAdmin
+                ? "Hay una solicitud de anulación pendiente para esta venta."
+                : "Pediste anular esta venta. Estamos esperando la respuesta de la propietaria."}
+            </p>
+          )}
+
+          {/* La recepcionista no puede pedir dos veces la misma venta */}
+          {(esAdmin || !idsPendientes.has(v.id)) && (
+            <button
+              type="button"
+              onClick={() => abrirAnulacion(v)}
+              className="h-11 w-full cursor-pointer rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#f7e3f1]"
+            >
+              {esAdmin ? "Anular venta" : "Solicitar anulación"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -334,7 +430,6 @@ export function ListaVentas({ rol }) {
       </div>
 
       {error && <p className="px-4 pb-3 text-base font-medium text-[#b5368f] sm:px-6">{error}</p>}
-      {aviso && <p className="px-4 pb-3 text-base font-medium text-[#b5368f] sm:px-6">{aviso}</p>}
 
       {/* Buscador + botón de filtros */}
       <div className="flex gap-3 px-4 pb-3 sm:px-6">
@@ -415,6 +510,7 @@ export function ListaVentas({ rol }) {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-lg font-bold text-[#b5368f]">Folio {v.folio ?? "—"}</span>
                           {esHoy(v.fecha) && <EtiquetaHoy />}
+                          {v.estado === "CONFIRMADA" && idsPendientes.has(v.id) && <EtiquetaPendiente />}
                           {v.estado === "ANULADA" && (
                             <span className={`rounded-full px-3 py-0.5 text-base font-semibold ${estado.clase}`}>
                               {estado.texto}
@@ -494,9 +590,12 @@ export function ListaVentas({ rol }) {
                           {clp(v.monto_total)}
                         </td>
                         <td className="py-3 pr-3">
-                          <span className={`rounded-full px-3 py-1 text-base font-semibold ${estado.clase}`}>
-                            {estado.texto}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-3 py-1 text-base font-semibold ${estado.clase}`}>
+                              {estado.texto}
+                            </span>
+                            {v.estado === "CONFIRMADA" && idsPendientes.has(v.id) && <EtiquetaPendiente />}
+                          </div>
                         </td>
                         <td className="py-3">
                           <ChevronDown
@@ -725,6 +824,107 @@ export function ListaVentas({ rol }) {
           </div>
         </div>
       )}
+
+      {/* Ventana de anulación: la propietaria anula; la recepcionista envía la solicitud.
+          Siempre montada para poder animarla, igual que los otros paneles */}
+      <div
+        inert={!dialogo}
+        aria-hidden={!dialogo}
+        className={`fixed inset-0 z-[60] flex items-end justify-center transition-all duration-300 sm:items-center sm:p-6 ${
+          dialogo ? "visible bg-black/40" : "invisible bg-black/0"
+        }`}
+        onClick={cerrarAnulacion}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={esAdmin ? "Anular venta" : "Solicitar anulación"}
+          onClick={(e) => e.stopPropagation()}
+          className={`flex max-h-[90vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl transition-all duration-300 ease-out sm:max-w-md sm:rounded-3xl ${
+            dialogo
+              ? "translate-y-0 opacity-100 sm:scale-100"
+              : "translate-y-full opacity-0 sm:translate-y-4 sm:scale-95"
+          }`}
+        >
+          <div className="flex items-center gap-3 border-b border-[#f0cfe3] px-6 py-5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7e3f1] text-[#b5368f]">
+              <Ban size={22} />
+            </span>
+            <h3 className="text-2xl font-bold text-[#1f1218]">{esAdmin ? "Anular venta" : "Solicitar anulación"}</h3>
+            <button
+              type="button"
+              onClick={cerrarAnulacion}
+              disabled={enviandoAnulacion}
+              aria-label="Cerrar"
+              className="ml-auto cursor-pointer rounded-full p-2 text-[#1f1218] hover:bg-[#f7e3f1] hover:text-[#b5368f] disabled:opacity-50"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
+            <p className="text-base text-[#1f1218]">
+              Venta con folio <span className="font-bold text-[#b5368f]">{anulando?.folio ?? "—"}</span>
+              {anulando && <> · {clp(anulando.monto_total)}</>}
+            </p>
+
+            <p className="text-base text-[#9c2d7b]">
+              {esAdmin
+                ? "La venta quedará anulada y se devolverá el stock de los productos. Esta acción no se puede deshacer."
+                : "La propietaria revisará tu solicitud. La venta sigue confirmada hasta que ella la apruebe."}
+            </p>
+
+            <div>
+              <label htmlFor="motivo-anulacion" className={etiqueta}>
+                Motivo
+              </label>
+              <textarea
+                id="motivo-anulacion"
+                ref={motivoRef}
+                rows={3}
+                maxLength={MOTIVO_MAXIMO}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Ej: La clienta se arrepintió del servicio"
+                className="w-full cursor-text resize-none rounded-lg border border-[#e6b8d4] bg-white px-3 py-2 text-base text-[#1f1218] focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30"
+              />
+              <div className="flex justify-between gap-3 text-sm font-medium text-[#9c2d7b]">
+                <span>{!motivoValido && `Escribe al menos ${MOTIVO_MINIMO} letras.`}</span>
+                <span>
+                  {motivo.length}/{MOTIVO_MAXIMO}
+                </span>
+              </div>
+            </div>
+
+            {errorMotivo && <p className="text-base font-medium text-[#b5368f]">{errorMotivo}</p>}
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-[#f0cfe3] px-6 py-4">
+            <button
+              type="button"
+              onClick={cerrarAnulacion}
+              disabled={enviandoAnulacion}
+              className="h-12 cursor-pointer rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={confirmarAnulacion}
+              disabled={enviandoAnulacion || !motivoValido}
+              className="h-12 cursor-pointer rounded-lg bg-[#b5368f] px-6 text-base font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enviandoAnulacion
+                ? esAdmin
+                  ? "Anulando..."
+                  : "Enviando..."
+                : esAdmin
+                  ? "Sí, anular venta"
+                  : "Enviar solicitud"}
+            </button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

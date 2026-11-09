@@ -9,6 +9,12 @@ class EsRecepcionista(BasePermission):
         return request.user.is_authenticated and request.user.rol in ("RECEP", "ADMIN")
 
 
+class EsAdministrador(BasePermission):
+    message = "Solo la administradora puede hacer esto"
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.rol == "ADMIN"
+
 
 class MismoLocal(BasePermission):
     message = "Registro de otro local"

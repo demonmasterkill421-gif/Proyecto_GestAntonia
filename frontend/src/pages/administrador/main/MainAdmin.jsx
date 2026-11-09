@@ -5,6 +5,7 @@ import { useTitulo } from "../../../hooks/useTitulo";
 
 import {
   ShoppingBag,
+  QrCode,
   UserCheck,
   CalendarDays,
   Users,
@@ -12,6 +13,10 @@ import {
   Store,
   ChartColumn,
 } from "lucide-react";
+
+// Página donde las tres (propietaria, recepcionista y especialista) registran su asistencia.
+// Debe ser la misma dirección que usa el menú de la especialista.
+const RUTA_ASISTENCIA = "/mi-asistencia";
 
 export function MainAdmin() {
   useTitulo("Inicio");
@@ -29,6 +34,17 @@ export function MainAdmin() {
           icono={ShoppingBag}
           destacado
         />
+
+        {/* Solo en el teléfono: registrar la asistencia se hace desde ahí */}
+        <div className="md:hidden">
+          <PanelAtajo
+            titulo="Registrar asistencia"
+            descripcion="Marca tu entrada y tu salida del día"
+            boton="Registrar"
+            ruta={RUTA_ASISTENCIA}
+            icono={QrCode}
+          />
+        </div>
 
         <PanelAtajo
           titulo="Asistencia"
@@ -70,7 +86,7 @@ export function MainAdmin() {
           icono={Store}
         />
 
-        {/* La última ocupa todo el ancho para que no quede un hueco al lado */}
+        {/* En el computador la tarjeta de asistencia no se ve, quedan 7: esta ocupa todo el ancho */}
         <div className="lg:col-span-2">
           <PanelAtajo
             titulo="Reportes"
