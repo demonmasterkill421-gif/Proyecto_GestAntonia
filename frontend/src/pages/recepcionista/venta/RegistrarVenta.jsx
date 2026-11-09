@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown, ClipboardCheck } from "lucide-react";
+import toast from "react-hot-toast";
 import { Sidebar } from "../../../components/Sidebar";
 import { PanelServicio } from "../../../components/PanelServicio";
 import { PanelItems } from "../../../components/PanelItems";
@@ -23,8 +24,18 @@ const DESCRIPCION_MAXIMA = 200;
 // "1 servicio" / "3 servicios"
 const contar = (n, singular, plural) => (n > 0 ? `${n} ${n === 1 ? singular : plural}` : "");
 
+// El backend puede responder {detail: "..."} o {campo: ["..."]} o listas anidadas.
+// Esto saca el primer texto que encuentre para mostrarlo en el aviso.
+const primerMensaje = (valor) => {
+  if (typeof valor === "string") return valor;
+  if (Array.isArray(valor)) return valor.map(primerMensaje).find(Boolean) ?? "";
+  if (valor && typeof valor === "object") return Object.values(valor).map(primerMensaje).find(Boolean) ?? "";
+  return "";
+};
+
 export function RegistrarVenta() {
   useTitulo("Registrar venta");
+  const navigate = useNavigate();
   const [servicios, setServicios] = useState([]);
   const [productos, setProductos] = useState([]);
   const [insumos, setInsumos] = useState([]);
@@ -32,10 +43,10 @@ export function RegistrarVenta() {
   const [tipoDescuento, setTipoDescuento] = useState("%"); // "%" o "CLP"
   const [valorDescuento, setValorDescuento] = useState("");
   const [metodoPago, setMetodoPago] = useState("");
-  const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [errorEnvio, setErrorEnvio] = useState("");
   const [resumenAbierto, setResumenAbierto] = useState(true);
+  const [confirmando, setConfirmando] = useState(false); // ventana "¿Confirmar la venta?"
+  const botonVolver = useRef(null);
 
   // Los insumos no se cobran: solo servicios y productos suman al subtotal.
   const subtotal =
@@ -80,10 +91,38 @@ export function RegistrarVenta() {
     setMetodoPago("");
   };
 
+  // ---------- Ventana de confirmación ----------
+  const abrirConfirmacion = () => {
+    if (!listo || enviando) return;
+    setConfirmando(true);
+  };
+
+  const cerrarConfirmacion = () => {
+    if (enviando) return; // mientras se registra, no se puede cerrar
+    setConfirmando(false);
+  };
+
+  // Ventana abierta: Escape la cierra, la página de atrás no se desplaza
+  // y el foco queda en "Volver" (así un Enter sin querer no registra la venta)
+  useEffect(() => {
+    if (!confirmando) return;
+    const tecla = (e) => {
+      if (e.key === "Escape" && !enviando) setConfirmando(false);
+    };
+    document.addEventListener("keydown", tecla);
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const id = setTimeout(() => botonVolver.current?.focus(), 60);
+    return () => {
+      document.removeEventListener("keydown", tecla);
+      document.body.style.overflow = anterior;
+      clearTimeout(id);
+    };
+  }, [confirmando, enviando]);
+
   const confirmar = async () => {
     if (!listo || enviando) return;
     setEnviando(true);
-    setErrorEnvio("");
 
     // El backend recibe el descuento solo en porcentaje (0 a 100).
     const porcentaje =
@@ -106,15 +145,15 @@ export function RegistrarVenta() {
 
     try {
       await registrarVenta(datos);
+      setConfirmando(false);
       reiniciar();
-      setMensaje(`Venta registrada correctamente por ${clp(total)}`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      setTimeout(() => setMensaje(""), 5000);
+      toast.success(`Venta registrada por ${clp(total)}`);
+      navigate("/recepcionista/ventas");
     } catch (err) {
       console.log("Error al registrar:", err.response?.data);
-      setErrorEnvio(
-        "No se pudo registrar la venta: " + JSON.stringify(err.response?.data ?? "sin conexión con el servidor"),
-      );
+      setConfirmando(false);
+      const motivo = err.response ? primerMensaje(err.response.data) : "sin conexión con el servidor";
+      toast.error(motivo ? `No se pudo registrar la venta: ${motivo}` : "No se pudo registrar la venta");
     } finally {
       setEnviando(false);
     }
@@ -148,12 +187,6 @@ export function RegistrarVenta() {
         </Link>
         <h1 className="text-3xl font-bold text-[#1f1218]">Registrar venta</h1>
       </div>
-
-      {mensaje && (
-        <p className="mb-6 rounded-2xl border border-green-200 bg-green-100 px-5 py-4 text-lg font-medium text-green-800">
-          {mensaje}
-        </p>
-      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="flex flex-col gap-6">
@@ -351,10 +384,6 @@ export function RegistrarVenta() {
           </section>
 
           <section className={tarjeta}>
-            {errorEnvio && (
-              <p className="mb-4 text-base font-medium text-[#b5368f]">{errorEnvio}</p>
-            )}
-
             {listo ? (
               <p className="mb-4 text-base font-medium text-green-700">Todo listo para confirmar</p>
             ) : (
@@ -377,14 +406,93 @@ export function RegistrarVenta() {
               </button>
               <button
                 type="button"
-                onClick={confirmar}
+                onClick={abrirConfirmacion}
                 disabled={!listo || enviando}
                 className="h-14 cursor-pointer rounded-lg bg-[#b5368f] text-lg font-semibold text-white hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#b5368f]"
               >
-                {enviando ? "Registrando..." : "Confirmar venta"}
+                Confirmar venta
               </button>
             </div>
           </section>
+        </div>
+      </div>
+
+      {/* Ventana emergente: ¿Confirmar la venta? (siempre montada para poder animarla) */}
+      <div
+        inert={!confirmando}
+        onClick={cerrarConfirmacion}
+        className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 transition-opacity duration-200 ${
+          confirmando ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-confirmar"
+          onClick={(e) => e.stopPropagation()}
+          className={`w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl transition-all duration-300 ease-out ${
+            confirmando ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"
+          }`}
+        >
+          <div className="flex flex-col items-center text-center">
+            <span
+              className={`flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#d61f9a] to-[#a8238f] text-white shadow-lg shadow-[#b5368f]/30 transition-transform duration-500 delay-100 ease-out ${
+                confirmando ? "scale-100" : "scale-50"
+              }`}
+            >
+              <ClipboardCheck size={32} />
+            </span>
+
+            <h2 id="titulo-confirmar" className="mt-4 text-2xl font-bold text-[#1f1218]">
+              ¿Confirmar la venta?
+            </h2>
+            <p className="mt-1 text-base text-gray-600">
+              Revisa los datos. Una vez registrada, la venta no se puede modificar.
+            </p>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-1 rounded-2xl bg-[#fbeef6] p-4 text-lg text-[#1f1218]">
+            <p className="flex justify-between">
+              <span>Ítems</span>
+              <span>{totalItems}</span>
+            </p>
+            {metodoElegido && (
+              <p className="flex justify-between">
+                <span>Pago</span>
+                <span>{metodoElegido.etiqueta}</span>
+              </p>
+            )}
+            {descuento > 0 && (
+              <p className="flex justify-between">
+                <span>Descuento</span>
+                <span>- {clp(descuento)}</span>
+              </p>
+            )}
+            <p className="mt-1 flex justify-between border-t border-[#ecc7de] pt-2 text-2xl font-bold text-[#b5368f]">
+              <span>Total</span>
+              <span>{clp(total)}</span>
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button
+              ref={botonVolver}
+              type="button"
+              onClick={cerrarConfirmacion}
+              disabled={enviando}
+              className="h-12 cursor-pointer rounded-lg border border-[#b5368f] bg-white text-lg font-semibold text-[#b5368f] hover:bg-[#fbeef6] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={confirmar}
+              disabled={enviando}
+              className="h-12 cursor-pointer rounded-lg bg-[#b5368f] text-lg font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {enviando ? "Registrando..." : "Sí, confirmar"}
+            </button>
+          </div>
         </div>
       </div>
     </Sidebar>

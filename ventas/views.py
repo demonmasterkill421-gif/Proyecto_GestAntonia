@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from .exportarExcel import construir_excel
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.dateparse import parse_date
 from rest_framework import serializers, viewsets
 
 from rest_framework.decorators import action
@@ -20,6 +21,14 @@ from catalogo.models import Producto, Servicio
 LIMITE_EXPORTAR = 20000  # tope de ventas por archivo
 
 
+def _fecha_o_none(texto):
+    """Convierte 'aaaa-mm-dd' en fecha. Si viene vacío o mal escrito, devuelve None."""
+    try:
+        return parse_date(texto or "")
+    except ValueError:
+        return None
+
+
 class VentaViewSet(viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
@@ -28,6 +37,15 @@ class VentaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = RegistroDeVenta.objects.select_related("local", "trabajador").prefetch_related("detalles")
         user = self.request.user
+
+        # Período opcional: ?desde=aaaa-mm-dd&hasta=aaaa-mm-dd (incluye ambos días).
+        # Así la pantalla pide solo lo que necesita y no todo el historial.
+        desde = _fecha_o_none(self.request.query_params.get("desde"))
+        hasta = _fecha_o_none(self.request.query_params.get("hasta"))
+        if desde:
+            qs = qs.filter(fecha__date__gte=desde)
+        if hasta:
+            qs = qs.filter(fecha__date__lte=hasta)
 
         if user.rol == "ADMIN":
             local = self.request.query_params.get("local")

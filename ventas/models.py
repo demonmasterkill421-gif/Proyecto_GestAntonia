@@ -184,7 +184,7 @@ class DetalleVenta(models.Model):
 
 
 class SolicitudAnulacion(models.Model):
-    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la resuelve."""
+    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la aprueba."""
 
     class Estado(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"

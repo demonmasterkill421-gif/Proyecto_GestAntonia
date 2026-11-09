@@ -5,6 +5,7 @@ Los datos sensibles (clave secreta y credenciales de PostgreSQL) se leen desde e
 que NO se sube a GitHub. Use .env.example como plantilla.
 """
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -53,6 +54,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+}
+
+# Duración de la sesión de la página (token JWT)
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 ROOT_URLCONF = "gestantonia.urls"

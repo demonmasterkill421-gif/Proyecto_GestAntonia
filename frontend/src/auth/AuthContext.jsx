@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
       .catch(() => {
         localStorage.removeItem("token");
         localStorage.removeItem("refresh");
+        setUsuario(null);
       })
       .finally(() => setCargando(false));
   }, []);

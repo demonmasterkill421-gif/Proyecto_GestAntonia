@@ -1,4 +1,5 @@
 import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { RutaPrivada } from './auth/RutaPrivada'
 
 //Para agregar una página a una ruta seguir estos pasos:
@@ -11,11 +12,13 @@ import { Login } from './pages/login'
 import { MainAdmin } from './pages/administrador/main/MainAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 import { VentasAdmin } from './pages/administrador/venta/VentasAdmin'
+import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmin'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
 import { RegistrarVenta } from './pages/recepcionista/venta/RegistrarVenta'
 import { VentasRecepcionista } from './pages/recepcionista/venta/VentasRecepcionista'
+import { AsistenciaRecepcionista } from './pages/recepcionista/asistencia/AsistenciaRecepcionista'
 
 //TRABAJADOR
 import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
@@ -44,6 +47,7 @@ function App() {
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
             <Route path='/admin/ventas' element={<VentasAdmin/>}/>
+            <Route path='/admin/asistencia' element={<AsistenciaAdmin/>}/>
           </Route>
 
 
@@ -52,6 +56,7 @@ function App() {
             <Route path='/recepcionista/inicio' element={< MainRecepcionista/>} />
             <Route path='/recepcionista/registrar-venta' element={< RegistrarVenta/>} />
             <Route path='/recepcionista/ventas' element={<VentasRecepcionista/>} />
+            <Route path='/recepcionista/asistencia' element={<AsistenciaRecepcionista/>} />
           </Route>
 
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
@@ -62,6 +67,31 @@ function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
 
         </Routes>
+
+        {/* Avisos (toasts): abajo al centro, grandes. Verde = éxito, rojo = error */}
+        <Toaster
+          position="bottom-center"
+          containerStyle={{ bottom: 32 }}
+          toastOptions={{
+            duration: 3500,
+            style: {
+              padding: "16px 24px",
+              fontSize: "1.2rem",
+              fontWeight: 600,
+              borderRadius: "16px",
+              maxWidth: "90vw",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)",
+            },
+            success: {
+              style: { background: "#16a34a", color: "#ffffff" },
+              iconTheme: { primary: "#ffffff", secondary: "#16a34a" },
+            },
+            error: {
+              style: { background: "#dc2626", color: "#ffffff" },
+              iconTheme: { primary: "#ffffff", secondary: "#dc2626" },
+            },
+          }}
+        />
       </BrowserRouter>
     </AuthProvider>
   );
