@@ -18,4 +18,5 @@ urlpatterns = [
     path("api/token/refresh/", TokenRefreshView.as_view()),
     path("api/ventas/", include("ventas.urls")),
     path("api/reportes/", include("reportes.urls")),
+    path("api/reservas/", include("reservas.api_urls")),  # Equipo 4 · 2.17
 ]
