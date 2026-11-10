@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from catalogo.models import Servicio
+from locales.models import Local
 from usuarios.models import Usuario
 
 from .disponibilidad import horarios_libres_cercanos
@@ -45,6 +46,13 @@ class ServicioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Servicio
         fields = ["id", "nombre", "precio", "duracion", "tipo"]
+
+
+# ------------------------------------------------------------------ locales
+class LocalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Local
+        fields = ["id", "nombre", "ubicacion", "estado"]
 
 
 # ------------------------------------------------------------------ clientes
