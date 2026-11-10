@@ -15,6 +15,8 @@ import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 //RESERVAS (Equipo 4)
 import { Especialistas } from './pages/reservas/especialistas/Especialistas'
 import { FormEspecialista } from './pages/reservas/especialistas/FormEspecialista'
+import Agenda from './pages/reservas/agenda/Agenda'
+import BuscarCliente from './pages/reservas/clientes/BuscarCliente'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
@@ -61,6 +63,12 @@ function App() {
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
           <Route element={<RutaPrivada roles={["TRAB"]} />}>
             <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+          </Route>
+
+          {/* 4. RESERVAS (Equipo 4): ADMIN y RECEP · 3.8a Cristian */}
+          <Route element={<RutaPrivada roles={["ADMIN", "RECEP"]} />}>
+            <Route path='/agenda' element={<Agenda/>} />
+            <Route path='/agenda/clientes' element={<BuscarCliente/>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
