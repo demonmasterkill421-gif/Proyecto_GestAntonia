@@ -207,10 +207,11 @@ API REST para React (tarea 2.17). Prefijo /api/reservas/, con el token JWT de /a
 - GET reservas/<id>/ ; POST reservas/<id>/reprogramar/ {"inicio"} ; POST reservas/<id>/cancelar/ {"motivo"}.
 - GET clientes/?telefono=... (búsqueda) ; POST clientes/ {"nombre", "telefono", "consentimiento": true}.
 - GET servicios/ : servicios vigentes con su duración.
+- GET locales/ : locales con id y nombre (para los selectores de React).
 - especialistas/ : CRUD de la administradora (POST, PATCH, <id>/desactivar/, <id>/activar/); la
   recepcionista solo puede leer las activas de su local.
 
-Pruebas: python manage.py test reservas -v 2 (104 pruebas del módulo: 69 de pantallas y 35 de la API).
+Pruebas: python manage.py test reservas -v 2 (106 pruebas del módulo: 69 de pantallas y 37 de la API).
 
 Versión publicada para revisión: https://gestantonia-reservas.vercel.app
 settings.py lee DATABASE_URL y las opciones de HTTPS desde variables de entorno. Si no existen (como en

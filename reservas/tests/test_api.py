@@ -279,6 +279,21 @@ class ServicioAPITests(BaseAPI):
         self.assertEqual(r.data[0]["duracion"], 60)
 
 
+class LocalAPITests(BaseAPI):
+    def test_lista_los_locales_con_id_y_nombre(self):
+        self.como(self.paola)
+        r = self.client.get(API + "locales/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([l["nombre"] for l in r.data], ["Local Centro", "Local Mall"])
+        self.assertEqual(set(r.data[0]), {"id", "nombre", "ubicacion", "estado"})
+
+    def test_trabajadora_no_entra_y_no_se_pueden_crear_locales(self):
+        self.como(self.camila)
+        self.assertEqual(self.client.get(API + "locales/").status_code, 403)
+        self.como(self.admin)
+        self.assertEqual(self.client.post(API + "locales/", {"nombre": "Nuevo"}, format="json").status_code, 405)
+
+
 # =================================================================== especialistas
 class EspecialistaAPITests(BaseAPI):
     def nueva(self, **extra):

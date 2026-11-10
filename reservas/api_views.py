@@ -26,7 +26,7 @@ from .agenda import armar_agenda
 from .forms_especialistas import reservas_futuras
 from .models import Cliente, Reserva
 from .permissions import EsAdministrador, EsRecepcionista, LecturaRecepcionEscrituraAdmin, MismoLocal
-from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer,
+from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer, LocalSerializer,
                           ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
                           errores_del_modelo)
 from .views_clientes import normalizar_telefono
@@ -205,6 +205,17 @@ class ServicioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ServicioSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista]
     queryset = Servicio.objects.filter(activo=True).order_by("nombre")
+
+
+# ------------------------------------------------------------------ locales
+class LocalViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/reservas/locales/ → locales con id y nombre, para los selectores de React.
+
+    Solo lectura: los locales se administran desde /admin/ (app locales del repositorio común).
+    """
+    serializer_class = LocalSerializer
+    permission_classes = [IsAuthenticated, EsRecepcionista]
+    queryset = Local.objects.order_by("nombre")
 
 
 # ------------------------------------------------------------------ especialistas
