@@ -10,7 +10,8 @@ export default function Agenda() {
   const { usuario } = useAuth(); 
   
   const [searchParams, setSearchParams] = useSearchParams();
-  const fechaHoy = new Date().toISOString().slice(0, 10);
+  // Fecha de hoy en hora de Chile. toISOString() usa UTC: después de las 21:00 daba el día siguiente.
+  const fechaHoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" }); // AAAA-MM-DD
   const fechaUrl = searchParams.get("fecha") || fechaHoy; 
 
   const [agenda, setAgenda] = useState(null);
@@ -34,7 +35,9 @@ export default function Agenda() {
   };
 
   useEffect(() => {
-    const idLocal = usuario?.rol === "ADMIN" ? localStorage.getItem("sucursal") : "";
+    // La administradora usa el local del selector del encabezado. Si todavía no ha elegido uno,
+    // se usa la primera sucursal (id 1), que es la que el selector muestra por defecto.
+    const idLocal = usuario?.rol === "ADMIN" ? (localStorage.getItem("sucursal") || "1") : "";
     cargarDatos(fechaUrl, idLocal);
 
     const alCambiarLocal = (evento) => cargarDatos(fechaUrl, evento.detail.id);
