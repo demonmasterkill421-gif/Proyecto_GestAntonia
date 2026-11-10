@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Nueva reserva · GestAntonia{% endblock %}
+{% block contenido %}
+<link rel="stylesheet" href="{% static 'css/reservas.css' %}">
+<style>
+  /* Solo lo propio de este formulario; el resto viene de gestantonia.css y reservas.css */
+  .campo { margin-bottom: 1rem; }
+  .campo label { display: block; font-weight: 600; margin-bottom: .25rem; }
+  .campo select, .campo input { width: 100%; min-height: 44px; box-sizing: border-box; }
+  .error-campo { color: #B91C1C; font-size: .9rem; margin: .25rem 0 0; }
+  .aviso-error { color: #B91C1C; background: #FEF2F2; border: 1px solid #B91C1C;
+                 border-radius: 7px; padding: .75rem 1rem; margin-bottom: 1rem; }
+  .sugerencias { margin: 1rem 0; }
+  .sugerencias button, button.btn { cursor: pointer; font: inherit; border: 0; min-height: 44px; }
+  .sugerencias button { margin: .25rem .5rem .25rem 0; padding: 0 1rem; }
+</style>
+
+<div class="tarjeta">
+  <p class="nota"><a href="{% url 'reservas:agenda' %}">Agenda</a> › Nueva reserva</p>
+  <h1>Nueva reserva</h1>
+
+  {% if sin_local %}
+    <p class="aviso-error">Tu cuenta no tiene un local asignado, por eso no puedes agendar horas.</p>
+  {% else %}
+    <p class="saludo">{{ local }}</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="aviso-error" role="alert">
+          {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      {% for campo in form %}
+        <div class="campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% for error in campo.errors %}<p class="error-campo">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+
+      {% if sugerencias %}
+        <div class="sugerencias">
+          <p class="nota">Horarios libres más cercanos de la especialista (toca uno para usarlo):</p>
+          {% for s in sugerencias %}
+            <button type="button" class="btn-sec" data-inicio="{{ s.valor }}"
+                    onclick="document.getElementById('id_inicio').value = this.dataset.inicio">{{ s.etiqueta }}</button>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <button type="submit" class="btn">Confirmar reserva</button>
+      <p><a class="btn-sec" href="{% url 'reservas:agenda' %}">← Volver a la agenda</a></p>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
