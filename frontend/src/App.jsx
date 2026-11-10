@@ -12,6 +12,10 @@ import { MainAdmin } from './pages/administrador/main/MainAdmin'
 import { ReportesAdmin } from './pages/administrador/reportes/ReportesAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 
+//RESERVAS (Equipo 4)
+import { Especialistas } from './pages/reservas/especialistas/Especialistas'
+import { FormEspecialista } from './pages/reservas/especialistas/FormEspecialista'
+
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
 
@@ -42,6 +46,10 @@ function App() {
             <Route path='/admin/inicio' element={< MainAdmin/>}/>
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
             <Route path='/reportes' element={<ReportesAdmin/>} />
+            {/* Reservas (Equipo 4) · 3.8c: especialistas por local */}
+            <Route path='/especialistas' element={<Especialistas/>} />
+            <Route path='/especialistas/nueva' element={<FormEspecialista/>} />
+            <Route path='/especialistas/:id/editar' element={<FormEspecialista/>} />
           </Route>
 
 
