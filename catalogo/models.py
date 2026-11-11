@@ -1,15 +1,4 @@
-"""
-Bloque «Item» del diagrama de clases.
 
-Item (idItem, nombre, descripcion, precio) es la clase general; Servicio y Producto «son un» Item.
-Se usa herencia multitabla de Django: catalogo_item guarda los datos comunes y catalogo_servicio /
-catalogo_producto guardan los propios, unidas por una relación 1 a 1. Así una venta puede contener
-servicios y productos en la misma tabla de detalle.
-
-Producto distingue el producto que se VENDE a la clienta (perfumes, kit de marca propia) del INSUMO
-que se CONSUME en un servicio (esmaltes, algodón), como pide la corrección del MER.
-El stock se guarda por local en la tabla Inventario.
-"""
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import F
@@ -55,9 +44,6 @@ class Servicio(Item):
         verbose_name = "servicio"
         verbose_name_plural = "servicios"
 
-    # agregarServicio(), modificarServicio(), eliminarServicio(): CRUD del ORM / panel de administración.
-
-
 class Producto(Item):
     class Tipo(models.TextChoices):
         VENTA = "VENTA", "VENTA"
@@ -73,23 +59,26 @@ class Producto(Item):
 
     @transaction.atomic
     def actualizar_stock(self, local, cantidad):
-        """actualizarStock(): suma (cantidad > 0) o descuenta (cantidad < 0) stock en un local (RF-R03)."""
-        inventario, _ = Inventario.objects.select_for_update().get_or_create(producto=self, local=local)
+        inventario, _ = (
+            Inventario.objects
+            .select_for_update()
+            .get_or_create(producto=self, local=local))
         if inventario.cantidad + cantidad < 0:
             raise ValidationError(
-                f"Stock insuficiente de «{self.nombre}» en {local}: hay {inventario.cantidad}, se piden {-cantidad}."
-            )
-        Inventario.objects.filter(pk=inventario.pk).update(cantidad=F("cantidad") + cantidad)
-        inventario.refresh_from_db()
-        return inventario
+                f"Stock insuficiente de «{self.nombre}» en {local}: "
+                f"hay {inventario.cantidad}, se piden {-cantidad}.")
+        if cantidad != 0:
+            Inventario.objects.filter(pk=inventario.pk).update(cantidad=F("cantidad") + cantidad)
+            MovimientoInventario.objects.create(inventario=inventario,cantidad=cantidad,)
+            inventario.refresh_from_db()
 
+        return inventario
     def stock_en(self, local):
         inv = self.inventarios.filter(local=local).first()
         return inv.cantidad if inv else 0
 
 
 class Inventario(models.Model):
-    """Stock de un producto en un local (gestión de inventario, RF-A04)."""
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="inventarios")
     local = models.ForeignKey("locales.Local", on_delete=models.CASCADE, related_name="inventarios")
     cantidad = models.PositiveIntegerField(default=0)
@@ -105,5 +94,18 @@ class Inventario(models.Model):
 
     @property
     def bajo_minimo(self):
-        """Alerta de stock bajo para la administradora."""
         return self.cantidad <= self.stock_minimo
+
+
+class MovimientoInventario(models.Model):
+    inventario = models.ForeignKey(Inventario, on_delete=models.CASCADE, related_name="movimientos")
+    cantidad = models.PositiveIntegerField()
+    fecha = models.DateField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha", "-id"]
+
+
+    def __str__(self):
+        tipo = "Entrada" if self.cantidad > 0 else "Saida"
+        return f"{tipo} {self.cantidad:+d}"

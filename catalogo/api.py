@@ -1,11 +1,10 @@
-"""Consultas del inventario para los componentes React."""
-from django.db.models import F, Sum
+from django.db.models import F, Sum, OuterRef, Subquery
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from locales.models import Local
-from .models import Inventario
+from .models import Inventario, MovimientoInventario
 from django.db import transaction
 from rest_framework import status
 from .models import Producto
@@ -31,9 +30,14 @@ class InventarioSerializer(serializers.ModelSerializer):
     precio = serializers.IntegerField(source="producto.precio")
     bajo_minimo = serializers.BooleanField(read_only=True)
 
+    ultimo_movimiento = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+    )
+
     class Meta:
         model = Inventario
-        fields = ["id", "producto","marca","descripcion","tipo", "local", "cantidad", "stock_minimo", "precio", "bajo_minimo"]
+        fields = ["id","producto","marca","descripcion","tipo","local","cantidad","stock_minimo","precio","bajo_minimo","ultimo_movimiento",]
 
 
 class InventarioView(APIView):
@@ -43,7 +47,8 @@ class InventarioView(APIView):
         filtros = FiltrosInventario(data=request.query_params)
         filtros.is_valid(raise_exception=True)
         datos = filtros.validated_data
-        registros = Inventario.objects.select_related("producto", "local").order_by("producto__nombre", "local__nombre", "pk")
+        ultimo_movimiento = (MovimientoInventario.objects.filter(inventario_id=OuterRef("pk")).order_by("-fecha", "-pk").values("cantidad")[:1])
+        registros = (Inventario.objects.select_related("producto", "local").annotate(ultimo_movimiento=Subquery(ultimo_movimiento)).order_by("producto__nombre", "local__nombre", "pk"))
         resumen = {
             "total_productos": registros.values("producto_id").distinct().order_by().count(),
             "stock_total": registros.aggregate(total=Sum("cantidad"))["total"] or 0,
@@ -70,11 +75,11 @@ class RegistrarProductoSerializer(serializers.ModelSerializer):
     )
     cantidad = serializers.IntegerField(
         min_value=0,
-        max_value=2147483647,
+        max_value=10000,
     )
     stock_minimo = serializers.IntegerField(
         min_value=0,
-        max_value=2147483647,
+        max_value=10000,
     )
 
     class Meta:
@@ -104,18 +109,22 @@ class RegistrarProductoSerializer(serializers.ModelSerializer):
         Inventario.objects.create(
             producto=producto,
             local=local,
-            cantidad=cantidad,
+            cantidad=0,
             stock_minimo=stock_minimo,
         )
 
-        return producto
+        if cantidad > 0:
+            producto.actualizar_stock(
+                local=local,
+                cantidad=cantidad,
+            )
 
+        return producto
 
 class RegistrarProductoView(APIView):
     permission_classes = [IsAuthenticated, EsAdministrador]
 
     def get(self, request):
-        # Opciones reales para los selectores del formulario.
         locales = Local.objects.filter(
             estado=Local.Estado.ACTIVO
         ).order_by("nombre").values("id", "nombre")
