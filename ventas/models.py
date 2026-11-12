@@ -4,8 +4,12 @@ Bloque «RegistroDeVenta» del diagrama de clases (CU-01 Registrar atención · 
 RegistroDeVenta (idVenta, fecha, descripcion, descuento, items[], montoBase, montoTotal) se relaciona con:
   - Local (1..1): local donde se realiza la venta.
   - Recepcionista (1..1, «Registra»): quien la ingresa al sistema.
-  - Trabajador (0..1, «pertenece»): quien realiza el servicio; se usa para calcular su comisión.
-  - Item (1..*, «Contiene»): a través de DetalleVenta, que guarda cantidad y precio del momento.
+  - Trabajador (0..1, «pertenece»): trabajadora encargada de la atención (se mantiene por compatibilidad).
+  - Item (1..*, «Contiene»): a través de DetalleVenta, que guarda cantidad, precio del momento
+    y la trabajadora asignada a cada servicio («asignado a»).
+
+Comisiones: se calculan por línea (DetalleVenta), de modo que si en una venta participan
+varias especialistas, cada una recibe la comisión de los servicios que realizó.
 """
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -15,6 +19,11 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Max
 from django.utils import timezone
+
+
+def _redondear(valor):
+    """Redondea un Decimal a pesos enteros (CLP)."""
+    return int(Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 class RegistroDeVenta(models.Model):
@@ -37,7 +46,7 @@ class RegistroDeVenta(models.Model):
     trabajador = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="atenciones", limit_choices_to={"rol": "TRAB"},
-        help_text="Trabajadora encargada del servicio.",
+        help_text="Trabajadora encargada de la atención. La comisión se calcula por línea en DetalleVenta.",
     )
     fecha = models.DateTimeField(default=timezone.now)
     descripcion = models.TextField("descripción", blank=True)
@@ -111,11 +120,15 @@ class RegistroDeVenta(models.Model):
         self.recalcular()
         return self.monto_total
 
+    @property
+    def factor_descuento(self):
+        """Proporción que se cobra después del descuento (ej.: 15% de descuento => 0.85)."""
+        return (Decimal(100) - Decimal(self.descuento)) / Decimal(100)
+
     def recalcular(self):
         """montoBase = suma de los detalles; montoTotal = montoBase menos el descuento."""
         self.monto_base = sum(d.subtotal for d in self.detalles.all())
-        factor = (Decimal(100) - Decimal(self.descuento)) / Decimal(100)
-        self.monto_total = int((Decimal(self.monto_base) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        self.monto_total = _redondear(Decimal(self.monto_base) * self.factor_descuento)
         self.save(update_fields=["monto_base", "monto_total", "descuento"])
 
     @transaction.atomic
@@ -124,7 +137,7 @@ class RegistroDeVenta(models.Model):
         venta = RegistroDeVenta.objects.select_for_update().get(pk=self.pk)
         venta._validar_editable()
         detalles = list(venta.detalles.select_related("item__producto"))
-        if not detalles:    
+        if not detalles:
             raise ValidationError("La venta no tiene servicios ni productos.")
         for d in detalles:
             if d.item.es_producto:
@@ -149,13 +162,30 @@ class RegistroDeVenta(models.Model):
         self.estado = self.Estado.ANULADA
         self.save(update_fields=["estado"])
 
+    # ------------------------------------------------------------------ comisiones
+    @property
+    def comisiones(self):
+        """
+        Comisión de cada trabajadora que participó en esta venta.
+        Devuelve un diccionario {trabajadora: monto_CLP}. Solo cuenta ventas confirmadas.
+        """
+        if self.estado != self.Estado.CONFIRMADA:
+            return {}
+        resultado = {}
+        for d in self.detalles.select_related("trabajador"):
+            if d.trabajador:
+                resultado[d.trabajador] = resultado.get(d.trabajador, 0) + d.comision
+        return resultado
+
     @property
     def comision_trabajador(self):
-        """Comisión de la trabajadora según su porcentaje (base para el reporte CU-03)."""
-        if not self.trabajador or self.estado != self.Estado.CONFIRMADA:
+        """
+        Compatibilidad con el código anterior: comisión de la trabajadora de la cabecera,
+        ahora calculada solo sobre las líneas que ella realizó (no sobre el total de la venta).
+        """
+        if not self.trabajador:
             return 0
-        pct = Decimal(self.trabajador.porcentaje_comision) / Decimal(100)
-        return int((Decimal(self.monto_total) * pct).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        return self.comisiones.get(self.trabajador, 0)
 
 
 class DetalleVenta(models.Model):
@@ -168,7 +198,7 @@ class DetalleVenta(models.Model):
     trabajador = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="servicios_realizados", limit_choices_to={"rol": "TRAB"},
-        help_text="Trabajadora que realizó este servicio (base de su comisión).",
+        help_text="Trabajadora asignada a este servicio (base de su comisión).",
     )
 
     class Meta:
@@ -181,6 +211,35 @@ class DetalleVenta(models.Model):
     @property
     def subtotal(self):
         return self.cantidad * self.precio_unitario
+
+    @property
+    def subtotal_con_descuento(self):
+        """Subtotal de la línea con el descuento de la venta aplicado proporcionalmente."""
+        return _redondear(Decimal(self.subtotal) * self.venta.factor_descuento)
+
+    @property
+    def comision(self):
+        """Comisión de la trabajadora asignada a esta línea: subtotal con descuento × su porcentaje."""
+        if not self.trabajador:
+            return 0
+        pct = Decimal(self.trabajador.porcentaje_comision) / Decimal(100)
+        return _redondear(Decimal(self.subtotal_con_descuento) * pct)
+
+    @classmethod
+    def comision_de(cls, trabajadora, desde=None, hasta=None):
+        """
+        Comisión total de una trabajadora en un período (base para el reporte CU-03).
+        Suma las líneas que ella realizó en ventas confirmadas, entre 'desde' y 'hasta' (fechas opcionales).
+        """
+        lineas = cls.objects.filter(
+            trabajador=trabajadora,
+            venta__estado=RegistroDeVenta.Estado.CONFIRMADA,
+        ).select_related("venta", "trabajador")
+        if desde:
+            lineas = lineas.filter(venta__fecha__date__gte=desde)
+        if hasta:
+            lineas = lineas.filter(venta__fecha__date__lte=hasta)
+        return sum(d.comision for d in lineas)
 
 
 class SolicitudAnulacion(models.Model):
