@@ -1,78 +1,102 @@
 import { Sidebar } from "../../../components/Sidebar";
-import { SeccionResumen } from "../../../components/SeccionResumen";
 import { TituloAnimado } from "../../../components/TituloAnimado";
+import { PanelAtajo } from "../../../components/PanelAtajo";
 import { useTitulo } from "../../../hooks/useTitulo";
+
+import {
+  ShoppingBag,
+  QrCode,
+  UserCheck,
+  CalendarDays,
+  Users,
+  BadgeDollarSign,
+  Store,
+  ChartColumn,
+} from "lucide-react";
+
+// Página donde las tres (propietaria, recepcionista y especialista) registran su asistencia.
+// Debe ser la misma dirección que usa el menú de la especialista.
+const RUTA_ASISTENCIA = "/mi-asistencia";
 
 export function MainAdmin() {
   useTitulo("Inicio");
-  
+
   return (
-    <Sidebar>
-      <TituloAnimado/>
+    <Sidebar fondo="bg-[#f1cfe4]">
+      <TituloAnimado />
 
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+        <PanelAtajo
+          titulo="Ventas"
+          descripcion="Revisa las ventas, descarga el Excel y anula si hace falta"
+          boton="Ver ventas"
+          ruta="/admin/ventas"
+          icono={ShoppingBag}
+          destacado
+        />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
+        {/* Solo en el teléfono: registrar la asistencia se hace desde ahí */}
+        <div className="md:hidden">
+          <PanelAtajo
+            titulo="Registrar asistencia"
+            descripcion="Marca tu entrada y tu salida del día"
+            boton="Registrar"
+            ruta={RUTA_ASISTENCIA}
+            icono={QrCode}
+          />
+        </div>
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
+        <PanelAtajo
+          titulo="Asistencia"
+          descripcion="Mira quién llegó, corrige horarios y descarga el Excel"
+          boton="Ver asistencia"
+          ruta="/admin/asistencia"
+          icono={UserCheck}
+        />
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
+        <PanelAtajo
+          titulo="Agenda"
+          descripcion="Las citas y horas agendadas"
+          boton="Ver agenda"
+          ruta="/agenda"
+          icono={CalendarDays}
+        />
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
+        <PanelAtajo
+          titulo="Especialistas"
+          descripcion="Tu equipo de trabajo"
+          boton="Ver especialistas"
+          ruta="/especialistas"
+          icono={Users}
+        />
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
+        <PanelAtajo
+          titulo="Comisiones"
+          descripcion="Lo que gana cada especialista"
+          boton="Ver comisiones"
+          ruta="/comisiones"
+          icono={BadgeDollarSign}
+        />
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
+        <PanelAtajo
+          titulo="Locales"
+          descripcion="Administra tus sucursales"
+          boton="Ver locales"
+          ruta="/admin/locales"
+          icono={Store}
+        />
 
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-
-
-
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
-
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-  
-
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-
-        <SeccionResumen titulo="Ventas de hoy"> 
-          <h1>Inicio administradora</h1>
-        </SeccionResumen>
-        
+        {/* En el computador la tarjeta de asistencia no se ve, quedan 7: esta ocupa todo el ancho */}
+        <div className="lg:col-span-2">
+          <PanelAtajo
+            titulo="Reportes"
+            descripcion="Resumen y gráficos de tu negocio"
+            boton="Ver reportes"
+            ruta="/admin/reportes"
+            icono={ChartColumn}
+          />
+        </div>
       </div>
-
-
-      
     </Sidebar>
   );
 }

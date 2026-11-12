@@ -7,7 +7,7 @@ export function TarjetaSucursal({ sucursal, onVerAgenda, onVerAsistencia }) {
   const { nombre, reservasHoy, presentes, especialistas, ventasHoy, cantidadVentas, proxima } = sucursal;
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#ecd3e6] bg-white shadow-sm">
+    <article className="overflow-hidden rounded-2xl border border-[#ecd3e6] bg-white shadow-lg shadow-[#b5368f]/15">
       <div className="p-5">
         <h2 className="flex items-center gap-3 text-2xl font-bold text-[#1f1218]">
           <Store size={28} className="text-[#b5368f]" />

@@ -1,5 +1,9 @@
-from django.urls import path
+from rest_framework.routers import DefaultRouter
 
-urlpatterns = [
-    # Por ahora vacío para que no falle
-]
+from .views import SolicitudAnulacionViewSet, VentaViewSet
+
+router = DefaultRouter()
+router.register("ventas", VentaViewSet, basename="venta")
+router.register("solicitudes-anulacion", SolicitudAnulacionViewSet, basename="solicitud-anulacion")
+
+urlpatterns = router.urls
