@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Detalle de reserva · GestAntonia{% endblock %}
+{% block contenido %}
+<link rel="stylesheet" href="{% static 'css/reservas.css' %}">
+<style>
+  /* Solo lo propio de esta pantalla; el resto viene de gestantonia.css y reservas.css */
+  .datos { margin: 1rem 0 1.5rem; }
+  .datos div { display: flex; gap: .75rem; padding: .35rem 0; border-bottom: 1px solid #D9D4D7; }
+  .datos dt { font-weight: 600; min-width: 9rem; }
+  .datos dd { margin: 0; }
+  .accion { margin: 1.5rem 0; }
+  .accion label { display: block; font-weight: 600; margin-bottom: .25rem; }
+  .accion input { width: 100%; min-height: 44px; box-sizing: border-box; margin-bottom: .5rem; }
+  .accion button { cursor: pointer; font: inherit; border: 0; min-height: 44px; padding: 0 1.25rem; }
+  .btn-peligro { background: #B91C1C; color: #fff; border-radius: 7px; }
+  .error-campo { color: #B91C1C; font-size: .9rem; margin: 0 0 .5rem; }
+  .aviso { background: #F5F5F4; border: 1px solid #D9D4D7; border-radius: 7px; padding: .75rem 1rem; }
+</style>
+
+<div class="tarjeta">
+  <p class="nota">
+    <a href="{% url 'reservas:agenda' %}?fecha={{ reserva.inicio|date:'Y-m-d' }}">Agenda</a> › Detalle de reserva
+  </p>
+  <h1>Detalle de reserva</h1>
+  <p class="saludo">{{ reserva.local }}</p>
+
+  <dl class="datos">
+    <div><dt>Cliente</dt><dd>{{ reserva.cliente.nombre }} ({{ reserva.cliente.telefono }})</dd></div>
+    <div><dt>Servicio</dt><dd>{{ reserva.servicio.nombre }}</dd></div>
+    <div><dt>Especialista</dt><dd>{{ reserva.especialista.get_full_name|default:reserva.especialista.first_name }}</dd></div>
+    <div><dt>Horario</dt><dd>{{ reserva.inicio|date:"d/m/Y" }} {{ reserva.inicio|time:"H:i" }}–{{ reserva.fin|time:"H:i" }}</dd></div>
+    <div><dt>Estado</dt><dd>{{ reserva.get_estado_display }}</dd></div>
+    {% if reserva.estado == "CANCELADA" %}
+      <div><dt>Motivo de cancelación</dt><dd>{{ reserva.motivo_cancelacion }}</dd></div>
+    {% endif %}
+  </dl>
+
+  {% if reserva.estado == "AGENDADA" %}
+    <form method="post" action="{% url 'reservas:reprogramar' reserva.pk %}" class="accion" novalidate>
+      {% csrf_token %}
+      <label for="{{ form_reprogramar.inicio.id_for_label }}">{{ form_reprogramar.inicio.label }}</label>
+      {{ form_reprogramar.inicio }}
+      {% for error in form_reprogramar.inicio.errors %}<p class="error-campo">{{ error }}</p>{% endfor %}
+      <button type="submit" class="btn">Reprogramar</button>
+    </form>
+
+    <form method="post" action="{% url 'reservas:cancelar' reserva.pk %}" class="accion" novalidate
+          onsubmit="return confirm('¿Cancelar esta reserva? Esta acción no se puede deshacer.')">
+      {% csrf_token %}
+      <label for="{{ form_cancelar.motivo.id_for_label }}">{{ form_cancelar.motivo.label }}</label>
+      {{ form_cancelar.motivo }}
+      {% for error in form_cancelar.motivo.errors %}<p class="error-campo">{{ error }}</p>{% endfor %}
+      <button type="submit" class="btn-peligro">Cancelar reserva</button>
+    </form>
+  {% elif reserva.estado == "CANCELADA" %}
+    <p class="aviso">Esta reserva está cancelada: no se puede reprogramar ni cancelar de nuevo.</p>
+  {% else %}
+    <p class="aviso">Esta reserva ya fue atendida: no se puede reprogramar ni cancelar.</p>
+  {% endif %}
+
+  <p><a class="btn-sec" href="{% url 'reservas:agenda' %}?fecha={{ reserva.inicio|date:'Y-m-d' }}">← Volver a la agenda</a></p>
+</div>
+{% endblock %}

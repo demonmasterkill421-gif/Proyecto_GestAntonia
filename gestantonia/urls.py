@@ -10,11 +10,14 @@ admin.site.index_title = "Gestión de Estética Antonia"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("reservas/", include("reservas.urls")), #Equipo 4
     path("", include("usuarios.urls")),
 
     path("api/login/", LoginView.as_view()), #Invoca la clase LoginView y la transforma en un método para retornar la información
     path("api/me/", MeView.as_view()), #Invoca a MeView y lo convierte en una vista para que react lo acepte
     path("api/token/refresh/", TokenRefreshView.as_view()),
-    path("api/", include("ventas.urls")),
-    path("api/", include("asistencia.urls")),
+    
+    path("api/", include("asistencia.urls")), #Asistencia con QR
+    path("api/ventas/", include("ventas.urls")), #Ventas
+    path("api/reportes/", include("reportes.urls")), #Reportes
 ]

@@ -1,0 +1,29 @@
+/* Tabla de la agenda; usa los colores de la guía UX/UI (gestantonia.css). */
+.tabla { overflow-x: auto; margin-top: 16px; }
+.tabla table { width: 100%; border-collapse: collapse; min-width: 480px; }
+.tabla th { text-align: left; font-size: 14px; padding: 8px; border-bottom: 2px solid var(--borde); }
+.tabla td { padding: 8px; border-bottom: 1px solid var(--borde); }
+input[type=date] { padding: 8px 10px; border: 1px solid var(--borde); border-radius: 7px; font-size: 16px; }
+
+/* Formularios y lista de especialistas (tarea 2.4). */
+select, input[type=number] { width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 7px; font-size: 16px; background: #fff; color: inherit; }
+.campo { margin-bottom: 14px; }
+.campo input, .campo select { width: 100%; min-height: 44px; }
+.ayuda { font-size: 14px; margin: 4px 0 0; }
+.error-campo { color: #B3261E; font-size: 15px; margin: 4px 0 0; }
+.aviso-error { color: #B3261E; background: #FDECEA; border: 1px solid #B3261E; border-radius: 7px; padding: 10px 14px; margin: 0 0 16px; }
+.mensaje { background: var(--degradado); color: var(--primario-oscuro); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; }
+tr.inactiva td { opacity: .55; }
+.acciones-fila { white-space: nowrap; }
+.acciones-fila a { color: var(--primario); font-weight: 600; }
+.acciones-fila form { display: inline; margin-left: 10px; }
+.acciones-fila .btn-sec { padding: 0; font-size: 16px; }
+
+/* Agenda por bloques de 30 minutos (tarea 2.3): mismos colores que definió Cristian. */
+.agenda-bloques td { min-width: 120px; }
+.bloque-ocupado { background: #F8F9FA; border-left: 4px solid #44403C; color: #44403C; }
+.bloque-ocupado a { color: inherit; text-decoration: none; display: block; }
+.bloque-ocupado a:hover strong { text-decoration: underline; }
+.bloque-libre { background: #F0FDF4; border-left: 4px solid #15803D; }
+.bloque-libre span { color: #15803D; font-weight: bold; }
+.bloque-libre a { color: var(--primario); }

@@ -10,6 +10,15 @@ export function SelectorSucursal() {
   const elegir = (sucursal) => {
     guardarSucursalId(sucursal.id);
     setAbierto(false);
+    // Informar al Dashboard de cambios hechos desde el selector compartido.
+    window.dispatchEvent(new CustomEvent('gestantonia:sucursal-cambiada', {
+      detail: { id: sucursal.id },
+    }));
+    try {
+      localStorage.setItem("sucursal", sucursal.id);
+    } catch {
+      // si no se puede guardar, igual funciona
+    }
   };
 
   return (

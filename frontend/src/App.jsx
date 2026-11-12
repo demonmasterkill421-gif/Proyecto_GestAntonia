@@ -10,6 +10,7 @@ import { Login } from './pages/login'
 
 //ADMIN
 import { MainAdmin } from './pages/administrador/main/MainAdmin'
+import { ReportesAdmin } from './pages/administrador/reportes/ReportesAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 import { VentasAdmin } from './pages/administrador/venta/VentasAdmin'
 import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmin'
@@ -48,6 +49,7 @@ function App() {
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
             <Route path='/admin/ventas' element={<VentasAdmin/>}/>
             <Route path='/admin/asistencia' element={<AsistenciaAdmin/>}/>
+            <Route path='/reportes' element={<ReportesAdmin/>} />
           </Route>
 
 
