@@ -49,7 +49,8 @@ function App() {
             <Route path='/admin/locales' element={< AdminSucursales/>}/>
             <Route path='/admin/ventas' element={<VentasAdmin/>}/>
             <Route path='/admin/asistencia' element={<AsistenciaAdmin/>}/>
-            <Route path='/reportes' element={<ReportesAdmin/>} />
+            <Route path='/admin/reportes' element={<ReportesAdmin/>} /> {/* La ruta que usa el Sidebar */}
+            <Route path='/reportes' element={<ReportesAdmin/>} /> {/* Ruta original del equipo, se mantiene por si la usan en otro lado */}
           </Route>
 
 
