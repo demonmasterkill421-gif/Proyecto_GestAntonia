@@ -12,7 +12,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("usuarios.urls")),
 
-    path("api/login/", LoginView.as_view()),
+    path("api/login/", LoginView.as_view()), 
     path("api/me/", MeView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
     path("api/", include("ventas.urls")),

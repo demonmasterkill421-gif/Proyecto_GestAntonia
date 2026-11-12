@@ -113,4 +113,4 @@ def construir_excel(ventas):
 
     salida = BytesIO()
     libro.save(salida)
-    return salida.getvalue()
+    return salida.getvalue()    

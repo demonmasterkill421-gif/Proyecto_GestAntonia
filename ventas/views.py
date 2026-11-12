@@ -25,11 +25,10 @@ from .serializers import (
 
 from catalogo.models import Producto, Servicio
 
-LIMITE_EXPORTAR = 20000  # tope de ventas por archivo
+LIMITE_EXPORTAR = 20000
 
 
 def _fecha_o_none(texto):
-    """Convierte 'aaaa-mm-dd' en fecha. Si viene vacío o mal escrito, devuelve None."""
     try:
         return parse_date(texto or "")
     except ValueError:
@@ -46,8 +45,6 @@ class VentaViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
     def get_permissions(self):
-        # Anular una venta directamente: solo la administradora.
-        # La recepcionista no anula: usa "solicitar-anulacion".
         if self.action == "anular":
             return [IsAuthenticated(), EsAdministrador(), MismoLocal()]
         return super().get_permissions()
@@ -56,8 +53,6 @@ class VentaViewSet(viewsets.ModelViewSet):
         qs = RegistroDeVenta.objects.select_related("local", "trabajador").prefetch_related("detalles")
         user = self.request.user
 
-        # Período opcional: ?desde=aaaa-mm-dd&hasta=aaaa-mm-dd (incluye ambos días).
-        # Así la pantalla pide solo lo que necesita y no todo el historial.
         desde = _fecha_o_none(self.request.query_params.get("desde"))
         hasta = _fecha_o_none(self.request.query_params.get("hasta"))
         if desde:

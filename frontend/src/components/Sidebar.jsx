@@ -25,7 +25,7 @@ const MENU = [
   { ruta: "/recepcionista/asistencia", etiqueta: "Asistencia", icono: UserCheck, roles: ["RECEP"] },
   { ruta: "/recepcionista/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["RECEP"] },
   { ruta: "/especialistas", etiqueta: "Especialistas", icono: Users, roles: ["ADMIN"] },
-  { ruta: "/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
+  { ruta: "/admin/comisiones", etiqueta: "Comisiones", icono: BadgeDollarSign, roles: ["ADMIN"] },
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
   { ruta: "/admin/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["ADMIN"] },
   { ruta: "/admin/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },

@@ -24,8 +24,6 @@ const DESCRIPCION_MAXIMA = 200;
 // "1 servicio" / "3 servicios"
 const contar = (n, singular, plural) => (n > 0 ? `${n} ${n === 1 ? singular : plural}` : "");
 
-// El backend puede responder {detail: "..."} o {campo: ["..."]} o listas anidadas.
-// Esto saca el primer texto que encuentre para mostrarlo en el aviso.
 const primerMensaje = (valor) => {
   if (typeof valor === "string") return valor;
   if (Array.isArray(valor)) return valor.map(primerMensaje).find(Boolean) ?? "";
@@ -40,15 +38,15 @@ export function RegistrarVenta() {
   const [productos, setProductos] = useState([]);
   const [insumos, setInsumos] = useState([]);
   const [descripcion, setDescripcion] = useState("");
-  const [tipoDescuento, setTipoDescuento] = useState("%"); // "%" o "CLP"
+  const [tipoDescuento, setTipoDescuento] = useState("%"); // % o CLP
   const [valorDescuento, setValorDescuento] = useState("");
   const [metodoPago, setMetodoPago] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [resumenAbierto, setResumenAbierto] = useState(true);
-  const [confirmando, setConfirmando] = useState(false); // ventana "¿Confirmar la venta?"
+  const [confirmando, setConfirmando] = useState(false); // Visualizar panel de confirmar ventas
   const botonVolver = useRef(null);
 
-  // Los insumos no se cobran: solo servicios y productos suman al subtotal.
+
   const subtotal =
     servicios.reduce((suma, s) => suma + s.precio, 0) +
     productos.reduce((suma, p) => suma + p.precio * p.cantidad, 0);
@@ -91,7 +89,7 @@ export function RegistrarVenta() {
     setMetodoPago("");
   };
 
-  // ---------- Ventana de confirmación ----------
+  //Ventana de confirmación
   const abrirConfirmacion = () => {
     if (!listo || enviando) return;
     setConfirmando(true);
@@ -120,7 +118,7 @@ export function RegistrarVenta() {
     };
   }, [confirmando, enviando]);
 
-  const confirmar = async () => {
+  const confirmar = async () => { //Confirma la venta y 
     if (!listo || enviando) return;
     setEnviando(true);
 

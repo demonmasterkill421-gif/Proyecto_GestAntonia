@@ -19,6 +19,14 @@ export const exportarVentas = async (ids) => {
 };
 
 
+
+
+
+
+
+
+
+
 export const anularVenta = (id, motivo) => api.post(`/api/ventas/${id}/anular/`, { motivo });
 
 export const solicitarAnulacion = (id, motivo) =>

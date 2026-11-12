@@ -8,16 +8,14 @@ import { useAuth } from "../auth/AuthContext";
 import { INICIO_POR_ROL } from "../config/roles";
 import { useTitulo } from "../hooks/useTitulo";
 
-// Cuánto dura la pantalla de bienvenida después de iniciar sesión (en milisegundos)
+//duración de pantalla
 const DURACION_ENTRADA = 1400;
 
 const esperar = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
 
-// Pantalla que cubre todo mientras se "prepara" la sesión
 function PantallaEntrada() {
   const [visible, setVisible] = useState(false);
 
-  // Se monta invisible y un instante después se activa: así la transición se nota
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 20);
     return () => clearTimeout(id);
@@ -38,7 +36,7 @@ function PantallaEntrada() {
       </p>
       <p className="mt-1 text-base font-medium text-[#9c2d7b]">Preparando tu espacio…</p>
 
-      {/* Barra que se va llenando */}
+      {/* Barra de progreso al iniciar sesión */}
       <div className="mt-6 h-2 w-56 overflow-hidden rounded-full bg-[#e6b8d4]">
         <div
           className="h-full rounded-full bg-gradient-to-r from-[#d61f9a] to-[#a8238f] transition-[width] ease-out"
@@ -63,12 +61,7 @@ export function Login() {
   const [entrando, setEntrando] = useState(false); // pantalla de bienvenida
   const [error, setError] = useState("");
 
-  // Llegar al login siempre cierra cualquier sesión abierta (token y usuario).
-  // Así, si alguien apretaba "atrás" después de que algo lo mandó aquí, no puede
-  // volver a entrar con la cuenta anterior. Se espera a que termine de revisarse
-  // la sesión guardada para que no se reabra por detrás.
-  // Solo depende de auth.cargando a propósito: si dependiera de más cosas, se
-  // cerraría también la sesión recién iniciada.
+
   useEffect(() => {
     if (!auth.cargando) auth.cerrarSesion();
   }, [auth.cargando]);
@@ -84,11 +77,10 @@ export function Login() {
 
     setLoading(true);
     try {
-      const { data } = await iniciarSesion(email, password);
+      const { data } = await iniciarSesion(email, password); //U1. Gatilla iniciarSesión() desde usuario.api.js y espera antes de continuar
 
       auth.iniciarSesion(data);
 
-      // Animación de bienvenida antes de entrar
       setEntrando(true);
       await esperar(DURACION_ENTRADA);
 
@@ -109,10 +101,8 @@ export function Login() {
     <main className="fondo-animado min-h-screen flex flex-col items-center px-4 pt-24 pb-12">
       {entrando && <PantallaEntrada />}
 
-      {/* Logo (colócalo en public/logo-antonia.png) */}
         <img src={logo} alt="Antonia, centro de depilación" className="w-52 h-auto" />
 
-      {/* Título */}
       <h1 className="mt-12 text-4xl font-bold tracking-tight text-[#1f1218]">
         Gest<span className="text-[#b5368f]">Antonia</span>
       </h1>
@@ -120,7 +110,6 @@ export function Login() {
         Gestión de ventas, inventario y asistencia
       </p>
 
-      {/* Tarjeta */}
       <form
         onSubmit={handleSubmit}
         noValidate

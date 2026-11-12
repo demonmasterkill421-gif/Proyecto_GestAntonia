@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-// icono: componente de lucide-react (ej. Sparkles). Si no se pasa, se usa el número como antes.
-// detalle: texto pequeño que se muestra solo cuando la sección está cerrada.
+//si no hay ícono se despliega un número
+//detalle es un pequeño texto que avisa si hay algún error
 export function SeccionPlegable({ icono: Icono, numero, titulo, detalle, abiertaInicial = false, children }) {
   const [abierta, setAbierta] = useState(abiertaInicial);
 
