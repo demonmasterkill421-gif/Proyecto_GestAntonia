@@ -180,7 +180,7 @@ server {
     location /assets/ { try_files \$uri =404; expires 30d; access_log off; }
 
     # Pantallas de React que comparten prefijo con Django (tienen prioridad por ser regex)
-    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes)/?\$ { try_files /index.html =404; }
+    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar)/?\$ { try_files /index.html =404; }
     location = /login { try_files /index.html =404; }
 
     # Django: API REST, admin de Django y módulos con templates
