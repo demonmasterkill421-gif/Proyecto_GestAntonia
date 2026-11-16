@@ -14,6 +14,8 @@ import { ReportesAdmin } from './pages/administrador/reportes/ReportesAdmin'
 import {AdminSucursales} from'./pages/administrador/sucursales/admin-sucursales'
 import { VentasAdmin } from './pages/administrador/venta/VentasAdmin'
 import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmin'
+import { Inventario } from "./pages/administrador/inventario/Inventario";
+import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
@@ -51,6 +53,8 @@ function App() {
             <Route path='/admin/asistencia' element={<AsistenciaAdmin/>}/>
             <Route path='/admin/reportes' element={<ReportesAdmin/>} /> {/* La ruta que usa el Sidebar */}
             <Route path='/reportes' element={<ReportesAdmin/>} /> {/* Ruta original del equipo, se mantiene por si la usan en otro lado */}
+            <Route path="/admin/inventario" element={<Inventario />}/>
+            <Route path="/admin/inventario/registrar" element={<RegistrarProducto />}/>
           </Route>
 
 

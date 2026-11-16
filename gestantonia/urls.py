@@ -19,4 +19,5 @@ urlpatterns = [
     path("api/", include("asistencia.urls")), #Asistencia con QR
     path("api/", include("ventas.urls")), #Ventas: el router ya agrega "ventas/" y "solicitudes-anulacion/"
     path("api/reportes/", include("reportes.urls")), #Reportes (de main)
+    path("api/catalogo/", include("catalogo.api_urls")),
 ]

@@ -1,0 +1,186 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inventario | GestAntonia</title>
+
+    <link rel="stylesheet" href="{% static 'css/inventario.css' %}">
+</head>
+
+<body>
+    <header class="encabezado">
+        <div>
+            <strong>Gest<span class="rosa">Antonia</span></strong>
+            <small>Centro de Estética</small>
+        </div>
+
+        <span class="usuario">
+            {{ request.user.username }} · Administración
+        </span>
+    </header>
+
+    <div class="estructura">
+        <aside class="menu">
+            <nav aria-label="Menú principal">
+                <button disabled>Agenda</button>
+                <button disabled>Asistencia</button>
+                <button disabled>Especialistas</button>
+                <button disabled>Comisiones</button>
+                <button disabled>Sucursales</button>
+
+                <p class="menu-titulo">OTROS MÓDULOS</p>
+
+                <button disabled>Ventas y caja</button>
+
+                <a class="seleccionado"
+                   href="{% url 'catalogo:inventario' %}"
+                   aria-current="page">
+                    Inventario
+                </a>
+
+                <button disabled>Reportes</button>
+            </nav>
+
+            <p class="menu-nota">Otros módulos en desarrollo</p>
+        </aside>
+
+        <main>
+            <div class="titulo">
+                <div>
+                    <h1>Inventario</h1>
+                    <p>Control de productos y stock por sucursal.</p>
+                </div>
+
+                <button class="boton-rosa" disabled
+                        title="Funcionalidad pendiente">
+                    Registrar producto
+                </button>
+            </div>
+
+            <form class="buscador" method="get"
+                  action="{% url 'catalogo:inventario' %}">
+
+                <div class="campo campo-busqueda">
+                    <label for="buscar">Buscar producto</label>
+
+                    <input type="text" id="buscar" name="buscar"
+                           value="{{ busqueda }}"
+                           placeholder="Nombre del producto">
+                </div>
+
+                <div class="campo">
+                    <label for="sucursal">Sucursal</label>
+                    <select id="sucursal" disabled>
+                        <option>Todas · filtro pendiente</option>
+                    </select>
+                </div>
+
+                <div class="campo">
+                    <label for="estado">Estado</label>
+                    <select id="estado" disabled>
+                        <option>Todos · filtro pendiente</option>
+                    </select>
+                </div>
+
+                <button type="submit">Buscar</button>
+
+                <a class="limpiar"
+                   href="{% url 'catalogo:inventario' %}">
+                    Limpiar
+                </a>
+            </form>
+
+            <section class="resumen" aria-label="Resumen general">
+                <article class="tarjeta">
+                    <h2>Productos registrados</h2>
+                    <strong>{{ total_productos }}</strong>
+                    <p>Productos distintos en inventario</p>
+                </article>
+
+                <article class="tarjeta">
+                    <h2>Stock total</h2>
+                    <strong>{{ stock_total }}</strong>
+                    <p>Unidades en todas las sucursales</p>
+                </article>
+
+                <article class="tarjeta">
+                    <h2>Stock bajo</h2>
+                    <strong class="naranja">{{ stock_bajo }}</strong>
+                    <p>Registros que requieren reposición</p>
+                </article>
+
+                <article class="tarjeta">
+                    <h2>Movimientos hoy</h2>
+                    <strong>—</strong>
+                    <p>Historial pendiente de implementar</p>
+                </article>
+            </section>
+
+            <div class="titulo-tabla">
+                <h2>Productos</h2>
+                <span>Existencias por sucursal</span>
+            </div>
+
+            <section class="contenedor-tabla">
+                <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th>Stock</th>
+                                <th>Mínimo</th>
+                                <th>Sucursal</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for registro in registros %}
+                                <tr>
+                                    <td class="nombre-producto">
+                                        {{ registro.producto.nombre }}
+                                    </td>
+
+                                    <td>
+                                        {{ registro.producto.get_tipo_display }}
+                                    </td>
+
+                                    <td>{{ registro.cantidad }}</td>
+                                    <td>{{ registro.stock_minimo }}</td>
+                                    <td>{{ registro.local.nombre }}</td>
+
+                                    <td>
+                                        {% if registro.bajo_minimo %}
+                                            <span class="etiqueta bajo">
+                                                Bajo stock
+                                            </span>
+                                        {% else %}
+                                            <span class="etiqueta normal">
+                                                Normal
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6">
+                                        No se encontraron registros.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="pie-tabla">
+                    Mostrando {{ registros|length }} registros de inventario.
+                </p>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
