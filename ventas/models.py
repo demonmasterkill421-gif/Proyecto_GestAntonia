@@ -71,13 +71,14 @@ class RegistroDeVenta(models.Model):
         if self.estado != self.Estado.BORRADOR:
             raise ValidationError("Solo se puede modificar una venta que aún no ha sido confirmada.")
 
-    def agregar_item(self, item, cantidad=1):
+    def agregar_item(self, item, cantidad=1, trabajador=None):
         """agregarItem(idItem): agrega un servicio, producto o insumo (o suma cantidad si ya estaba)."""
         self._validar_editable()
         if cantidad < 1:
             raise ValidationError("La cantidad debe ser al menos 1.")
         detalle, creado = self.detalles.get_or_create(
-            item=item, defaults={"cantidad": cantidad, "precio_unitario": item.precio},
+            item=item, trabajador=trabajador,
+            defaults={"cantidad": cantidad, "precio_unitario": item.precio},
         )
         if not creado:
             detalle.cantidad += cantidad
@@ -123,7 +124,7 @@ class RegistroDeVenta(models.Model):
         venta = RegistroDeVenta.objects.select_for_update().get(pk=self.pk)
         venta._validar_editable()
         detalles = list(venta.detalles.select_related("item__producto"))
-        if not detalles:
+        if not detalles:    
             raise ValidationError("La venta no tiene servicios ni productos.")
         for d in detalles:
             if d.item.es_producto:
@@ -164,10 +165,15 @@ class DetalleVenta(models.Model):
     cantidad = models.PositiveSmallIntegerField(default=1)
     precio_unitario = models.PositiveIntegerField("precio unitario (CLP)")
 
+    trabajador = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="servicios_realizados", limit_choices_to={"rol": "TRAB"},
+        help_text="Trabajadora que realizó este servicio (base de su comisión).",
+    )
+
     class Meta:
         verbose_name = "detalle de venta"
         verbose_name_plural = "detalles de venta"
-        constraints = [models.UniqueConstraint(fields=["venta", "item"], name="item_unico_por_venta")]
 
     def __str__(self):
         return f"{self.item.nombre} x{self.cantidad}"
@@ -175,3 +181,44 @@ class DetalleVenta(models.Model):
     @property
     def subtotal(self):
         return self.cantidad * self.precio_unitario
+
+
+class SolicitudAnulacion(models.Model):
+    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la aprueba."""
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "PENDIENTE", "Pendiente"
+        APROBADA = "APROBADA", "Aprobada"
+        RECHAZADA = "RECHAZADA", "Rechazada"
+
+    venta = models.ForeignKey(
+        RegistroDeVenta, on_delete=models.PROTECT, related_name="solicitudes_anulacion",
+    )
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="anulaciones_solicitadas",
+    )
+    motivo = models.TextField()
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
+    fecha_solicitud = models.DateTimeField(default=timezone.now)
+
+    resuelta_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="anulaciones_resueltas",
+    )
+    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    respuesta = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "solicitud de anulación"
+        verbose_name_plural = "solicitudes de anulación"
+        ordering = ["-fecha_solicitud"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["venta"],
+                condition=models.Q(estado="PENDIENTE"),
+                name="una_solicitud_pendiente_por_venta",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Solicitud de anulación · venta #{self.venta_id} · {self.get_estado_display()}"

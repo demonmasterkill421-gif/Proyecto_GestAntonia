@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Especialistas · GestAntonia{% endblock %}
+{% block contenido %}
+<link rel="stylesheet" href="{% static 'css/reservas.css' %}">
+<div class="tarjeta">
+  <p class="saludo">Administración</p>
+  <h1>Especialistas por local</h1>
+
+  {% for m in messages %}<p class="{% if m.tags == 'error' %}aviso-error{% else %}mensaje{% endif %}">{{ m }}</p>{% endfor %}
+
+  <form method="get">
+    <label for="id_local">Local</label>
+    <select name="local" id="id_local" onchange="this.form.submit()">
+      <option value="">Todos los locales</option>
+      {% for l in locales %}
+        <option value="{{ l.pk }}" {% if local_id == l.pk|stringformat:"s" %}selected{% endif %}>{{ l.nombre }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if especialistas %}
+  <div class="tabla">
+    <table>
+      <thead><tr><th>Nombre</th><th>Local</th><th>Cargo</th><th>Comisión</th><th>Reservas futuras</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for e in especialistas %}
+        <tr{% if not e.is_active %} class="inactiva"{% endif %}>
+          <td>{{ e.get_full_name }}<br><small>{{ e.email }}</small></td>
+          <td>{{ e.local|default:"—" }}</td>
+          <td>{{ e.get_cargo_display|default:"—" }}</td>
+          <td>{{ e.porcentaje_comision }} %</td>
+          <td>{{ e.futuras }}</td>
+          <td>{% if e.is_active %}Activa{% else %}Desactivada{% endif %}</td>
+          <td class="acciones-fila">
+            <a href="{% url 'reservas:editar_especialista' e.pk %}">Editar</a>
+            <form method="post" action="{% url 'reservas:estado_especialista' e.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-sec">{% if e.is_active %}Desactivar{% else %}Activar{% endif %}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="nota">No hay especialistas en este local.</p>
+  {% endif %}
+
+  <a class="btn" href="{% url 'reservas:nueva_especialista' %}{% if local_id %}?local={{ local_id }}{% endif %}">Agregar especialista</a>
+  <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
+</div>
+{% endblock %}

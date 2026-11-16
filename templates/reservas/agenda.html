@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Agenda del día · GestAntonia{% endblock %}
+
+{% block contenido %}
+<link rel="stylesheet" href="{% static 'css/reservas.css' %}">
+<div class="tarjeta">
+  <p class="saludo">Agenda del día</p>
+  <h1>{{ local|default:"Sin local asignado" }}</h1>
+
+  <form method="get">
+    <label for="id_fecha">Fecha</label>
+    <input type="date" name="fecha" id="id_fecha" value="{{ fecha|date:'Y-m-d' }}" onchange="this.form.submit()">
+  </form>
+
+  {% if especialistas %}
+  <div class="tabla">
+    <table class="agenda-bloques">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          <!-- Una columna por especialista (2.3) -->
+          {% for esp in especialistas %}
+            <th>{{ esp.first_name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Una fila por cada bloque de 30 minutos -->
+        {% for fila in bloques %}
+        <tr>
+          <td><strong>{{ fila.hora_texto }}</strong></td>
+          {% for celda in fila.celdas %}
+            {% if celda.estado == 'Ocupado' %}
+              <td class="bloque-ocupado">
+                <!-- Al tocar la reserva se abre su detalle para reprogramar o cancelar (2.1 y 2.2) -->
+                <a href="{% url 'reservas:detalle' celda.reserva.pk %}">
+                  <strong>Ocupado</strong><br>
+                  <small>{{ celda.reserva.cliente.nombre }} · {{ celda.reserva.servicio.nombre }}</small>
+                </a>
+              </td>
+            {% else %}
+              <td class="bloque-libre">
+                <span>Libre</span><br>
+                <a href="{% url 'reservas:buscar_cliente' %}">Agendar</a>
+              </td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="nota">Este local todavía no tiene especialistas activas.</p>
+  {% endif %}
+
+  <a class="btn" href="{% url 'reservas:buscar_cliente' %}">Nueva reserva</a>
+  <p><a class="btn-sec" href="{% url 'usuarios:inicio' %}">← Volver al panel</a></p>
+</div>
+{% endblock %}

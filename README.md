@@ -53,6 +53,7 @@ Instalar dependencias y crear las tablas (con el entorno virtual activo):
     pip install -r requirements.txt
     python manage.py migrate
     python manage.py cargar_datos_demo
+    python manage.py cargar_demo_reservas
     python manage.py test
     python manage.py runserver
 
@@ -61,7 +62,9 @@ Instalar dependencias y crear las tablas (con el entorno virtual activo):
   con ese cambio. Conviene que una sola persona a la vez modifique los modelos.
 - settings.py define AUTH_USER_MODEL = "usuarios.Usuario". Debe estar antes del primer migrate; si alguien
   migró sin él, hay que borrar la base, crearla de nuevo y volver a ejecutar migrate.
-- python manage.py test debe terminar con: Ran 20 tests ... OK
+- python manage.py test debe terminar con: Ran 94 tests ... OK
+- cargar_demo_reservas ejecuta primero cargar_datos_demo y agrega clientes y reservas de prueba (ver sección 7).
+  Se puede repetir sin duplicar datos.
 
 
 4. Detalles del programa
@@ -167,3 +170,37 @@ Opción B: red local (mismo wifi) (PARA TELÉFONOS)
 - Vite muestra una dirección parecida a http://192.168.x.x:5173. Abrirla en el otro computador o en el celular.
 - Ambos dispositivos deben estar en la misma red wifi.
 - Esta dirección es http, por lo que sirve para ver el diseño pero no para la cámara del QR.
+
+
+
+
+Reservas_____________________________________________________________
+
+7. Módulo de Reservas y Personal (Equipo 4)
+
+Pantallas (Django, para recepcionista y administradora):
+
+- http://127.0.0.1:8000/reservas/agenda/ : agenda del día por bloques de 30 minutos (ocupado o libre) por
+  especialista. Para otra fecha: ?fecha=AAAA-MM-DD. Un bloque ocupado abre el detalle de la reserva.
+- http://127.0.0.1:8000/reservas/nueva/ : nueva reserva. La hora de término se calcula con la duración del
+  servicio y no permite topes; si hay uno, sugiere los horarios libres más cercanos.
+- http://127.0.0.1:8000/reservas/clientes/buscar/ : buscar cliente por teléfono o registrarlo (exige su
+  consentimiento, leyes 19.628 y 21.719).
+- Detalle de la reserva: reprogramar (libera el bloque anterior) o cancelar con motivo (no se borra el registro).
+- Especialistas por local (alta, edición y desactivación): solo la administradora, desde su panel.
+- Cada recepcionista solo ve y agenda en su propio local.
+
+Tablas nuevas (app reservas): reservas_cliente y reservas_reserva. Migraciones 0001 y 0002; solo hay
+que ejecutar python manage.py migrate.
+
+Cuentas extra que crea cargar_demo_reservas (misma clave Antonia2026!):
+
+- rocio@gestantonia.cl - Recepcionista, Local Centro 1
+- camila@gestantonia.cl - Trabajadora, cosmetóloga
+
+Pruebas: python manage.py test reservas -v 2 (69 pruebas del módulo).
+
+Versión publicada para revisión: https://gestantonia-reservas.vercel.app
+settings.py lee DATABASE_URL y las opciones de HTTPS desde variables de entorno. Si no existen (como en
+los computadores de cada uno), todo funciona igual que antes con el .env local.
+

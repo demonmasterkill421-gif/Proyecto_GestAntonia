@@ -99,7 +99,7 @@ class Inventario(models.Model):
 
 class MovimientoInventario(models.Model):
     inventario = models.ForeignKey(Inventario, on_delete=models.CASCADE, related_name="movimientos")
-    cantidad = models.PositiveIntegerField()
+    cantidad = models.IntegerField()
     fecha = models.DateField(auto_now_add=True)
 
     class Meta:
@@ -107,5 +107,5 @@ class MovimientoInventario(models.Model):
 
 
     def __str__(self):
-        tipo = "Entrada" if self.cantidad > 0 else "Saida"
+        tipo = "Entrada" if self.cantidad > 0 else "Salida"
         return f"{tipo} {self.cantidad:+d}"

@@ -15,7 +15,7 @@ def registrar_venta(local, recepcionista, trabajador, metodoPago, descuento, des
     )
     
     for item in itemsLista:
-        venta.agregar_item(item=item['item'], cantidad=item['cantidad'])
+                venta.agregar_item(item=item['item'], cantidad=item['cantidad'], trabajador=item.get('trabajador'))
         
     venta.confirmar_venta()
     

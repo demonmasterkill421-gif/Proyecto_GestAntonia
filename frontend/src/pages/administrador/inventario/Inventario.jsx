@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "../../../components/Sidebar";
-import { BuscadorInventario } from "../../../components/inventario/BuscadorInventario";
-import { TablaInventario } from "../../../components/inventario/TablaInventario";
-import { ResumenInventario } from "../../../components/inventario/ResumenInventario";
+import { BuscadorInventario } from "../../../components/BuscadorInventario";
+import { TablaInventario } from "../../../components/TablaInventario";
+import { ResumenInventario } from "../../../components/ResumenInventario";
 import { obtenerInventario, obtenerLocales } from "../../../api/inventario.api";
 import { Link } from "react-router-dom";
 

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block titulo %}Buscar Cliente{% endblock %}
+
+{% block contenido %}
+<div class="container mt-4" style="max-width: 600px;">
+    <div class="tarjeta card shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title mb-4">Buscar Cliente</h2>
+            
+            <!-- Formulario de Búsqueda -->
+            <form method="get" action="{% url 'reservas:buscar_cliente' %}" class="row g-3 align-items-end">
+                <div class="col-sm-9">
+                    <label class="form-label fw-bold">Teléfono del cliente</label>
+                    <input type="text" class="form-control" name="telefono" value="{{ telefono_buscado }}" placeholder="Ej: +56 9 8765 4321" required>
+                </div>
+                <div class="col-sm-3">
+                    <button type="submit" class="btn w-100">Buscar</button>
+                </div>
+            </form>
+
+            <hr class="my-4">
+
+            <!-- Resultados de la búsqueda -->
+            {% if busqueda_realizada %}
+                
+                {% if cliente %}
+                    <!-- El cliente existe (CA-3 de HU-03) -->
+                    <div class="alert alert-success rounded-3">
+                        <h4 class="alert-heading">Cliente registrado</h4>
+                        <p class="mb-1"><strong>Nombre:</strong> {{ cliente.nombre }}</p>
+                        <p class="mb-3"><strong>Teléfono:</strong> {{ cliente.telefono }}</p>
+                        <a href="{% url 'reservas:nueva' %}?cliente={{ cliente.id }}" class="btn">Confirmar y Agendar</a>
+                    </div>
+
+                {% else %}
+                    <!-- El cliente NO existe: Formulario de Alta -->
+                    <h4 class="mb-3 text-primary">Cliente no encontrado. Registrar nuevo:</h4>
+                    
+                    <form method="post" action="{% url 'reservas:buscar_cliente' %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nombre completo</label>
+                            <input type="text" class="form-control" name="nombre" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Teléfono</label>
+                            <input type="text" class="form-control" name="telefono" value="{{ telefono_buscado }}" required>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="consentimiento" id="chkConsentimiento" required>
+                            <label class="form-check-label" for="chkConsentimiento">
+                                Acepto el uso de datos (Ley 19.628 / 21.719)
+                            </label>
+                        </div>
+
+                        <!-- Manejo de errores visual según Informe de Diseño -->
+                        {% if error %}
+                            <div class="text-danger fw-bold mb-3">{{ error }}</div>
+                        {% endif %}
+
+                        <button type="submit" class="btn w-100">Registrar y Continuar</button>
+                    </form>
+                {% endif %}
+                
+            {% endif %}
+            
+            <div class="mt-4 text-center">
+                <a href="{% url 'reservas:agenda' %}" class="btn-sec text-decoration-none">← Volver a la agenda</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
