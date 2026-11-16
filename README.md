@@ -200,7 +200,7 @@ Cuentas extra que crea cargar_demo_reservas (misma clave Antonia2026!):
 
 Pruebas: python manage.py test reservas -v 2 (69 pruebas del módulo).
 
-Versión publicada para revisión: https://gestantonia-reservas.vercel.app
-settings.py lee DATABASE_URL y las opciones de HTTPS desde variables de entorno. Si no existen (como en
-los computadores de cada uno), todo funciona igual que antes con el .env local.
+Despliegue en servidor: el proyecto se publica en un VPS Ubuntu 24.04 (AWS EC2 o Hostinger KVM) con
+deploy/deploy_gestantonia.sh, que instala PostgreSQL, Gunicorn, Nginx y el build de React. Las opciones de
+HTTPS, dominios permitidos y CORS se leen del .env del servidor; sin ellas, todo funciona igual con el .env local.
 
