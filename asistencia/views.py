@@ -11,7 +11,7 @@ from usuarios.models import Usuario
 from ventas.permissions import EsRecepcionista, MismoLocal
 
 from .exportarExcel import construir_excel
-from .models import RegistroDeAsistencia
+from .models import RegistroDeAsistencia, CodigoQR
 from .permissions import EsAdministrador
 from .serializers import (
     AsistenciaSerializer,
@@ -70,9 +70,10 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
 
     def get_permissions(self):
-        # Corregir registros y descargar el Excel: solo la administradora
         if self.action in ("corregir", "exportar"):
             return [IsAuthenticated(), EsAdministrador()]
+        if self.action == "escanear":
+            return [IsAuthenticated()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -87,7 +88,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             return qs
         return qs.filter(local=user.local)
 
-    # ---------- Día: una fila por trabajadora ----------
     @action(detail=False, methods=["get"])
     def dia(self, request):
         local_id = _local_pedido(request)
@@ -127,7 +127,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({"fecha": fecha, "es_hoy": fecha == hoy, "filas": filas})
 
-    # ---------- Resumen: días y horas por período ----------
     @action(detail=False, methods=["get"])
     def resumen(self, request):
         local_id = _local_pedido(request)
@@ -153,7 +152,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             {"desde": desde, "hasta": hasta, "filas": _filas_resumen(trabajadoras, registros)}
         )
 
-    # ---------- Exportar a Excel (solo ADMIN) ----------
     @action(detail=False, methods=["get"])
     def exportar(self, request):
         local_id = _local_pedido(request)
@@ -176,10 +174,8 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
                 trabajador__in=trabajadoras, fecha__range=(desde, hasta)
             ).select_related("trabajador", "local", "corregido_por")
         )
-        # Primero por fecha y, dentro del mismo día, por nombre
         registros.sort(key=lambda r: (r.fecha, _nombre_de(r.trabajador)))
 
-        # Nombre del local para el título del archivo
         modelo_local = Usuario._meta.get_field("local").related_model
         local = modelo_local.objects.filter(pk=local_id).first()
         local_nombre = local.nombre if local else f"Local {local_id}"
@@ -198,7 +194,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return respuesta
 
-    # ---------- Marcar entrada / salida (ADMIN y RECEP, solo hoy) ----------
     @action(detail=False, methods=["post"])
     def marcar(self, request):
         serializer = MarcarSerializer(data=request.data)
@@ -253,7 +248,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED if accion == "entrada" else status.HTTP_200_OK,
         )
 
-    # ---------- Corregir o crear un registro (solo ADMIN, lápiz) ----------
     @action(detail=False, methods=["post"])
     def corregir(self, request):
         serializer = CorregirSerializer(data=request.data)
@@ -290,3 +284,34 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             AsistenciaSerializer(registro).data,
             status=status.HTTP_201_CREATED if creado else status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=["post"], url_path="escanear")
+    def escanear(self, request):
+        user = request.user
+        
+        if user.rol not in ["TRAB", "RECEP"]:
+            return Response(
+                {"error": "Solo trabajadoras y recepcionistas pueden usar el registro automático."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        token_qr = request.data.get("token") or request.query_params.get("token")
+        if not token_qr:
+            return Response(
+                {"error": "No se proporcionó el código QR de la sucursal."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            registro = RegistroDeAsistencia.registrar_por_qr(user, token_qr)
+            mensaje_exito = "¡Salida registrada correctamente!" if registro.hora_salida else "¡Entrada registrada correctamente!"
+            return Response(
+                {"mensaje": mensaje_exito},
+                status=status.HTTP_200_OK,
+            )
+        except (ErrorDjango, ValueError) as error:
+            mensaje_error = str(error.message if hasattr(error, 'message') else error)
+            return Response(
+                {"error": mensaje_error},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
