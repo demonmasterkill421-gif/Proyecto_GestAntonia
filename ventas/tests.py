@@ -4,11 +4,16 @@ from django.test import TestCase
 from catalogo.models import Inventario, Producto, Servicio
 from locales.models import Local
 from usuarios.models import Recepcionista, Trabajador, Usuario
-from ventas.models import RegistroDeVenta
+from ventas.models import DetalleVenta, RegistroDeVenta
 
 
 class RegistroDeVentaTests(TestCase):
-    """Pruebas del CU-01 Registrar atención (RF-R01 a RF-R05)."""
+    """Pruebas del CU-01 Registrar atención (RF-R01 a RF-R05).
+
+    La trabajadora ya no se asocia a la venta completa: se indica en cada línea de servicio
+    (DetalleVenta.trabajador) y de ahí sale su comisión. Los insumos se descuentan del stock
+    pero NO se cobran (precio 0 en la venta).
+    """
 
     def setUp(self):
         self.local = Local.objects.create(nombre="Local Mall", ubicacion="Mall Plaza Calama")
@@ -26,16 +31,22 @@ class RegistroDeVentaTests(TestCase):
 
     def venta_del_mockup(self):
         venta = Recepcionista.objects.get(pk=self.recep.pk).iniciar_venta()
-        venta.agregar_item(self.manicura)
+        venta.agregar_item(self.manicura, trabajador=self.trab)   # la trabajadora va en la línea del servicio
         venta.agregar_item(self.esmalte, 2)
         venta.agregar_item(self.algodon, 1)
-        venta.asociar_trabajador(self.trab)
         return venta
 
-    def test_total_con_descuento_igual_al_mockup(self):
+    def test_insumos_no_se_cobran(self):
         venta = self.venta_del_mockup()
-        self.assertEqual(venta.monto_base, 25600)            # 20.000 + 2 x 1.550 + 2.500
-        self.assertEqual(venta.aplicar_descuento(15), 21760)  # total del mockup «Registrar venta»
+        precios = {d.item.nombre: d.precio_unitario for d in venta.detalles.select_related("item")}
+        self.assertEqual(precios["Manicura"], 20000)
+        self.assertEqual(precios["Esmalte rojo"], 0)   # el insumo tiene precio en el catálogo, pero no se cobra
+        self.assertEqual(precios["Algodón"], 0)
+
+    def test_total_con_descuento(self):
+        venta = self.venta_del_mockup()
+        self.assertEqual(venta.monto_base, 20000)            # solo el servicio: los insumos no suman
+        self.assertEqual(venta.aplicar_descuento(15), 17000)  # 20.000 menos 15 %
 
     def test_confirmar_descuenta_stock_y_asigna_folio(self):
         venta = self.venta_del_mockup()
@@ -65,10 +76,11 @@ class RegistroDeVentaTests(TestCase):
         venta = self.venta_del_mockup()
         venta.aplicar_descuento(15)
         venta.confirmar_venta()
-        self.assertEqual(venta.comision_trabajador, 2176)    # 10% de 21.760
+        # Comisión de la línea de la trabajadora: 10 % de 17.000 (el servicio con el descuento aplicado)
+        self.assertEqual(DetalleVenta.comision_de(self.trab), 1700)
         venta.anular()
         self.assertEqual(self.esmalte.stock_en(self.local), 10)
-        self.assertEqual(venta.comision_trabajador, 0)
+        self.assertEqual(DetalleVenta.comision_de(self.trab), 0)   # una venta anulada no genera comisión
 
     def test_venta_confirmada_no_se_modifica(self):
         venta = self.venta_del_mockup()

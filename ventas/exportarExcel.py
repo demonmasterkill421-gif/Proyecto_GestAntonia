@@ -59,9 +59,8 @@ def construir_excel(ventas):
     total_confirmadas = 0
     for v in ventas:
         lineas = list(v.detalles.all())
+        # La trabajadora está en cada línea de la venta (puede haber varias o ninguna).
         trabajadoras = sorted({_nombre(d.trabajador) for d in lineas if d.trabajador})
-        if not trabajadoras and v.trabajador:
-            trabajadoras = [_nombre(v.trabajador)]
 
         hoja.append([
             v.folio,
@@ -113,4 +112,4 @@ def construir_excel(ventas):
 
     salida = BytesIO()
     libro.save(salida)
-    return salida.getvalue()    
+    return salida.getvalue()
