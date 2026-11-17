@@ -25,6 +25,7 @@ import { AsistenciaRecepcionista } from './pages/recepcionista/asistencia/Asiste
 
 //TRABAJADOR
 import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
+import { RegistrarAsistencia } from './pages/trabajador/asistencia/RegistrarAsistencia'
 
 
 
@@ -69,6 +70,7 @@ function App() {
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
           <Route element={<RutaPrivada roles={["TRAB"]} />}>
             <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+            <Route path='/trabajador/asistencia' element={<RegistrarAsistencia />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

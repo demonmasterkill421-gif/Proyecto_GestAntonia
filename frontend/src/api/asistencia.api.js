@@ -34,3 +34,7 @@ export const exportarAsistencias = async (params) => {
   });
   return data;
 };
+
+// Petición automática para marcar entrada/salida desde el QR con token de seguridad
+export const escanearAsistenciaAutomatica = (token) =>
+  api.post("/api/asistencias/escanear/", { token });
