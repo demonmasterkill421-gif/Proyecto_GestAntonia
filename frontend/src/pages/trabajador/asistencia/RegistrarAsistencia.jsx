@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../../../auth/AuthContext';
-import { useTitulo } from '../../../../hooks/useTitulo';
-import { escanearAsistenciaAutomatica } from '../../../../api/asistencia.api';
+import { useAuth } from '../../../auth/AuthContext';
+import { useTitulo } from '../../../hooks/useTitulo';
+import { escanearAsistenciaAutomatica } from '../../../api/asistencia.api';
 
 export function RegistrarAsistencia() {
   useTitulo("Registro de Asistencia");

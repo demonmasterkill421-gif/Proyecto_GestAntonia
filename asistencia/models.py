@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError as ErrorDjango
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -10,6 +10,12 @@ class CodigoQR(models.Model):
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="codigos_qr_generados")
     creado = models.DateTimeField(auto_now_add=True)
     vigente_hasta = models.DateTimeField()
+    
+    def save(self, *args, **kwargs):
+        if not self.token:
+            import secrets
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "código QR"
@@ -44,12 +50,12 @@ class RegistroDeAsistencia(models.Model):
 
     trabajador = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="registros_asistencia"
     )
     local = models.ForeignKey(
         "locales.Local",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="asistencias"
     )
     fecha = models.DateField(default=timezone.localdate)
@@ -108,7 +114,7 @@ class RegistroDeAsistencia(models.Model):
     @classmethod
     def registrar_por_qr(cls, trabajador, token):
         """
-        Método requerido por los tests: valida token, vigencia y local, devolviendo el registro.
+        Método blindado con transacciones atómicas y select_for_update para evitar condiciones de carrera.
         """
         try:
             codigo_obj = CodigoQR.objects.get(token=token)
@@ -118,25 +124,27 @@ class RegistroDeAsistencia(models.Model):
         if not codigo_obj.vigente:
             raise ErrorDjango("Este código QR ha expirado.")
 
-        if trabajador.rol == "TRAB" and trabajador.local_id != codigo_obj.local_id:
+        # Validación corregida: Aplica tanto para TRAB como para RECEP
+        if getattr(trabajador, 'rol', None) in ["TRAB", "RECEP"] and trabajador.local_id != codigo_obj.local_id:
             raise ErrorDjango("Estás intentando escanear el QR de una sucursal que no te corresponde.")
 
         hoy = timezone.localdate()
         ahora = timezone.now()
 
-        registro = cls.objects.filter(trabajador=trabajador, fecha=hoy).first()
+        with transaction.atomic():
+            registro = cls.objects.select_for_update().filter(trabajador=trabajador, fecha=hoy).first()
 
-        if not registro:
-            return cls.objects.create(
-                trabajador=trabajador,
-                local=codigo_obj.local,
-                hora_entrada=ahora,
-                estado=cls.Estado.EN_JORNADA
-            )
-        elif not registro.hora_salida:
-            registro.hora_salida = ahora
-            registro.estado = cls.Estado.COMPLETA
-            registro.save()
-            return registro
-        else:
-            raise ErrorDjango("Ya tienes la asistencia completa registrada para el día de hoy.")
+            if not registro:
+                return cls.objects.create(
+                    trabajador=trabajador,
+                    local=codigo_obj.local,
+                    hora_entrada=ahora,
+                    estado=cls.Estado.EN_JORNADA
+                )
+            elif not registro.hora_salida:
+                registro.hora_salida = ahora
+                registro.estado = cls.Estado.COMPLETA
+                registro.save()
+                return registro
+            else:
+                raise ErrorDjango("Ya tienes la asistencia completa registrada para el día de hoy.")
