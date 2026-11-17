@@ -5,6 +5,7 @@ Los datos sensibles (clave secreta y credenciales de PostgreSQL) se leen desde e
 que NO se sube a GitHub. Use .env.example como plantilla.
 """
 import os
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -38,7 +39,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -49,7 +50,7 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"] + [
-    o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()   # p. ej. el frontend en Vercel
+    o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()
 ]
 
 REST_FRAMEWORK = {
@@ -84,7 +85,6 @@ WSGI_APPLICATION = "gestantonia.wsgi.application"
 # Base de datos: PostgreSQL (valores en .env)
 # DB_ENGINE=sqlite solo para pruebas rápidas sin PostgreSQL instalado.
 # ---------------------------------------------------------------------------
-# En Vercel (u otro servidor) la conexión llega en una sola variable: DATABASE_URL.
 if os.getenv("DATABASE_URL"):
     _db = urlparse(os.environ["DATABASE_URL"])
     _opciones = {k: v[0] for k, v in parse_qs(_db.query).items() if k in ("sslmode",)}
@@ -98,7 +98,7 @@ if os.getenv("DATABASE_URL"):
             "PORT": _db.port or 5432,
             "OPTIONS": _opciones or {"sslmode": "require"},
             "CONN_MAX_AGE": 0,
-            "DISABLE_SERVER_SIDE_CURSORS": True,   # necesario con el pooler de conexiones de Neon
+            "DISABLE_SERVER_SIDE_CURSORS": True,
         }
     }
 elif os.getenv("DB_ENGINE", "postgresql") == "sqlite":
@@ -118,11 +118,17 @@ else:
 # ---------------------------------------------------------------------------
 # Usuarios y seguridad (RNF-SA01 y RNF-SA02)
 # ---------------------------------------------------------------------------
-AUTH_USER_MODEL = "usuarios.Usuario"          # debe existir ANTES del primer migrate
+AUTH_USER_MODEL = "usuarios.Usuario"
 
+# Bloqueo tras 5 intentos fallidos (ver usuarios/bloqueo.py). Protege el login web, el admin y la API.
+AUTHENTICATION_BACKENDS = ["usuarios.bloqueo.BackendConBloqueo"]
+# ¿Cómo funciona? Django trae validadores de seguridad integrados que revisan cualquier contraseña antes de 
+# encriptarla y guardarla en PostgreSQL. Lo único que hiciste fue cambiar "min_length": 8 por "min_length": 10 en el 
+# MinimumLengthValidator. Si alguien intenta crear una cuenta con 9 caracteres, Django detiene el proceso y lanza un 
+# ValidationError antes de tocar la base de datos.
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -131,10 +137,18 @@ LOGIN_URL = "usuarios:login"
 LOGIN_REDIRECT_URL = "usuarios:inicio"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
-# Cierre de sesión automático por inactividad (EA_002): 30 minutos sin actividad.
-SESSION_COOKIE_AGE = 30 * 60
+# Cierre de sesión automático por inactividad: 15 minutos sin actividad (antes 30).
+SESSION_COOKIE_AGE = 15 * 60
+# hace que ese reloj de 15 minutos se reinicie cada vez que el usuario hace clic en algo; 
+# solo se cierra si pasa 15 minutos inactivo.
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Tokens JWT de la API (React): misma duración que la sesión.
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(minutes=15),
+}
 
 # ---------------------------------------------------------------------------
 # Internacionalización
@@ -146,14 +160,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"        # collectstatic deja aquí los archivos (Vercel lo ejecuta solo)
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
 # Producción (Vercel): solo se activa con DJANGO_DEBUG=False
 # ---------------------------------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")   # Vercel atiende por HTTPS delante de Django
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
