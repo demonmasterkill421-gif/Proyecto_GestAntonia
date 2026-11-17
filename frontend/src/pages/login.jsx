@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import logo from "../assets/logo.png";
 
@@ -53,7 +53,9 @@ function PantallaEntrada() {
 export function Login() {
   useTitulo("Iniciar sesión");
   const navigate = useNavigate();
+  const location = useLocation(); // <-- 1. Capturamos la ubicación
   const auth = useAuth();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -61,6 +63,9 @@ export function Login() {
   const [entrando, setEntrando] = useState(false); // pantalla de bienvenida
   const [error, setError] = useState("");
 
+  // 2. Extraemos la ruta guardada en memoria (si venía de escanear un QR)
+  const rutaAnterior = location.state?.from?.pathname || null;
+  const parametrosQR = location.state?.from?.search || "";
 
   useEffect(() => {
     if (!auth.cargando) auth.cerrarSesion();
@@ -77,14 +82,20 @@ export function Login() {
 
     setLoading(true);
     try {
-      const { data } = await iniciarSesion(email, password); //U1. Gatilla iniciarSesión() desde usuario.api.js y espera antes de continuar
+      const { data } = await iniciarSesion(email, password); 
 
       auth.iniciarSesion(data);
 
       setEntrando(true);
       await esperar(DURACION_ENTRADA);
 
-      navigate(INICIO_POR_ROL[data.usuario.rol] ?? "/login", { replace: true });
+      // 3. MAGIA: Si intentaba entrar a un QR, lo mandamos ahí. Si no, a su inicio por rol.
+      if (rutaAnterior) {
+        navigate(rutaAnterior + parametrosQR, { replace: true });
+      } else {
+        navigate(INICIO_POR_ROL[data.usuario.rol] ?? "/login", { replace: true });
+      }
+      
     } catch (err) {
       console.error(err);
       setLoading(false);
