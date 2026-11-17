@@ -1,0 +1,23 @@
+/* Guía de estilos UX/UI de Estética Antonia */
+:root {
+  --primario: #B4388D; --primario-oscuro: #6A3257; --secundario: #9D387D;
+  --degradado: #EFC8E6; --texto: #6F6A6D; --borde: #D9D4D7;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Source Sans Pro", "Source Sans 3", Arial, sans-serif; color: var(--texto);
+       background: linear-gradient(135deg, #fff 0%, var(--degradado) 100%); min-height: 100vh; }
+.contenedor { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+.tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 32px; }
+.saludo { font-size: 20px; margin: 0; }
+h1 { color: var(--primario); font-size: 48px; margin: 4px 0 24px; line-height: 1.1; }
+label { display: block; font-size: 17px; margin: 16px 0 6px; }
+input[type=email], input[type=password], input[type=text] {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 7px; font-size: 17px; }
+.btn { display: inline-block; background: var(--primario); color: var(--degradado); border: 0; border-radius: 7px;
+       padding: 10px 22px; font-size: 17px; font-weight: 600; cursor: pointer; text-decoration: none; margin-top: 20px; }
+.btn:hover { background: var(--primario-oscuro); }
+.btn-sec { background: transparent; color: var(--primario); border: 0; font-size: 17px; font-weight: 600;
+           cursor: pointer; padding: 10px 0; }
+.error { color: #B3261E; margin-top: 12px; }
+.nota { font-size: 15px; margin-top: 18px; }
+@media (max-width: 600px) { h1 { font-size: 36px; } .tarjeta { padding: 22px; } }
