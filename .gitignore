@@ -21,3 +21,7 @@ media/
 .settings/
 Thumbs.db
 .DS_Store
+
+# Llaves y respaldos del servidor
+*.pem
+*.dump
