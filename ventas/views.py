@@ -50,7 +50,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = RegistroDeVenta.objects.select_related("local", "trabajador").prefetch_related("detalles")
+        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles")
         user = self.request.user
 
         desde = _fecha_o_none(self.request.query_params.get("desde"))

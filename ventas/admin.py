@@ -1,53 +1,56 @@
 import csv
+
 from django.contrib import admin
 from django.http import HttpResponse
+
 from .models import DetalleVenta, RegistroDeVenta
 
 
 class DetalleVentaInline(admin.TabularInline):
     model = DetalleVenta
     extra = 0
-    fields = ("item", "cantidad", "precio_unitario")
+    fields = ("item", "cantidad", "precio_unitario", "trabajador")
 
 
 @admin.action(description="Exportar ventas a CSV - EXCEL")
 def exportarVentaCSV(modeladmin, request, queryset):
-    respuesta = HttpResponse(content_type='text/csv; charset=utf-8')
-    respuesta['Content-Disposition'] = 'attachment; filename="reporte_ventas.csv"'
+    respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
+    respuesta["Content-Disposition"] = 'attachment; filename="reporte_ventas.csv"'
 
-    writer = csv.writer(respuesta, delimiter=';')
+    writer = csv.writer(respuesta, delimiter=";")
 
     writer.writerow([
-        'id', 'fecha', 'descripcion', 'metodo_pago', 'descuento', 
-        'monto_base', 'monto_total', 'estado', 'folio', 'local', 
-        'trabajador'
+        "id", "fecha", "descripcion", "metodo_pago", "descuento",
+        "monto_base", "monto_total", "estado", "folio", "local",
+        "trabajadoras",
     ])
 
-    for venta in queryset:
+    for venta in queryset.prefetch_related("detalles__trabajador"):
+        # Las trabajadoras de una venta son las de sus líneas (pueden ser varias)
+        trabajadoras = sorted({str(d.trabajador) for d in venta.detalles.all() if d.trabajador})
+
         writer.writerow([
             venta.id,
             venta.fecha,
-            getattr(venta, 'descripcion', ''),
+            getattr(venta, "descripcion", ""),
             venta.metodo_pago,
             venta.descuento,
             venta.monto_base,
             venta.monto_total,
             venta.estado,
             venta.folio,
-
-            venta.local.nombre if venta.local else '',
-            
-            str(venta.trabajador) if venta.trabajador else '',
+            venta.local.nombre if venta.local else "",
+            ", ".join(trabajadoras),
         ])
-         
+
     return respuesta
 
 
 @admin.register(RegistroDeVenta)
 class RegistroDeVentaAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "fecha", "local", "trabajador", "metodo_pago", "descuento", "monto_total", "estado", "folio")
+    list_display = ("__str__", "fecha", "local", "metodo_pago", "descuento", "monto_total", "estado", "folio")
     list_filter = ("estado", "local", "metodo_pago", "fecha")
-    search_fields = ("folio", "trabajador__first_name", "trabajador__last_name")
+    search_fields = ("folio", "detalles__trabajador__first_name", "detalles__trabajador__last_name")
     date_hierarchy = "fecha"
     readonly_fields = ("folio", "monto_base", "monto_total")
     inlines = [DetalleVentaInline]
@@ -56,10 +59,3 @@ class RegistroDeVentaAdmin(admin.ModelAdmin):
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.instance.recalcular()
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if request.user.is_superuser or request.user.is_staff:
-            return qs
-        
-        return qs
