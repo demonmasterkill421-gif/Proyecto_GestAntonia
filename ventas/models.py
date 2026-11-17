@@ -14,7 +14,6 @@ def _redondear(valor): #Función que convierte un valor FLOAT a DECIMAL y lo red
     return int(Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-
 #Modelo de RegistroDeVenta
 class RegistroDeVenta(models.Model):
 

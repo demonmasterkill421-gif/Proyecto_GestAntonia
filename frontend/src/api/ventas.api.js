@@ -1,11 +1,14 @@
-import api from "./client";
+//Se importa el cliente, cuando se ejecuta una consulta, se obtiene el token de
+//acceso
+import api from "./client"; 
+
+
+
+
+//GET____________________________________________________________________________
 
 export const obtenerAllVentas = (params) => api.get("/api/ventas/", { params });
-
-export const registrarVenta = (datos) => api.post("/api/ventas/", datos);
-
 export const obtenerServiciosVenta = () => api.get("/api/ventas/servicios/");
-
 
 export const obtenerProductosVenta = async () => {
   const { data } = await api.get("/api/ventas/productos/");
@@ -13,12 +16,15 @@ export const obtenerProductosVenta = async () => {
 };
 
 
+
+//POST___________________________________________________________________________
+export const registrarVenta = (datos) => api.post("/api/ventas/", datos);
+
+
 export const exportarVentas = async (ids) => {
   const { data } = await api.post("/api/ventas/exportar/", { ids }, { responseType: "blob" });
   return data;
 };
-
-
 
 
 

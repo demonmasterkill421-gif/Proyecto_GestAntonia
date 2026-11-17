@@ -1,17 +1,39 @@
+
+//IMPORTACIÓN REACT
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown, ClipboardCheck } from "lucide-react";
-import toast from "react-hot-toast";
-import { Sidebar } from "../../../components/Sidebar";
-import { PanelServicio } from "../../../components/PanelServicio";
-import { PanelItems } from "../../../components/PanelItems";
-import { SeccionPlegable } from "../../../components/SeccionPlegable";
-import { useTitulo } from "../../../hooks/useTitulo";
-import { registrarVenta } from "../../../api/ventas.api";
 
+//IMPORTACIÓN ÍCONOS
+import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown, ClipboardCheck } from "lucide-react";
+
+//IMPORTACIÓN DE MENSAJE EMERGENTETOAST
+import toast from "react-hot-toast";
+
+
+
+//IMPORTACIÓN DE COMPONENTES FABRICADOS--------------------------------------
+
+
+import { Sidebar } from "../../../components/Sidebar"; //Barra lateral *
+import { PanelServicio } from "../../../components/PanelServicio"; //Selección de servicio
+import { PanelItems } from "../../../components/PanelItems"; //Selección de Ítems o Productos
+import { SeccionPlegable } from "../../../components/SeccionPlegable"; //Lista desplegable (estructura)
+import { useTitulo } from "../../../hooks/useTitulo"; //Barra lateral
+
+
+import { registrarVenta } from "../../../api/ventas.api"; //API de ventas***
+
+
+//--------------------------------------------------------------------------
+
+
+//[clp]
+//Función clp que convierte un número entero en formato CLP
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
 
+
+//Lista de objetos para método Pago. Valor: lo que se envía al servidor, etiqueta: info de la página.
 const METODOS_PAGO = [
   { valor: "EFECTIVO", etiqueta: "Efectivo" },
   { valor: "DEBITO", etiqueta: "Débito" },
@@ -19,17 +41,37 @@ const METODOS_PAGO = [
   { valor: "TRANSFER", etiqueta: "Transferencia" },
 ];
 
+
+//Límite carácteres de descripción
 const DESCRIPCION_MAXIMA = 200;
 
-// "1 servicio" / "3 servicios"
+
+//[contar]
+//Función que despliega un mensaje pequeño cuando la lista desplegable se cierra.
+//Si no hay ningún insumo: ""
+//Si hay uno: Texto en singular "1 Servicio"
+//Si hay dos: Texto en plural "2 Servicios"
 const contar = (n, singular, plural) => (n > 0 ? `${n} ${n === 1 ? singular : plural}` : "");
 
+
+
+//[primerMensaje]
+//Función que busca un texto de error en la respuesta del servidor por JSON
+//Si es un string, devuelve un string
+//Si es una lista o un objeto, lo recorre hasta encontrar un texto. de lo contrario ""
+//Si no hay ninguno: ""
 const primerMensaje = (valor) => {
   if (typeof valor === "string") return valor;
   if (Array.isArray(valor)) return valor.map(primerMensaje).find(Boolean) ?? "";
   if (valor && typeof valor === "object") return Object.values(valor).map(primerMensaje).find(Boolean) ?? "";
   return "";
 };
+
+
+
+//[RegistrarVenta] *****
+//Es la App de registrar venta
+//Aquí se renderiza la aplicación y se declaran las estados por defecto.
 
 export function RegistrarVenta() {
   useTitulo("Registrar venta");
@@ -47,10 +89,11 @@ export function RegistrarVenta() {
   const botonVolver = useRef(null);
 
 
+  //Suma el precio de los servicios y de los productos. los insumos no se cobran.
   const subtotal =
     servicios.reduce((suma, s) => suma + s.precio, 0) +
     productos.reduce((suma, p) => suma + p.precio * p.cantidad, 0);
-  const valor = Number(valorDescuento) || 0;
+  const valor = Number(valorDescuento) || 0; //Lo retorna en número, de lo contrario lo deja en 0
 
   let errorDescuento = "";
   if (tipoDescuento === "%" && valor > 100) errorDescuento = "El descuento no puede pasar de 100%";
@@ -118,9 +161,14 @@ export function RegistrarVenta() {
     };
   }, [confirmando, enviando]);
 
+
+
+
+
+ //FUNCIÓN REGISTRAR VENTA  
   const confirmar = async () => { //Confirma la venta y 
-    if (!listo || enviando) return; //Si no está listo o si se envía, se cancela. Return = Break
-    setEnviando(true);
+    if (!listo || enviando) return; //Si no está listo o si se envía, se cancela. Return = cancela la función.
+    setEnviando(true); //Los procesos externos se detienen.
 
     //Transformar descuento dependiendo de su tipo
     //si es un porcentaje, bien, de lo contrario, se transforma a porcentaje
@@ -128,9 +176,10 @@ export function RegistrarVenta() {
       tipoDescuento === "%" ? valor : Number(((valor / subtotal) * 100).toFixed(2));
 
 
+      
       //Objeto de registro de venta
     const datos = { 
-      detalles: [ //Es una lista que contiene cada servicios, productos e insumos
+      detalles: [ //Es una lista que contiene cada servicio, productos e insumos
         ...servicios.map((s) => ({ //Recorre lista de servicios, por cada servicio, devuelve cada sub objeto
           item: s.id,
           cantidad: 1,
@@ -141,24 +190,33 @@ export function RegistrarVenta() {
       ],
       metodo_pago: metodoPago,
       descuento: porcentaje, //porcentaje calculado previamente
-      descripcion: descripcion.trim(), //función que quita los espacios de inicio y final del texto
+      descripcion: descripcion.trim(), //.trim() función que quita los espacios de inicio y final del texto
     };
 
+
+    
+    //PETICIÓN A API DE ventas.api
     try {
-      await registrarVenta(datos);
+      await registrarVenta(datos); //Petición a API *** espera una respuesta antes de seguir
       setConfirmando(false);
-      reiniciar();
-      toast.success(`Venta registrada por ${clp(total)}`);
+      reiniciar(); //El formulario vuelve a los valores por defecto
+      toast.success(`Venta registrada por ${clp(total)}`); //Se lanza el toast de éxito
       navigate("/recepcionista/ventas");
-    } catch (err) {
+
+
+    } catch (err) { //Captura el error del servidor y lo recorre
       console.log("Error al registrar:", err.response?.data);
       setConfirmando(false);
       const motivo = err.response ? primerMensaje(err.response.data) : "sin conexión con el servidor";
       toast.error(motivo ? `No se pudo registrar la venta: ${motivo}` : "No se pudo registrar la venta");
-    } finally {
+
+
+    } finally { //Si es correcto o falla, enviando = false
       setEnviando(false);
     }
   };
+
+  //fin de registrarVenta------------------------------------------------
 
 
 
@@ -177,6 +235,10 @@ export function RegistrarVenta() {
 
   const campo =
     "w-full rounded-lg border border-[#e6b8d4] bg-white px-3 text-lg text-[#1f1218] focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30";
+
+
+
+//_______________________________________________________________________________________________________________
 
   return (
     <Sidebar>

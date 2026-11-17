@@ -1,64 +1,114 @@
-from django.http import HttpResponse
+#Permite devolver el archivo EXCEL
+from django.http import HttpResponse 
+from .exportarExcel import construir_excel #Estructura de excel
 
-from .exportarExcel import construir_excel
 
-from django.core.exceptions import ValidationError as DjangoValidationError
+
+#Captura de errores y transacciones de datos
+from django.core.exceptions import ValidationError as DjangoValidationError 
 from django.db import IntegrityError, transaction
+
+
+
+
+#Transformación de datos
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import serializers, viewsets
 
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 
-from .models import RegistroDeVenta, SolicitudAnulacion
-from .permissions import EsAdministrador, EsRecepcionista, MismoLocal
+#Clases base
+from rest_framework.decorators import action #Decorador de django rest: agrega una ruta extra a una viewset
+from rest_framework.permissions import IsAuthenticated #Permiso de tener un token válido
+from rest_framework.response import Response #Respuesta HTTP
+
+
+
+
+#Importación de Modelos, Permissions y Serializer
+from .models import RegistroDeVenta, SolicitudAnulacion #Modelo de la tabla de DB, leer y guardar
+from .permissions import EsAdministrador, EsRecepcionista, MismoLocal #Reglas de acceso
 from .serializers import (
     ResponderSolicitudSerializer,
     SolicitarAnulacionSerializer,
     SolicitudAnulacionSerializer,
     VentaSerializer,
-)
+) 
 
+
+
+
+
+#Modelos de catálogo, para devolver la información de productos y servicios
 
 from catalogo.models import Producto, Servicio
+LIMITE_EXPORTAR = 20000 #En un excel no se exportan más de 20 mil ventas
 
-LIMITE_EXPORTAR = 20000
 
 
-def _fecha_o_none(texto):
+
+
+
+#Convierte texto en fecha (GetQuerySet): Desde, hasta
+#parse_date valida la fecha, si falla, no retorna nada.
+
+def _fecha_o_none(texto): 
     try:
         return parse_date(texto or "")
     except ValueError:
         return None
 
 
-def _error(texto, codigo=400):
+
+#Arma una respuesta de error con un código de HTTP
+def _error(texto, codigo=400): 
     return Response({"detail": texto}, status=codigo)
 
 
+
+
+
+
+
+
+
+#Venta Viewset
 class VentaViewSet(viewsets.ModelViewSet):
-    serializer_class = VentaSerializer
-    permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
-    http_method_names = ["get", "post", "head", "options"]
 
+    serializer_class = VentaSerializer #Serializer que valida las entradas
+    permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal] #Valida que sea administrador o recepcionista, que sea un recepcionista y que tenga el mismo local.
+    http_method_names = ["get", "post", "head", "options"] #Métodos HTTP válidos
+
+
+    #Función que obtiene los permisos
     def get_permissions(self):
-        if self.action == "anular":
-            return [IsAuthenticated(), EsAdministrador(), MismoLocal()]
-        return super().get_permissions()
+        if self.action == "anular": #¿la acción es anular?
+            return [IsAuthenticated(), EsAdministrador(), MismoLocal()] #
+        return super().get_permissions() #Devuelve permisos normales de permission_classes, la petición se rechaza.
 
+    
+    #Función que delimita las ventas que ve cada persona
     def get_queryset(self):
+
+        #Obtiene todas las ventas
         qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles")
+        #Recibe la petición de la API y guarda el dicc del usuario
         user = self.request.user
+
+
+
 
         desde = _fecha_o_none(self.request.query_params.get("desde"))
         hasta = _fecha_o_none(self.request.query_params.get("hasta"))
+
+
+
         if desde:
             qs = qs.filter(fecha__date__gte=desde)
         if hasta:
             qs = qs.filter(fecha__date__lte=hasta)
+
 
         if user.rol == "ADMIN":
             local = self.request.query_params.get("local")
@@ -66,20 +116,38 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         return qs.filter(local=user.local)
 
-    def perform_create(self, serializer):
+
+
+
+    #REGISTRAR VENTA__________________________________________________________
+
+    def perform_create(self, serializer):  
+        #Obtiene al usuario de la petición del token
         user = self.request.user
 
-        if user.rol == "ADMIN":
+
+        #Si es admin, usa el local de la venta, o el del usuario.
+        if user.rol == "ADMIN": 
             local = serializer.validated_data.get("local") or user.local
 
         else:
             local = user.local
 
-        if local is None:
+        if local is None: #Si no hay local, retorna un error que lo ingrese
             raise serializers.ValidationError({"local":"Indique el local de la venta"})
 
+
+        #SE GUARDA LA VENTA
         serializer.save(recepcionista=user, local=local)
 
+
+
+
+
+
+
+
+    #ANULAR VENTA__________________________________________________________________________
 
     @action(detail=True, methods=["post"])
     def anular(self, request, pk=None):
@@ -208,6 +276,19 @@ class VentaViewSet(viewsets.ModelViewSet):
                 "stock": p.stock_en(local) if local else None,
             })
         return Response(datos)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class SolicitudAnulacionViewSet(viewsets.ReadOnlyModelViewSet):
