@@ -17,6 +17,7 @@ import { Especialistas } from './pages/reservas/especialistas/Especialistas'
 import { FormEspecialista } from './pages/reservas/especialistas/FormEspecialista'
 import Agenda from './pages/reservas/agenda/Agenda'
 import BuscarCliente from './pages/reservas/clientes/BuscarCliente'
+import { NuevaReserva } from './pages/reservas/reserva/NuevaReserva'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
@@ -69,6 +70,7 @@ function App() {
           <Route element={<RutaPrivada roles={["ADMIN", "RECEP"]} />}>
             <Route path='/agenda' element={<Agenda/>} />
             <Route path='/agenda/clientes' element={<BuscarCliente/>} />
+            <Route path='/agenda/nueva' element={<NuevaReserva/>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
