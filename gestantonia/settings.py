@@ -62,6 +62,12 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Duración de la sesión de la página (token JWT)
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
+
 ROOT_URLCONF = "gestantonia.urls"
 
 TEMPLATES = [
@@ -122,10 +128,15 @@ AUTH_USER_MODEL = "usuarios.Usuario"
 
 # Bloqueo tras 5 intentos fallidos (ver usuarios/bloqueo.py). Protege el login web, el admin y la API.
 AUTHENTICATION_BACKENDS = ["usuarios.bloqueo.BackendConBloqueo"]
-# ¿Cómo funciona? Django trae validadores de seguridad integrados que revisan cualquier contraseña antes de 
-# encriptarla y guardarla en PostgreSQL. Lo único que hiciste fue cambiar "min_length": 8 por "min_length": 10 en el 
-# MinimumLengthValidator. Si alguien intenta crear una cuenta con 9 caracteres, Django detiene el proceso y lanza un 
-# ValidationError antes de tocar la base de datos.
+
+# Caché en archivos: la comparten los 3 procesos de gunicorn del servidor. Con la caché en
+# memoria (la de Django por defecto) cada proceso contaría sus propios intentos fallidos.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": BASE_DIR / ".cache_django",
+    }
+}
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
@@ -143,12 +154,6 @@ SESSION_COOKIE_AGE = 15 * 60
 # solo se cierra si pasa 15 minutos inactivo.
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-
-# Tokens JWT de la API (React): misma duración que la sesión.
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
-    "REFRESH_TOKEN_LIFETIME": timedelta(minutes=15),
-}
 
 # ---------------------------------------------------------------------------
 # Internacionalización

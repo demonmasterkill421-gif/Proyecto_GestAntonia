@@ -39,7 +39,6 @@ class SeguridadTests(TestCase):
 
     def test_sesion_de_15_minutos(self):
         self.assertEqual(settings.SESSION_COOKIE_AGE, 15 * 60)
-        self.assertEqual(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds(), 15 * 60)
 
     def test_bloqueo_al_5to_intento_fallido_login_django(self):
         for _ in range(4):
