@@ -4,6 +4,9 @@ from rest_framework import serializers
 from .models import DetalleVenta, RegistroDeVenta, SolicitudAnulacion
 from .services import registrar_venta
 
+# Tope de unidades de un mismo ítem en una sola venta (evita vaciar el stock por error o mal uso).
+MAX_CANTIDAD_POR_ITEM = 10
+
 
 class DetalleVentaSerializer(serializers.ModelSerializer):
     subtotal = serializers.ReadOnlyField()
@@ -16,6 +19,10 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
     def validate_cantidad(self, value):
         if value < 1:
             raise serializers.ValidationError("La cantidad debe ser mayor a 0")
+        if value > MAX_CANTIDAD_POR_ITEM:
+            raise serializers.ValidationError(
+                f"No se pueden vender más de {MAX_CANTIDAD_POR_ITEM} unidades del mismo ítem en una venta."
+            )
         return value
 
     def validate_trabajador(self, value):
@@ -29,7 +36,7 @@ class VentaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RegistroDeVenta
-        fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "trabajador", "metodo_pago", "descuento", "descripcion", "monto_base",
+        fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "metodo_pago", "descuento", "descripcion", "monto_base",
                   "monto_total", "estado", "detalles"]
         read_only_fields = ["folio", "fecha", "recepcionista", "monto_base", "monto_total", "estado"]
         extra_kwargs = {"local": {"required": False}}
@@ -42,32 +49,29 @@ class VentaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("El descuento debe estar entre 0 y 100")
         return value
 
-    def validate_trabajador(self, value):
-        if value is not None and value.rol != "TRAB":
-            raise serializers.ValidationError("El usuario debe tener rol de Trabajador.")
-        return value
-
     def validate_detalles(self, value):
         if not value:
             raise serializers.ValidationError("La venta debe tener al menos un item")
+
+        # Si el mismo ítem viene en varias líneas, se suman: el tope vale por ítem en toda la venta.
+        totales = {}
+        for d in value:
+            item = d["item"]
+            totales[item.pk] = totales.get(item.pk, 0) + d["cantidad"]
+            if totales[item.pk] > MAX_CANTIDAD_POR_ITEM:
+                raise serializers.ValidationError(
+                    f"No se pueden vender más de {MAX_CANTIDAD_POR_ITEM} unidades de "
+                    f"«{item.nombre}» en una venta."
+                )
         return value
     
     def validate(self, attrs):
-        detalles = attrs.get("detalles", [])
-        trabajador_venta = attrs.get("trabajador")
-
-        for d in detalles:
-            if d.get("trabajador") is None and trabajador_venta is not None:
-                d["trabajador"] = trabajador_venta
+        # Cada servicio debe indicar la trabajadora que lo realiza (base de su comisión).
+        for d in attrs.get("detalles", []):
             if not d["item"].es_producto and d.get("trabajador") is None:
                 raise serializers.ValidationError(
                     {"detalles": "Cada servicio debe tener la trabajadora que lo realiza."}
                 )
-            
-        if trabajador_venta is None:
-            primera = next((d["trabajador"] for d in detalles if d.get("trabajador")), None)
-            attrs["trabajador"] = primera
-
         return attrs
 
     def create(self, validated_data):
@@ -77,7 +81,6 @@ class VentaSerializer(serializers.ModelSerializer):
             return registrar_venta(
                 local=validated_data["local"],
                 recepcionista=validated_data["recepcionista"],
-                trabajador=validated_data.get("trabajador"),
                 metodoPago=validated_data.get("metodo_pago", RegistroDeVenta.MetodoPago.EFECTIVO),
                 descuento=validated_data.get("descuento", 0),
                 descripcion=validated_data.get("descripcion", ""),
