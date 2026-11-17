@@ -72,7 +72,8 @@ class ResumenReportesView(APIView):
         base_ventas = RegistroDeVenta.objects.filter(
             local=local, estado=RegistroDeVenta.Estado.CONFIRMADA
         )
-        ventas = list(base_ventas.filter(fecha__date__range=(desde, hasta)).select_related("trabajador"))
+        ventas = list(base_ventas.filter(fecha__date__range=(desde, hasta)))
+        ids_ventas = [v.pk for v in ventas]
         ingresos = sum(v.monto_total for v in ventas)
 
         # Período anterior con la misma cantidad de días: variación REAL, sin cifras fabricadas.
@@ -82,31 +83,33 @@ class ResumenReportesView(APIView):
         ventas_antes = base_ventas.filter(fecha__date__range=(antes_desde, antes_hasta))
         ingresos_antes = ventas_antes.aggregate(total=Sum("monto_total"))["total"] or 0
 
-        ventas_por_trabajador = defaultdict(int)
-        comisiones_por_trabajador = defaultdict(int)
         ingresos_diarios = defaultdict(int)
         for venta in ventas:
             dia = timezone.localtime(venta.fecha).date().isoformat()
             ingresos_diarios[dia] += venta.monto_total
-            if venta.trabajador_id:
-                ventas_por_trabajador[venta.trabajador_id] += venta.monto_total
-                pct = Decimal(venta.trabajador.porcentaje_comision) / Decimal("100")
-                comisiones_por_trabajador[venta.trabajador_id] += redondear_clp(
-                    Decimal(venta.monto_total) * pct
-                )
+
+        # La trabajadora ya no está en la venta: está en cada línea (DetalleVenta.trabajador).
+        # Lo vendido y la comisión de cada trabajadora salen de SUS líneas, con el descuento
+        # de la venta aplicado (las propiedades subtotal_con_descuento y comision del modelo).
+        ventas_por_trabajador = defaultdict(int)
+        comisiones_por_trabajador = defaultdict(int)
+        lineas_trabajadoras = DetalleVenta.objects.filter(
+            venta_id__in=ids_ventas, trabajador__isnull=False
+        ).select_related("venta", "trabajador")
+        for linea in lineas_trabajadoras:
+            ventas_por_trabajador[linea.trabajador_id] += linea.subtotal_con_descuento
+            comisiones_por_trabajador[linea.trabajador_id] += linea.comision
 
         detalles = list(DetalleVenta.objects.filter(
-            venta_id__in=[v.pk for v in ventas], item__servicio__isnull=False
+            venta_id__in=ids_ventas, item__servicio__isnull=False
         ).select_related("item"))
         servicios = sum(detalle.cantidad for detalle in detalles)
         conteo_servicios = Counter()
         servicios_trabajador = defaultdict(int)
-        trabajador_por_venta = {v.pk: v.trabajador_id for v in ventas}
         for detalle in detalles:
             conteo_servicios[detalle.item.nombre] += detalle.cantidad
-            trabajador_id = trabajador_por_venta.get(detalle.venta_id)
-            if trabajador_id:
-                servicios_trabajador[trabajador_id] += detalle.cantidad
+            if detalle.trabajador_id:
+                servicios_trabajador[detalle.trabajador_id] += detalle.cantidad
 
         detalles_antes = DetalleVenta.objects.filter(
             venta__in=ventas_antes, item__servicio__isnull=False
