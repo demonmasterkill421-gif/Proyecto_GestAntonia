@@ -1,0 +1,14 @@
+# Lo que NO se sube a Vercel al desplegar el backend (Django)
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+frontend/
+node_modules/
+__pycache__/
+*.pyc
+db.sqlite3
+staticfiles/
+.vscode/
+.vercel/
