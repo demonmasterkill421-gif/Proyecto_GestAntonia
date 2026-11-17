@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   X,
+  Package,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { INICIO_POR_ROL } from "../config/roles";
@@ -29,6 +30,7 @@ const MENU = [
   { ruta: "/admin/locales", etiqueta: "Locales", icono: Store, roles: ["ADMIN"] },
   { ruta: "/admin/ventas", etiqueta: "Ventas", icono: ShoppingBag, roles: ["ADMIN"] },
   { ruta: "/admin/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
+  { ruta: "/admin/inventario", etiqueta: "Inventario", icono: Package, roles: ["ADMIN"],},
 ];
 
 const ETIQUETA_ROL = { ADMIN: "Propietaria", RECEP: "Recepcionista", TRAB: "Especialista" };
@@ -43,7 +45,7 @@ const ETIQUETA_FLOTANTE =
   "pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-[#1f1218] px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100";
 
 // fondo: clase de Tailwind con el color de fondo de la página (por defecto, el gris claro de siempre)
-export function Sidebar({ children, fondo = "bg-[#faf9f7]" }) {
+export function Sidebar({ children, fondo = "bg-[#faf9f7]", mostrarSelectorSucursal = true,}) {
   const [abierto, setAbierto] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState(false);
   const [cerrando, setCerrando] = useState(false);
@@ -114,9 +116,11 @@ export function Sidebar({ children, fondo = "bg-[#faf9f7]" }) {
         <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
           {/* La propietaria elige sucursal; la recepcionista ve solo la suya (en el teléfono va dentro de la lista) */}
           {usuario?.rol === "ADMIN" ? (
-            <div className="min-w-0 max-w-[9.5rem] sm:max-w-none [&_button]:h-10 [&_button]:max-w-full [&_button]:whitespace-nowrap [&_span]:min-w-0 [&_span]:truncate [&_span]:whitespace-nowrap">
-              <SelectorSucursal />
-            </div>
+              mostrarSelectorSucursal ? (
+                  <div className="min-w-0 max-w-[9.5rem] sm:max-w-none [&_button]:h-10 [&_button]:max-w-full [&_button]:whitespace-nowrap [&_span]:min-w-0 [&_span]:truncate [&_span]:whitespace-nowrap">
+                    <SelectorSucursal />
+                  </div>
+              ) : null
           ) : (
             usuario?.local && (
               <span className="hidden max-w-[14rem] truncate rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f] sm:inline-block">
