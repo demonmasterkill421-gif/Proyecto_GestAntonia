@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./reservas.css";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { useAuth } from "../../../auth/AuthContext";
@@ -134,31 +132,31 @@ export function NuevaReserva() {
 
   const errorDe = (campo) =>
     aLista(errores[campo]).map((m) => (
-      <div key={m} className="text-danger small mt-1">
+      <div key={m} className="mt-1 text-sm text-red-700">
         {m}
       </div>
     ));
 
   return (
     <Sidebar>
-      <div className="tarjeta-gest p-4 mx-auto mx-md-0">
-        <p className="small text-secondary mb-1">
-          <Link to="/agenda">Agenda</Link> › Nueva reserva
+      <div className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
+        <p className="mb-1 text-gray-600">
+          <Link to="/agenda" className="text-[#b5368f] hover:underline">Agenda</Link> › Nueva reserva
         </p>
-        <h1 className="h3 fw-bold mb-1" style={{ color: "#1f1218" }}>
+        <h1 className="mb-1 text-4xl font-bold text-[#1f1218]">
           Nueva reserva
         </h1>
-        {usuario?.local && <p className="text-secondary">{usuario.local.nombre}</p>}
+        {usuario?.local && <p className="mb-4 text-lg text-gray-600">{usuario.local.nombre}</p>}
 
         {errorCarga && (
-          <div className="alert alert-danger" role="alert">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
             {errorCarga}
           </div>
         )}
 
         <form onSubmit={enviar} noValidate>
           {generales.length > 0 && (
-            <div className="alert alert-danger" role="alert">
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
               {generales.map((m) => (
                 <div key={m}>{m}</div>
               ))}
@@ -166,15 +164,15 @@ export function NuevaReserva() {
           )}
 
           {/* Cliente */}
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Cliente</label>
+          <div className="mb-4">
+            <label className="mb-1 block font-semibold text-[#1f1218]">Cliente</label>
             {clienteId ? (
-              <div className="form-control bg-light d-flex align-items-center">
+              <div className="flex min-h-11 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 text-lg">
                 {cliente ? `${cliente.nombre} (${cliente.telefono})` : "Cargando cliente..."}
               </div>
             ) : (
               <div>
-                <Link className="btn btn-chip d-inline-flex align-items-center" to="/agenda/clientes">
+                <Link className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#b5368f] bg-white px-4 text-[#b5368f] transition hover:bg-[#f7e3f1]" to="/agenda/clientes">
                   Buscar cliente
                 </Link>
               </div>
@@ -183,13 +181,13 @@ export function NuevaReserva() {
           </div>
 
           {/* Especialista */}
-          <div className="mb-3">
-            <label htmlFor="especialista" className="form-label fw-semibold">
+          <div className="mb-4">
+            <label htmlFor="especialista" className="mb-1 block font-semibold text-[#1f1218]">
               Especialista
             </label>
             <select
               id="especialista"
-              className="form-select"
+              className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
               value={especialista}
               onChange={(e) => setEspecialista(e.target.value)}
               disabled={cargando}
@@ -207,13 +205,13 @@ export function NuevaReserva() {
           </div>
 
           {/* Servicio */}
-          <div className="mb-3">
-            <label htmlFor="servicio" className="form-label fw-semibold">
+          <div className="mb-4">
+            <label htmlFor="servicio" className="mb-1 block font-semibold text-[#1f1218]">
               Servicio
             </label>
             <select
               id="servicio"
-              className="form-select"
+              className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
               value={servicio}
               onChange={(e) => setServicio(e.target.value)}
               disabled={cargando}
@@ -229,14 +227,14 @@ export function NuevaReserva() {
           </div>
 
           {/* Inicio */}
-          <div className="mb-3">
-            <label htmlFor="inicio" className="form-label fw-semibold">
+          <div className="mb-4">
+            <label htmlFor="inicio" className="mb-1 block font-semibold text-[#1f1218]">
               Fecha y hora de inicio
             </label>
             <input
               id="inicio"
               type="datetime-local"
-              className="form-control"
+              className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
               value={inicio}
               onChange={(e) => setInicio(e.target.value)}
             />
@@ -245,7 +243,7 @@ export function NuevaReserva() {
 
           {/* Mensaje del error de local (cuenta sin local) */}
           {aLista(errores.local).length > 0 && (
-            <div className="alert alert-danger" role="alert">
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
               {aLista(errores.local).map((m) => (
                 <div key={m}>{m}</div>
               ))}
@@ -254,16 +252,16 @@ export function NuevaReserva() {
 
           {/* Sugerencias que manda la API cuando hay tope */}
           {sugerencias.length > 0 && (
-            <div className="mb-3">
-              <p className="small text-secondary mb-2">
+            <div className="mb-4">
+              <p className="mb-2 text-sm text-gray-600">
                 Horarios libres más cercanos de la especialista (toca uno para usarlo):
               </p>
-              <div className="d-flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 {sugerencias.map((s) => (
                   <button
                     key={s}
                     type="button"
-                    className="btn btn-chip"
+                    className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#b5368f] bg-white px-4 text-[#b5368f] transition hover:bg-[#f7e3f1]"
                     onClick={() => setInicio(s.slice(0, 16))}
                   >
                     {horaDe(s)}
@@ -273,11 +271,11 @@ export function NuevaReserva() {
             </div>
           )}
 
-          <button type="submit" className="btn btn-gest px-4" disabled={guardando || cargando}>
+          <button type="submit" className="min-h-11 cursor-pointer rounded-lg bg-[#b5368f] px-6 text-lg font-semibold text-white transition hover:bg-[#9c2d7b] active:scale-95 disabled:cursor-wait disabled:opacity-60" disabled={guardando || cargando}>
             {guardando ? "Guardando..." : "Confirmar reserva"}
           </button>
-          <p className="mt-3 mb-0">
-            <Link to="/agenda">← Volver a la agenda</Link>
+          <p className="mt-4">
+            <Link to="/agenda" className="text-[#b5368f] hover:underline">← Volver a la agenda</Link>
           </p>
         </form>
       </div>
