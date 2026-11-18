@@ -67,6 +67,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # A4: límite de intentos. El login acepta como máximo 10 peticiones por minuto.
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min"},
 }
 
 # Duración de la sesión de la página (token JWT)
