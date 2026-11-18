@@ -8,13 +8,21 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "solo-para-desarrollo-cambiar-en-el-archivo-env")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+
+# En producción la clave secreta DEBE venir del .env: si falta, el sistema no arranca
+# (con la clave de desarrollo, que es pública en GitHub, se podrían falsificar sesiones).
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("Falta DJANGO_SECRET_KEY en el archivo .env")
+    SECRET_KEY = "solo-para-desarrollo-cambiar-en-el-archivo-env"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 
 INSTALLED_APPS = [
@@ -140,11 +148,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"        # collectstatic deja aquí los arc
 # ---------------------------------------------------------------------------
 # Producción (servidor con Nginx): solo se activa con DJANGO_DEBUG=False
 # ---------------------------------------------------------------------------
+# Dirección pública de React: se usa para armar enlaces que se abren fuera del sistema (QR de asistencia).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")   # Nginx atiende por HTTPS delante de Django
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    # HSTS: el navegador usará siempre HTTPS con este sitio. Se parte con 1 hora;
+    # cuando el dominio sea definitivo se puede subir a 31536000 (1 año).
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "3600"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
