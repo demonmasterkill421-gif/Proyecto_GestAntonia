@@ -41,17 +41,30 @@ como_app() { sudo -u "$USUARIO" -H env HOME="/home/$USUARIO" PATH="$PATH" "${PAS
 [ "$(id -u)" -eq 0 ] || { echo "Ejecute con sudo: sudo bash $0"; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
 
+# Al encender la instancia, Ubuntu instala sus actualizaciones automáticas y deja apt ocupado
+# unos minutos. apt_seguro espera a que se libere (hasta 10 min por intento) y reintenta,
+# en vez de cortar el despliegue a la mitad (pasó el 17-11 y el sitio quedó sin HTTPS).
+apt_seguro() {
+  local intento
+  for intento in 1 2 3 4 5; do
+    apt-get -o DPkg::Lock::Timeout=600 "$@" && return 0
+    echo "apt está ocupado (actualizaciones de Ubuntu). Reintento $intento de 5 en 30 s..."
+    sleep 30
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------- 1. paquetes
 paso "1/9 Instalando paquetes del sistema"
-apt-get update -q
-apt-get install -y -q git curl ca-certificates openssl python3-venv python3-pip \
+apt_seguro update -q
+apt_seguro install -y -q git curl ca-certificates openssl python3-venv python3-pip \
     postgresql postgresql-contrib nginx ufw >/dev/null
 
 NODE_MAJOR=$(node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || true)
 if [ -z "${NODE_MAJOR}" ] || [ "${NODE_MAJOR}" -lt 22 ]; then
   paso "Instalando Node.js 22 (Vite 8 no funciona con el Node 18 de Ubuntu)"
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
-  apt-get install -y -q nodejs >/dev/null
+  apt_seguro install -y -q nodejs >/dev/null
 fi
 echo "Python $(python3 -V | cut -d' ' -f2) · Node $(node -v) · $(psql -V | cut -d' ' -f1,3)"
 
@@ -110,6 +123,7 @@ DJANGO_DEBUG=False
 DJANGO_ALLOWED_HOSTS=$DOMINIO,$IP_PUBLICA,localhost,127.0.0.1
 DJANGO_CSRF_TRUSTED_ORIGINS=$ORIGENES
 DJANGO_CORS_ORIGINS=$ORIGENES
+FRONTEND_URL=https://$DOMINIO
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
@@ -217,7 +231,7 @@ fi
 paso "9/9 HTTPS con Let's Encrypt"
 URL="http://$DOMINIO"
 if [ "$HTTPS" = "si" ]; then
-  apt-get install -y -q certbot python3-certbot-nginx >/dev/null
+  apt_seguro install -y -q certbot python3-certbot-nginx >/dev/null
   if [ -n "${CERTBOT_EMAIL:-}" ]; then CORREO=(-m "$CERTBOT_EMAIL"); else CORREO=(--register-unsafely-without-email); fi
   if certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos "${CORREO[@]}" --redirect --keep-until-expiring -q; then
     URL="https://$DOMINIO"
