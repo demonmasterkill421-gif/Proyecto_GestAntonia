@@ -68,36 +68,48 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
   }
 
   const indicadores = reporte?.indicadores;
+
   return (
     <section className="reports-page" aria-label="Panel de control">
       <div className="reports-intro">
-        <div><h1>Panel de control</h1></div>
-        <button type="button" className="export-button" onClick={exportar} disabled={!reporte}>
-          <Download size={14}/><span>Exportar reporte</span>
-        </button>
+        <h1 >
+          Panel de control
+        </h1>
+        <p >
+          Resumen del rendimiento de tu local, servicios y trabajadores.
+        </p>
       </div>
 
       <form className="filters-card" onSubmit={aplicarFiltros}>
         <div className="field-date">
-          <label>Período</label>
+          <label >Período</label>
           <div className="date-fields">
-            <label className="date-entry"><span className="sr-only">Fecha inicial</span><input aria-label="Fecha inicial" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
+            <label className="date-entry">
+              <span className="sr-only">Fecha inicial</span>
+              <input aria-label="Fecha inicial"  type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </label>
             <span className="dates-separator">–</span>
-            <label className="date-entry"><span className="sr-only">Fecha final</span><input aria-label="Fecha final" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
+            <label className="date-entry">
+              <span className="sr-only">Fecha final</span>
+              <input aria-label="Fecha final"  type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </label>
           </div>
         </div>
         <div className="field-branch">
-          <label>Sucursal seleccionada en el encabezado</label>
+          <label >Sucursal seleccionada en el encabezado</label>
           <div className="report-branch-readonly" aria-label="Sucursal del reporte">
             {reporte?.sucursal?.name || `Local #${selectedSucursal}`}
           </div>
         </div>
         <button className="apply-button" type="submit">Aplicar filtros</button>
-        <div className="applied-period" aria-live="polite">{formatoFecha(aplicado.desde)} – {formatoFecha(aplicado.hasta)}</div>
+        <span className="applied-period sr-only" aria-live="polite">{formatoFecha(aplicado.desde)} – {formatoFecha(aplicado.hasta)}</span>
+        <button type="button" className="export-button" onClick={exportar} disabled={!reporte}>
+          <Download size={15} /><span>Exportar reporte</span>
+        </button>
       </form>
 
-      {cargando && <p className="loading-report">Consultando PostgreSQL mediante Django…</p>}
-      {!cargando && error && <p role="alert" className="loading-report">{error}</p>}
+      {cargando && <p className="loading-report" role="status">Consultando PostgreSQL mediante Django…</p>}
+      {!cargando && error && <p role="alert" className="loading-report report-error">{error}</p>}
       {!cargando && !error && reporte && (
         <>
           <div className="stats-grid">
@@ -128,8 +140,8 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
             />
           </div>
           <div className="charts-grid">
-            <GraficoGanancias data={reporte.gananciasDiarias}/>
-            <GraficoServicios data={reporte.serviciosPorTipo}/>
+            <GraficoGanancias data={reporte.gananciasDiarias} />
+            <GraficoServicios data={reporte.serviciosPorTipo} />
           </div>
           <TablaTrabajadores trabajadores={reporte.trabajadores} />
         </>
