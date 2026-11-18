@@ -102,6 +102,9 @@ export function Login() {
       setEntrando(false);
       if (err.response?.status === 401) {
         setError("Correo o contraseña incorrectos.");
+      } else if (err.response?.status === 429) {
+        // A4: el servidor limita los intentos de login (10 por minuto)
+        setError("Demasiados intentos. Espera un minuto y vuelve a intentarlo.");
       } else {
         setError("No pudimos conectar con el servidor. Intenta de nuevo.");
       }

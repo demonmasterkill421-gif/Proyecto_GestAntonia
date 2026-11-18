@@ -1,5 +1,6 @@
-from rest_framework.permissions import IsAuthenticated #Valida si es un usuario autenticado, de lo contrario retorna un 404
+from rest_framework.permissions import IsAuthenticated #Valida si es un usuario autenticado, de lo contrario retorna un 401
 from rest_framework.response import Response #Devuelve datos desde una vista (diccionario(django) > json(http) > objetos de javascript(react))
+from rest_framework.throttling import ScopedRateThrottle #A4: limita cuántas peticiones se aceptan por minuto
 from rest_framework.views import APIView #Plantilla para armar vistas
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer #Serializer que se encarga del Login, obtener un par de tókens
 from rest_framework_simplejwt.views import TokenObtainPairView #Atiende la petición desde react y se los envía a serializer y desvuelve la respuesta en diccionario
@@ -31,6 +32,8 @@ class LoginSerializer(TokenObtainPairSerializer): #Hereda una plantilla de seria
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
+    throttle_classes = [ScopedRateThrottle] #A4: activa el límite de intentos en esta vista
+    throttle_scope = "login" #A4: usa el límite llamado "login" (se define en settings.py)
 
 
 class MeView(APIView):  
