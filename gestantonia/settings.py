@@ -69,6 +69,20 @@ REST_FRAMEWORK = {
     ],
     #login acepta como máximo 5 peticiones por minuto.
     "DEFAULT_THROTTLE_RATES": {"login": "5/min"},
+    # A4: hay un proxy delante (Nginx). Con esto el límite usa la IP real que agrega
+    # Nginx y no lo que el navegador escriba en la cabecera X-Forwarded-For
+    # (si no, bastaba con cambiar esa cabecera para saltarse el límite).
+    "NUM_PROXIES": 1,
+}
+
+# A4: caché compartida en archivos para que los 3 procesos de Gunicorn del servidor
+# lleven una sola cuenta de intentos de login (con la caché en memoria cada proceso
+# contaba por separado y el límite real subía a unos 15 por minuto).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": BASE_DIR / ".cache_django",
+    }
 }
 
 # Duración de la sesión de la página (token JWT)

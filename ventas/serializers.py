@@ -10,10 +10,12 @@ MAX_CANTIDAD_POR_ITEM = 10
 
 class DetalleVentaSerializer(serializers.ModelSerializer):
     subtotal = serializers.ReadOnlyField()
+    # Nombre de la trabajadora, para mostrarlo sin depender de listas fijas en el frontend
+    trabajador_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = DetalleVenta
-        fields = ["item", "cantidad", "precio_unitario", "subtotal", "trabajador"]
+        fields = ["item", "cantidad", "precio_unitario", "subtotal", "trabajador", "trabajador_nombre"]
         read_only_fields = ["precio_unitario"]
 
     def validate_cantidad(self, value):
@@ -24,6 +26,11 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
                 f"No se pueden vender más de {MAX_CANTIDAD_POR_ITEM} unidades del mismo ítem en una venta."
             )
         return value
+
+    def get_trabajador_nombre(self, obj):
+        if obj.trabajador is None:
+            return None
+        return obj.trabajador.get_full_name() or obj.trabajador.email
 
     def validate_trabajador(self, value):
         if value is not None and value.rol != "TRAB":

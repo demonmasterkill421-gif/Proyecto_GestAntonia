@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -66,3 +67,38 @@ class UsuariosTests(TestCase):
 
     def test_proxy_trabajador_filtra_por_rol(self):
         self.assertEqual(list(Trabajador.objects.all()), [Trabajador.objects.get(pk=self.trab.pk)])
+
+
+class LimiteLoginTests(TestCase):
+    """A4: el login acepta como máximo 5 intentos por minuto desde la misma IP."""
+
+    URL = "/api/login/"
+
+    def setUp(self):
+        cache.clear()  # cada prueba parte con el contador de intentos en cero
+
+    def tearDown(self):
+        cache.clear()  # no dejar intentos contados para las otras pruebas
+
+    def _intentar(self, veces, cabecera=None):
+        codigos = []
+        for i in range(veces):
+            extra = {}
+            if cabecera:
+                extra["HTTP_X_FORWARDED_FOR"] = cabecera(i)
+            respuesta = self.client.post(
+                self.URL,
+                {"email": "nadie@gestantonia.cl", "password": "incorrecta"},
+                content_type="application/json",
+                **extra,
+            )
+            codigos.append(respuesta.status_code)
+        return codigos
+
+    def test_el_sexto_intento_queda_bloqueado(self):
+        self.assertEqual(self._intentar(6), [401] * 5 + [429])
+
+    def test_no_se_salta_cambiando_x_forwarded_for(self):
+        # Un atacante cambia la cabecera en cada intento; Nginx agrega al final la IP real
+        codigos = self._intentar(6, lambda i: f"10.0.0.{i}, 200.1.1.1")
+        self.assertEqual(codigos[-1], 429)

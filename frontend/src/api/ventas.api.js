@@ -6,6 +6,9 @@ export const registrarVenta = (datos) => api.post("/api/ventas/", datos);
 
 export const obtenerServiciosVenta = () => api.get("/api/ventas/servicios/");
 
+// Trabajadoras activas del local (la administradora puede filtrar con { local })
+export const obtenerTrabajadorasVenta = (params) => api.get("/api/ventas/trabajadoras/", { params });
+
 
 export const obtenerProductosVenta = async () => {
   const { data } = await api.get("/api/ventas/productos/");
