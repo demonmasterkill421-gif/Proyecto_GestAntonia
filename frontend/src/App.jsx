@@ -29,10 +29,19 @@ import { RegistrarAsistencia } from './pages/trabajador/asistencia/RegistrarAsis
 
 
 
-import { AuthProvider } from "./auth/AuthContext";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { INICIO_POR_ROL } from "./config/roles";
 
 //2. Establecer un Route con la url como se ve abajo, DENTRO del grupo del rol que puede entrar
 //3. agregar la función exportada
+
+// A1: cualquier dirección que no exista lleva al inicio del rol de la persona.
+// Antes mandaba a /login, y el login cierra la sesión al abrirse.
+function IrAlInicio() {
+  const { usuario, cargando } = useAuth();
+  if (cargando) return null; // todavía se está recuperando la sesión
+  return <Navigate to={usuario ? (INICIO_POR_ROL[usuario.rol] ?? "/login") : "/login"} replace />;
+}
 
 function App() {
   return (
@@ -73,7 +82,7 @@ function App() {
             <Route path='/trabajador/asistencia' element={<RegistrarAsistencia />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<IrAlInicio />} /> {/* A1: dirección inexistente → inicio del rol (sin cerrar la sesión) */}
 
         </Routes>
 

@@ -5,18 +5,14 @@ import { useTitulo } from "../../../hooks/useTitulo";
 
 import {
   ShoppingBag,
-  QrCode,
   UserCheck,
   CalendarDays,
   Users,
   BadgeDollarSign,
   Store,
+  Package,
   ChartColumn,
 } from "lucide-react";
-
-// Página donde las tres (propietaria, recepcionista y especialista) registran su asistencia.
-// Debe ser la misma dirección que usa el menú de la especialista.
-const RUTA_ASISTENCIA = "/mi-asistencia";
 
 export function MainAdmin() {
   useTitulo("Inicio");
@@ -35,17 +31,6 @@ export function MainAdmin() {
           destacado
         />
 
-        {/* Solo en el teléfono: registrar la asistencia se hace desde ahí */}
-        <div className="md:hidden">
-          <PanelAtajo
-            titulo="Registrar asistencia"
-            descripcion="Marca tu entrada y tu salida del día"
-            boton="Registrar"
-            ruta={RUTA_ASISTENCIA}
-            icono={QrCode}
-          />
-        </div>
-
         <PanelAtajo
           titulo="Asistencia"
           descripcion="Mira quién llegó, corrige horarios y descarga el Excel"
@@ -54,28 +39,29 @@ export function MainAdmin() {
           icono={UserCheck}
         />
 
+        {/* A1: estas tres pantallas aún no existen. Agenda y Especialistas llegan con Reservas (A5). */}
         <PanelAtajo
           titulo="Agenda"
           descripcion="Las citas y horas agendadas"
           boton="Ver agenda"
-          ruta="/agenda"
           icono={CalendarDays}
+          proximamente
         />
 
         <PanelAtajo
           titulo="Especialistas"
           descripcion="Tu equipo de trabajo"
           boton="Ver especialistas"
-          ruta="/especialistas"
           icono={Users}
+          proximamente
         />
 
         <PanelAtajo
           titulo="Comisiones"
           descripcion="Lo que gana cada especialista"
           boton="Ver comisiones"
-          ruta="/comisiones"
           icono={BadgeDollarSign}
+          proximamente
         />
 
         <PanelAtajo
@@ -86,16 +72,21 @@ export function MainAdmin() {
           icono={Store}
         />
 
-        {/* En el computador la tarjeta de asistencia no se ve, quedan 7: esta ocupa todo el ancho */}
-        <div className="lg:col-span-2">
-          <PanelAtajo
-            titulo="Reportes"
-            descripcion="Resumen y gráficos de tu negocio"
-            boton="Ver reportes"
-            ruta="/admin/reportes"
-            icono={ChartColumn}
-          />
-        </div>
+        <PanelAtajo
+          titulo="Inventario"
+          descripcion="Revisa el stock de productos e insumos"
+          boton="Ver inventario"
+          ruta="/admin/inventario"
+          icono={Package}
+        />
+
+        <PanelAtajo
+          titulo="Reportes"
+          descripcion="Resumen y gráficos de tu negocio"
+          boton="Ver reportes"
+          ruta="/admin/reportes"
+          icono={ChartColumn}
+        />
       </div>
     </Sidebar>
   );
