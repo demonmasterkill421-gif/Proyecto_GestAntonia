@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.core.exceptions import ValidationError as ErrorDjango
 from django.http import HttpResponse
@@ -20,6 +22,8 @@ from .serializers import (
     MarcarSerializer,
     _nombre_de,
 )
+
+logger = logging.getLogger(__name__)
 
 TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -71,7 +75,7 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
 
     def get_permissions(self):
-        if self.action in ("corregir", "exportar", "qr"):
+        if self.action in ("corregir", "exportar", "qr", "eliminar"):
             return [IsAuthenticated(), EsAdministrador()]
         if self.action in ("escanear", "mia"):
             return [IsAuthenticated()]
@@ -284,6 +288,36 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(
             AsistenciaSerializer(registro).data,
             status=status.HTTP_201_CREATED if creado else status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def eliminar(self, request, pk=None):
+        motivo = (request.data.get("motivo") or "").strip()
+        if len(motivo) < 3:
+            return Response(
+                {"detail": "Debes ingresar un motivo válido para eliminar la asistencia."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registro = self.get_object()
+        usuario_responsable = (
+            getattr(request.user, "correo", None)
+            or getattr(request.user, "email", None)
+            or str(request.user)
+        )
+        logger.info(
+            "Asistencia eliminada | id=%s | trabajador=%s | fecha=%s | por=%s | motivo=%s",
+            registro.id,
+            _nombre_de(registro.trabajador),
+            registro.fecha,
+            usuario_responsable,
+            motivo,
+        )
+        registro.delete()
+
+        return Response(
+            {"detail": "Registro de asistencia eliminado correctamente."},
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=False, methods=["get"], url_path="mia")

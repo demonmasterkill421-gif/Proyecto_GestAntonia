@@ -24,6 +24,10 @@ export const marcarAsistencia = (datos) =>
 export const corregirAsistencia = (datos) =>
   api.post("/api/asistencias/corregir/", datos);
 
+// Eliminar un registro de asistencia con motivo obligatorio (solo ADMIN)
+export const eliminarAsistencia = (id, motivo) =>
+  api.post(`/api/asistencias/${id}/eliminar/`, { motivo });
+
 // Descargar el Excel del período (solo ADMIN)
 // params: { desde: "2026-11-01", hasta: "2026-11-15", local: 1 }
 // Devuelve el archivo (blob), igual que exportarVentas
