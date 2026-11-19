@@ -1,24 +1,36 @@
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib import admin
+from django.utils import timezone
 from django.utils.html import format_html
+
 from .models import CodigoQR, RegistroDeAsistencia
+
 
 @admin.register(CodigoQR)
 class CodigoQRAdmin(admin.ModelAdmin):
-    # 1. Columnas en la tabla principal
     list_display = ('local', 'enlace_qr', 'creado_por', 'creado', 'vigente_hasta')
-    
-    # 2. Campos bloqueados en la vista de edición (la de tu foto)
-    # ¡Aquí agregué 'enlace_qr' para que lo veas directo en esa pantalla!
+    list_filter = ('local',)
     readonly_fields = ('token', 'creado', 'creado_por', 'enlace_qr')
+
+    def get_queryset(self, request):
+        CodigoQR.limpiar_expirados()
+        return super().get_queryset(request)
+
+    def get_changeform_initial_data(self, request):
+        return {"vigente_hasta": timezone.now() + timedelta(days=180)}
 
     def enlace_qr(self, obj):
         if obj.token:
-            url = f"http://localhost:5173/trabajador/asistencia?qr={obj.token}"
-            return format_html('<a href="{}" target="_blank" style="color: #1d4ed8; font-weight: bold; text-decoration: underline; font-size: 14px;">Copiar / Abrir Enlace de Asistencia</a>', url)
+            url = f"{settings.FRONTEND_URL}/trabajador/asistencia?qr={obj.token}"
+            return format_html(
+                '<a href="{}" target="_blank" style="color: #1d4ed8; font-weight: bold; text-decoration: underline; font-size: 14px;">Copiar / Abrir Enlace de Asistencia</a>',
+                url,
+            )
         return "-"
     enlace_qr.short_description = "Enlace directo"
 
-    # 3. Asignar el "Creado por" automáticamente al administrador actual
     def save_model(self, request, obj, form, change):
         if getattr(obj, 'creado_por_id', None) is None:
             obj.creado_por = request.user

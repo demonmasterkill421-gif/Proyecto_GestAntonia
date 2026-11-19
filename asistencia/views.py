@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError as ErrorDjango
 from django.http import HttpResponse
 from django.utils import timezone
@@ -70,9 +71,9 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
 
     def get_permissions(self):
-        if self.action in ("corregir", "exportar"):
+        if self.action in ("corregir", "exportar", "qr"):
             return [IsAuthenticated(), EsAdministrador()]
-        if self.action == "escanear":
+        if self.action in ("escanear", "mia"):
             return [IsAuthenticated()]
         return super().get_permissions()
 
@@ -285,33 +286,94 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED if creado else status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["get"], url_path="mia")
+    def mia(self, request):
+        registros = RegistroDeAsistencia.objects.filter(
+            trabajador=request.user
+        ).order_by("-fecha")[:60]
+        return Response(AsistenciaSerializer(registros, many=True).data)
+
+    @action(detail=False, methods=["get", "post"], url_path="qr")
+    def qr(self, request):
+        CodigoQR.limpiar_expirados()
+        local_id = (
+            request.data.get("local")
+            if request.method == "POST"
+            else request.query_params.get("local")
+        )
+        if not local_id:
+            return Response(
+                {"detail": "Falta elegir un local."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        modelo_local = Usuario._meta.get_field("local").related_model
+        local = modelo_local.objects.filter(pk=local_id).first()
+        if not local:
+            return Response(
+                {"detail": "Local no encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if request.method == "GET":
+            qr_obj = CodigoQR.objects.filter(local=local).first()
+            if not qr_obj:
+                return Response({"existe": False})
+            return Response(
+                {
+                    "existe": True,
+                    "token": qr_obj.token,
+                    "url": f"{settings.FRONTEND_URL}/trabajador/asistencia?qr={qr_obj.token}",
+                    "vigente_hasta": qr_obj.vigente_hasta,
+                }
+            )
+
+        qr_obj = CodigoQR.generar(local, request.user)
+        return Response(
+            {
+                "existe": True,
+                "token": qr_obj.token,
+                "url": f"{settings.FRONTEND_URL}/trabajador/asistencia?qr={qr_obj.token}",
+                "vigente_hasta": qr_obj.vigente_hasta,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=False, methods=["post"], url_path="escanear")
     def escanear(self, request):
         user = request.user
-        
+
         if user.rol not in ["TRAB", "RECEP"]:
             return Response(
-                {"error": "Solo trabajadoras y recepcionistas pueden usar el registro automático."},
+                {"detail": "Solo trabajadoras y recepcionistas pueden usar el registro automático."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         token_qr = request.data.get("token") or request.query_params.get("token")
         if not token_qr:
             return Response(
-                {"error": "No se proporcionó el código QR de la sucursal."},
+                {"detail": "No se proporcionó el código QR de la sucursal."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             registro = RegistroDeAsistencia.registrar_por_qr(user, token_qr)
-            mensaje_exito = "¡Salida registrada correctamente!" if registro.hora_salida else "¡Entrada registrada correctamente!"
+            mensaje_exito = (
+                "¡Salida registrada correctamente!"
+                if registro.hora_salida
+                else "¡Entrada registrada correctamente!"
+            )
             return Response(
                 {"mensaje": mensaje_exito},
                 status=status.HTTP_200_OK,
             )
         except (ErrorDjango, ValueError) as error:
-            mensaje_error = str(error.message if hasattr(error, 'message') else error)
+            mensaje_error = (
+                error.messages[0]
+                if hasattr(error, "messages")
+                else str(error.message if hasattr(error, "message") else error)
+            )
             return Response(
-                {"error": mensaje_error},
+                {"detail": mensaje_error},
                 status=status.HTTP_400_BAD_REQUEST,
             )
