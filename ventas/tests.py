@@ -87,3 +87,76 @@ class RegistroDeVentaTests(TestCase):
         venta.confirmar_venta()
         with self.assertRaises(ValidationError):
             venta.agregar_item(self.manicura)
+
+class TrabajadorasVentaApiTests(TestCase):
+    """GET /api/ventas/trabajadoras/: las especialistas del formulario de venta salen de la base de datos.
+
+    Reproduce el error de AWS: allí los IDs no coincidían con la lista fija del frontend
+    (Fernanda = 3), porque la cuenta de la administradora se creó antes que las demás.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+        self.client = APIClient()
+        self.local = Local.objects.create(nombre="Local Mall", ubicacion="Mall Plaza Calama")
+        self.otro_local = Local.objects.create(nombre="Local Centro", ubicacion="Calama")
+        # Primero la administradora y luego el resto, igual que en el servidor de AWS
+        self.admin = Usuario.objects.create_user(
+            username="antonia", email="antonia@x.cl", password="Clave12345!",
+            rol=Usuario.Rol.ADMINISTRADOR)
+        self.recep = Usuario.objects.create_user(
+            username="paola", email="paola@x.cl", password="Clave12345!", first_name="Paola",
+            rol=Usuario.Rol.RECEPCIONISTA, local=self.local)
+        self.fernanda = Usuario.objects.create_user(
+            username="fernanda", email="fernanda@x.cl", password="Clave12345!", first_name="Fernanda",
+            last_name="Rojas", rol=Usuario.Rol.TRABAJADOR, local=self.local, porcentaje_comision=10)
+        self.liz = Usuario.objects.create_user(
+            username="liz", email="liz@x.cl", password="Clave12345!", first_name="Liz",
+            rol=Usuario.Rol.TRABAJADOR, local=self.otro_local, porcentaje_comision=10)
+        self.inactiva = Usuario.objects.create_user(
+            username="ex", email="ex@x.cl", password="Clave12345!", first_name="Ex",
+            rol=Usuario.Rol.TRABAJADOR, local=self.local, is_active=False)
+        self.manicura = Servicio.objects.create(nombre="Manicura", tipo=Servicio.Tipo.MANICURE, precio=20000)
+
+    def ids(self, respuesta):
+        return [t["id"] for t in respuesta.json()]
+
+    def test_recepcionista_ve_solo_trabajadoras_activas_de_su_local(self):
+        self.client.force_authenticate(self.recep)
+        r = self.client.get("/api/ventas/trabajadoras/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.ids(r), [self.fernanda.id])  # ni Liz (otro local), ni la inactiva, ni Paola
+        self.assertEqual(r.json()[0]["nombre"], "Fernanda Rojas")
+
+    def test_administradora_ve_todas_o_filtra_por_local(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.get("/api/ventas/trabajadoras/")
+        self.assertEqual(sorted(self.ids(r)), sorted([self.fernanda.id, self.liz.id]))
+        r = self.client.get(f"/api/ventas/trabajadoras/?local={self.otro_local.id}")
+        self.assertEqual(self.ids(r), [self.liz.id])
+        r = self.client.get("/api/ventas/trabajadoras/?local=abc")
+        self.assertEqual(r.status_code, 400)
+
+    def test_trabajadora_no_puede_consultar_la_lista(self):
+        self.client.force_authenticate(self.fernanda)
+        self.assertEqual(self.client.get("/api/ventas/trabajadoras/").status_code, 403)
+
+    def test_venta_con_la_trabajadora_de_la_lista_se_registra(self):
+        self.client.force_authenticate(self.recep)
+        fernanda_id = self.ids(self.client.get("/api/ventas/trabajadoras/"))[0]
+        self.assertEqual(fernanda_id, self.fernanda.id)  # el ID sale de la base de datos, no de una lista fija
+        r = self.client.post("/api/ventas/", {
+            "detalles": [{"item": self.manicura.id, "cantidad": 1, "trabajador": fernanda_id}],
+            "metodo_pago": "DEBITO", "descuento": 10, "descripcion": "Prueba",
+        }, format="json")
+        self.assertEqual(r.status_code, 201, r.json())
+        self.assertEqual(r.json()["detalles"][0]["trabajador_nombre"], "Fernanda Rojas")
+
+    def test_la_recepcionista_no_sirve_como_trabajadora(self):
+        # Era lo que pasaba en AWS: el ID 3 era Paola y el servidor lo rechazaba
+        self.client.force_authenticate(self.recep)
+        r = self.client.post("/api/ventas/", {
+            "detalles": [{"item": self.manicura.id, "cantidad": 1, "trabajador": self.recep.id}],
+            "metodo_pago": "DEBITO",
+        }, format="json")
+        self.assertEqual(r.status_code, 400)

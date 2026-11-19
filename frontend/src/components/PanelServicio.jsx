@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Pencil, Plus, Sparkles } from "lucide-react";
-import { ESPECIALISTAS } from "../data/catalogo";
 import { useDatos } from "../hooks/useDatos";
-import { obtenerServiciosVenta } from "../api/ventas.api";
+import { obtenerServiciosVenta, obtenerTrabajadorasVenta } from "../api/ventas.api";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -24,7 +23,9 @@ export function PanelServicio({ servicios, setServicios }) {
   const [especialista, setEspecialista] = useState("");
   const [errores, setErrores] = useState({});
 
-  const presentes = ESPECIALISTAS.filter((e) => e.presente);
+  // Las especialistas se leen desde la base de datos (antes era una lista fija con IDs del entorno local)
+  const { datos: presentes, cargando: cargandoTrabajadoras, error: errorTrabajadoras } =
+    useDatos(obtenerTrabajadorasVenta, { cadaMs: 60000 });
   const catalogo = [...serviciosApi, OTRO];
   const servicioElegido = catalogo.find((s) => String(s.id) === String(elegido));
   const esOtro = servicioElegido?.precioVariable;
@@ -70,6 +71,10 @@ export function PanelServicio({ servicios, setServicios }) {
     if (Object.keys(nuevos).length > 0) return;
 
     const persona = presentes.find((e) => String(e.id) === String(especialista));
+    if (!persona) {
+      setErrores({ especialista: "Selecciona una especialista de la lista" });
+      return;
+    }
     const nuevo = {
       ...servicioElegido,
       nombre: esOtro ? nombreOtro.trim() : servicioElegido.nombre,
@@ -218,7 +223,13 @@ export function PanelServicio({ servicios, setServicios }) {
                 onChange={(e) => setEspecialista(e.target.value)}
                 className={`${campo(errores.especialista)} cursor-pointer`}
               >
-                <option value="">Selecciona una especialista</option>
+                <option value="">
+                  {cargandoTrabajadoras
+                    ? "Cargando especialistas..."
+                    : presentes.length === 0
+                      ? "No hay especialistas registradas en este local"
+                      : "Selecciona una especialista"}
+                </option>
                 {presentes.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.nombre}
@@ -226,6 +237,7 @@ export function PanelServicio({ servicios, setServicios }) {
                 ))}
               </select>
               {errores.especialista && <p className="mt-1 text-base text-red-600">{errores.especialista}</p>}
+              {errorTrabajadoras && <p className="mt-1 text-base text-red-600">No se pudo cargar la lista de especialistas.</p>}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

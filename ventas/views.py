@@ -24,6 +24,7 @@ from .serializers import (
 
 
 from catalogo.models import Producto, Servicio
+from usuarios.models import Usuario
 
 LIMITE_EXPORTAR = 20000
 
@@ -50,7 +51,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles")
+        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles__trabajador")
         user = self.request.user
 
         desde = _fecha_o_none(self.request.query_params.get("desde"))
@@ -193,6 +194,30 @@ class VentaViewSet(viewsets.ModelViewSet):
             "id", "nombre", "precio", "duracion", "tipo"
         )
         return Response(list(datos))
+
+    @action(detail=False, methods=["get"])
+    def trabajadoras(self, request):
+        """Trabajadoras activas que pueden realizar servicios, leídas desde la base de datos.
+
+        La recepcionista ve las de su local. La administradora ve las del local indicado
+        con ?local=<id> o, si no indica local, las de todos los locales.
+        """
+        user = request.user
+        qs = Usuario.objects.filter(rol=Usuario.Rol.TRABAJADOR, is_active=True)
+        if user.rol == "ADMIN":
+            local = request.query_params.get("local")
+            if local:
+                if not local.isdecimal():
+                    return _error("El local indicado no es válido.")
+                qs = qs.filter(local_id=int(local))
+        else:
+            qs = qs.filter(local_id=user.local_id)
+
+        datos = [
+            {"id": u.id, "nombre": u.get_full_name() or u.email, "local": u.local_id}
+            for u in qs.order_by("first_name", "last_name")
+        ]
+        return Response(datos)
 
     @action(detail=False, methods=["get"])
     def productos(self, request):
