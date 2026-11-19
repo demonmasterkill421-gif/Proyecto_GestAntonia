@@ -25,3 +25,6 @@ Thumbs.db
 # Llaves y respaldos del servidor
 *.pem
 *.dump
+
+# Caché de Django (límite de intentos del login)
+.cache_django/
