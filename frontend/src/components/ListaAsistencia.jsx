@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleCheck, Clock, Download, Pencil, UserCheck, UserX, X } from "lucide-react";
+import { CircleCheck, Clock, Download, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   corregirAsistencia,
+  eliminarAsistencia,
   exportarAsistencias,
   marcarAsistencia,
   obtenerDia,
@@ -113,6 +114,8 @@ const botonEntrada =
   "h-10 cursor-pointer rounded-lg bg-[#b5368f] px-4 text-base font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50";
 const botonSalida =
   "h-10 cursor-pointer rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#fbeef6] disabled:cursor-not-allowed disabled:opacity-50";
+const botonPeligro =
+  "h-12 cursor-pointer rounded-lg bg-[#dc2626] px-6 text-base font-semibold text-white shadow-md shadow-red-600/30 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50";
 
 function Tarjeta({ icono: Icono, titulo, valor }) {
   return (
@@ -128,8 +131,8 @@ function Tarjeta({ icono: Icono, titulo, valor }) {
   );
 }
 
-// rol: "ADMIN" o "RECEP". Los dos marcan entrada y salida; solo ADMIN corrige (lápiz), descarga el Excel
-// y cambia de sucursal con los botones. La recepcionista solo ve su local (lo filtra el backend).
+// rol: "ADMIN" o "RECEP". Los dos marcan entrada y salida; solo ADMIN corrige (lápiz), elimina (basurero),
+// descarga el Excel y cambia de sucursal con los botones. La recepcionista solo ve su local (lo filtra el backend).
 export function ListaAsistencia({ rol }) {
   const esAdmin = rol === "ADMIN";
   const sucursalId = useSucursalId();
@@ -140,6 +143,7 @@ export function ListaAsistencia({ rol }) {
   const [ahora, setAhora] = useState(() => new Date());
   const [marcando, setMarcando] = useState(null); // id de la trabajadora en proceso
   const [edicion, setEdicion] = useState(null); // diálogo del lápiz
+  const [eliminacion, setEliminacion] = useState(null); // diálogo del basurero
   const [descargando, setDescargando] = useState(false);
 
   // Si se cambia la sucursal en el encabezado, el panel la sigue
@@ -172,11 +176,14 @@ export function ListaAsistencia({ rol }) {
   }, []);
 
   // Diálogo abierto: Escape lo cierra y la página de atrás no se desplaza
-  const dialogoAbierto = edicion !== null;
+  const dialogoAbierto = edicion !== null || eliminacion !== null;
   useEffect(() => {
     if (!dialogoAbierto) return;
     const tecla = (e) => {
-      if (e.key === "Escape") setEdicion(null);
+      if (e.key === "Escape") {
+        setEdicion(null);
+        setEliminacion(null);
+      }
     };
     document.addEventListener("keydown", tecla);
     const anterior = document.body.style.overflow;
@@ -278,6 +285,34 @@ export function ListaAsistencia({ rol }) {
     }
   };
 
+  // ---------- Basurero: eliminar registro completo con motivo (solo ADMIN) ----------
+  const abrirEliminacion = (fila) => {
+    setEliminacion({
+      fila,
+      motivo: "",
+      error: "",
+      eliminando: false,
+    });
+  };
+
+  const confirmarEliminacion = async () => {
+    const { fila, motivo } = eliminacion;
+    const textoMotivo = motivo.trim();
+    const fallo = (error) => setEliminacion((el) => ({ ...el, error, eliminando: false }));
+
+    if (textoMotivo.length < 3) return fallo("Escribe un motivo válido (mínimo 3 caracteres)");
+
+    setEliminacion((el) => ({ ...el, eliminando: true, error: "" }));
+    try {
+      await eliminarAsistencia(fila.asistencia.id, textoMotivo);
+      setEliminacion(null);
+      await recargarTodo();
+      toast.success(`Asistencia eliminada: ${fila.trabajador_nombre}`);
+    } catch (e) {
+      fallo(mensajeError(e, "No se pudo eliminar el registro"));
+    }
+  };
+
   // ---------- Piezas que se repiten en celular y computador ----------
   const insignia = (fila, estado) => {
     const b = BADGES[estado];
@@ -326,6 +361,17 @@ export function ListaAsistencia({ rol }) {
             className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[#e6b8d4] bg-white text-[#b5368f] hover:bg-[#fbeef6]"
           >
             <Pencil size={18} />
+          </button>
+        )}
+        {esAdmin && fila.asistencia && (
+          <button
+            type="button"
+            onClick={() => abrirEliminacion(fila)}
+            aria-label={`Eliminar registro de ${fila.trabajador_nombre}`}
+            title="Eliminar registro"
+            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-red-200 bg-white text-[#dc2626] hover:bg-red-50"
+          >
+            <Trash2 size={18} />
           </button>
         )}
       </div>
@@ -627,6 +673,76 @@ export function ListaAsistencia({ rol }) {
                 className={`${botonEntrada} h-12 px-6`}
               >
                 {edicion.guardando ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de eliminar registro (solo ADMIN) */}
+      {esAdmin && eliminacion && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+          onClick={() => setEliminacion(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Eliminar registro"
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[90vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-3xl"
+          >
+            <div className="flex items-start gap-3 border-b border-[#f0cfe3] px-6 py-5">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-2xl font-bold text-[#dc2626]">Eliminar asistencia</h3>
+                <p className="truncate text-base font-medium text-[#9c2d7b]">
+                  {eliminacion.fila.trabajador_nombre} · {verFecha(fecha)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEliminacion(null)}
+                aria-label="Cerrar"
+                className="cursor-pointer rounded-full p-2 text-[#1f1218] hover:bg-[#f7e3f1] hover:text-[#b5368f]"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
+              <p className="text-base text-[#1f1218]">
+                Esta acción eliminará por completo el registro de asistencia de este día y volverá a quedar{" "}
+                <span className="font-semibold">Sin entrada</span>.
+              </p>
+
+              <div>
+                <label htmlFor="elim-motivo" className={etiqueta}>
+                  Motivo de la eliminación (obligatorio)
+                </label>
+                <textarea
+                  id="elim-motivo"
+                  rows={3}
+                  value={eliminacion.motivo}
+                  onChange={(e) => setEliminacion({ ...eliminacion, motivo: e.target.value })}
+                  placeholder="Ej.: Marcaje de prueba o registro erróneo"
+                  className={`${campo} h-auto py-2`}
+                />
+              </div>
+
+              {eliminacion.error && <p className="text-base font-medium text-[#dc2626]">{eliminacion.error}</p>}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-[#f0cfe3] px-6 py-4">
+              <button type="button" onClick={() => setEliminacion(null)} className={`${botonSalida} h-12`}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarEliminacion}
+                disabled={eliminacion.eliminando}
+                className={botonPeligro}
+              >
+                {eliminacion.eliminando ? "Eliminando..." : "Eliminar"}
               </button>
             </div>
           </div>
