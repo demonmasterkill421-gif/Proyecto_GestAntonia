@@ -82,7 +82,7 @@ function App() {
           </Route>
 
           {/* M5: Registro por QR compartido entre trabajadoras y recepcionistas */}
-          <Route element={<RutaPrivada roles={["TRAB", "RECEP"]} />}>
+          <Route element={<RutaPrivada roles={["TRAB", "RECEP"]} pedirCambioDeCuenta />}> {/* Con otra cuenta abierta (ej. admin) ofrece cambiar de cuenta en vez de ir a su menú */}
             <Route path='/trabajador/asistencia' element={<RegistrarAsistencia />} />
           </Route>
 
