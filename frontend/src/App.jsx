@@ -79,6 +79,10 @@ function App() {
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
           <Route element={<RutaPrivada roles={["TRAB"]} />}>
             <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+          </Route>
+
+          {/* M5: Registro por QR compartido entre trabajadoras y recepcionistas */}
+          <Route element={<RutaPrivada roles={["TRAB", "RECEP"]} />}>
             <Route path='/trabajador/asistencia' element={<RegistrarAsistencia />} />
           </Route>
 

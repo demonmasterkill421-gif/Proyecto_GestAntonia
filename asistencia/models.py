@@ -1,3 +1,6 @@
+import secrets
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ValidationError as ErrorDjango
 from django.db import models, transaction
@@ -10,12 +13,14 @@ class CodigoQR(models.Model):
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="codigos_qr_generados")
     creado = models.DateTimeField(auto_now_add=True)
     vigente_hasta = models.DateTimeField()
-    
+
     def save(self, *args, **kwargs):
         if not self.token:
-            import secrets
             self.token = secrets.token_urlsafe(32)
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            # Garantiza que solo exista 1 token activo por local
+            CodigoQR.objects.filter(local=self.local).exclude(pk=self.pk).delete()
+            super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "código QR"
@@ -26,15 +31,19 @@ class CodigoQR(models.Model):
         return f"QR {self.local} (vigente hasta {timezone.localtime(self.vigente_hasta):%d-%m-%Y %H:%M})"
 
     @classmethod
-    def generar(cls, local, administrador, horas=24):
-        """Genera un QR nuevo para el local con una vigencia limitada."""
-        import secrets
-        from datetime import timedelta
+    def limpiar_expirados(cls):
+        """Elimina automáticamente todos los códigos QR cuya vigencia ya expiró."""
+        return cls.objects.filter(vigente_hasta__lt=timezone.now()).delete()
+
+    @classmethod
+    def generar(cls, local, administrador, horas=24 * 180):
+        """Genera un QR nuevo para el local (por defecto 6 meses) reemplazando el anterior."""
+        cls.limpiar_expirados()
         return cls.objects.create(
-            local=local, 
-            creado_por=administrador, 
+            local=local,
+            creado_por=administrador,
             token=secrets.token_urlsafe(32),
-            vigente_hasta=timezone.now() + timedelta(hours=horas)
+            vigente_hasta=timezone.now() + timedelta(hours=horas),
         )
 
     @property
@@ -61,14 +70,14 @@ class RegistroDeAsistencia(models.Model):
     fecha = models.DateField(default=timezone.localdate)
     hora_entrada = models.DateTimeField(null=True, blank=True)
     hora_salida = models.DateTimeField(null=True, blank=True)
-    
+
     ESTADOS = [
         ("EN_JORNADA", "En jornada"),
         ("COMPLETA", "Completa"),
         ("CORREGIDA", "Corregida"),
     ]
     estado = models.CharField(max_length=20, choices=ESTADOS, default=Estado.EN_JORNADA)
-    
+
     corregido_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -98,10 +107,10 @@ class RegistroDeAsistencia(models.Model):
     def corregir(self, usuario_admin, motivo, hora_entrada=None, hora_salida=None):
         if not motivo or not motivo.strip():
             raise ErrorDjango("El motivo de la corrección es obligatorio.")
-        
+
         if hora_salida and hora_entrada and hora_salida < hora_entrada:
             raise ErrorDjango("La hora de salida no puede ser anterior a la de entrada.")
-        
+
         self.corregido_por = usuario_admin
         self.motivo_correccion = motivo
         if hora_entrada is not None:
@@ -122,6 +131,7 @@ class RegistroDeAsistencia(models.Model):
             raise ErrorDjango("El código QR escaneado no es válido.")
 
         if not codigo_obj.vigente:
+            codigo_obj.delete()
             raise ErrorDjango("Este código QR ha expirado.")
 
         # Validación corregida: Aplica tanto para TRAB como para RECEP
@@ -142,6 +152,13 @@ class RegistroDeAsistencia(models.Model):
                     estado=cls.Estado.EN_JORNADA
                 )
             elif not registro.hora_salida:
+                if registro.hora_entrada:
+                    tiempo_transcurrido = ahora - registro.hora_entrada
+                    if tiempo_transcurrido < timedelta(minutes=30):
+                        minutos_restantes = max(1, 30 - int(tiempo_transcurrido.total_seconds() // 60))
+                        raise ErrorDjango(
+                            f"Debes esperar al menos 30 minutos desde tu entrada para marcar la salida (te faltan {minutos_restantes} min)."
+                        )
                 registro.hora_salida = ahora
                 registro.estado = cls.Estado.COMPLETA
                 registro.save()
