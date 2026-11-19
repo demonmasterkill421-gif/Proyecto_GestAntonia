@@ -194,8 +194,11 @@ server {
     location /assets/ { try_files \$uri =404; expires 30d; access_log off; }
 
     # Pantallas de React que comparten prefijo con Django (tienen prioridad por ser regex)
-    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar)/?\$ { try_files /index.html =404; }
-    location = /login { try_files /index.html =404; }
+    # index.html sin caché: tras cada despliegue el navegador pide la versión nueva
+    # (los archivos de /assets/ llevan un código único por versión, por eso sí se guardan 30 días)
+    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar)/?\$ { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
+    location = /login { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
+    location = /index.html { add_header Cache-Control "no-cache" always; }
 
     # Django: API REST, admin de Django y módulos con templates
     location /api/      { include /etc/nginx/snippets/gestantonia_proxy.conf; }
