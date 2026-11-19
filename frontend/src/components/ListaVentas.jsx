@@ -21,7 +21,6 @@ import {
   solicitarAnulacion,
   obtenerSolicitudes,
 } from "../api/ventas.api";
-import { ESPECIALISTAS } from "../data/catalogo";
 import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
 
 const clp = (n) =>
@@ -268,11 +267,11 @@ export function ListaVentas({ rol }) {
   ];
 
   const nombreItem = Object.fromEntries([...servicios, ...productos].map((i) => [i.id, i.nombre]));
-  const nombreTrabajadora = (id) =>
-    ESPECIALISTAS.find((e) => String(e.id) === String(id))?.nombre ?? `Trabajadora #${id}`;
+  // El nombre viene desde la API en cada detalle (trabajador_nombre)
+  const nombreTrabajadora = (d) => d.trabajador_nombre || `Trabajadora #${d.trabajador}`;
   const nombreLocal = (id) => SUCURSALES.find((s) => String(s.id) === String(id))?.nombre ?? `Local #${id}`;
   const trabajadorasDe = (v) =>
-    [...new Set(v.detalles.filter((d) => d.trabajador).map((d) => nombreTrabajadora(d.trabajador)))];
+    [...new Set(v.detalles.filter((d) => d.trabajador).map((d) => nombreTrabajadora(d)))];
   const estadoDe = (v) => ESTADOS[v.estado] ?? { texto: v.estado, clase: "bg-gray-200 text-gray-600" };
 
   const rangoValido = !filtros.desde || !filtros.hasta || filtros.desde <= filtros.hasta;
@@ -353,7 +352,7 @@ export function ListaVentas({ rol }) {
           <li key={i} className="flex items-start justify-between gap-3 text-base">
             <span className="min-w-0">
               {d.cantidad} × <span className="font-semibold">{nombreItem[d.item] ?? `Ítem #${d.item}`}</span>
-              {d.trabajador && <span className="block text-[#9c2d7b]">{nombreTrabajadora(d.trabajador)}</span>}
+              {d.trabajador && <span className="block text-[#9c2d7b]">{nombreTrabajadora(d)}</span>}
             </span>
             <span className="shrink-0 font-semibold">{clp(d.subtotal)}</span>
           </li>
