@@ -11,11 +11,13 @@ export const obtenerReserva = (id) => api.get(`${R}/reservas/${id}/`);
 export const crearReserva = (datos) => api.post(`${R}/reservas/`, datos);
 export const reprogramarReserva = (id, inicio) => api.post(`${R}/reservas/${id}/reprogramar/`, { inicio });
 export const cancelarReserva = (id, motivo) => api.post(`${R}/reservas/${id}/cancelar/`, { motivo });
+export const cambiarEstado = (id, estado, motivo = "") => api.post(`${R}/reservas/${id}/estado/`, { estado, motivo });
 
 // Clientes
 export const buscarCliente = (telefono) => api.get(`${R}/clientes/`, { params: { telefono } });
 export const obtenerCliente = (id) => api.get(`${R}/clientes/${id}/`);
 export const crearCliente = (datos) => api.post(`${R}/clientes/`, datos);
+export const obtenerHistorial = (id) => api.get(`${R}/clientes/${id}/historial/`);
 
 // Servicios
 export const listarServicios = () => api.get(`${R}/servicios/`);

@@ -3,10 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import {
+  cambiarEstado,
   cancelarReserva,
+  obtenerHistorial,
   obtenerReserva,
   reprogramarReserva,
 } from "../../../api/reservas.api";
+import { ESTADOS, estadoDe } from "../comun/estados";
 import { BotonWhatsApp } from "../comun/BotonWhatsApp";
 import { MENSAJES } from "../comun/whatsapp";
 
@@ -38,12 +41,6 @@ function fechaLarga(valor) {
 
 const conMayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
-const ESTILO_ESTADO = {
-  AGENDADA: "bg-[#f7e3f1] text-[#b5368f]",
-  ATENDIDA: "bg-green-100 text-green-800",
-  CANCELADA: "bg-gray-200 text-gray-700",
-};
-const NOMBRE_ESTADO = { AGENDADA: "Agendada", ATENDIDA: "Atendida", CANCELADA: "Cancelada" };
 
 // Clases compartidas (mismo estilo que Nueva reserva y la agenda)
 const CAMPO =
@@ -83,6 +80,12 @@ export function DetalleReserva() {
   const [sugerencias, setSugerencias] = useState([]);
   const [guardando, setGuardando] = useState(false);
 
+  // Estado de la reserva e histórico de la clienta
+  const [nuevoEstado, setNuevoEstado] = useState("");
+  const [errorEstado, setErrorEstado] = useState("");
+  const [historial, setHistorial] = useState(null);
+  const [versionHistorial, setVersionHistorial] = useState(0);
+
   // Carga la reserva (como DetailView en Django)
   useEffect(() => {
     let vigente = true;
@@ -105,6 +108,18 @@ export function DetalleReserva() {
       vigente = false;
     };
   }, [id]);
+
+  const clienteId = reserva?.cliente;
+  useEffect(() => {
+    if (!clienteId) return;
+    let vigente = true;
+    obtenerHistorial(clienteId)
+      .then(({ data }) => vigente && setHistorial(data))
+      .catch(() => vigente && setHistorial({ resumen: [], reservas: [], error: true }));
+    return () => {
+      vigente = false;
+    };
+  }, [clienteId, versionHistorial]);
 
   const abrir = (nuevoModo) => {
     setModo(nuevoModo);
@@ -143,6 +158,7 @@ export function DetalleReserva() {
       setReserva(data);
       setModo("");
       setAviso(`Reserva reprogramada para el ${fechaLarga(data.inicio)} a las ${horaDe(data.inicio)}.`);
+      setVersionHistorial((v) => v + 1);
     } catch (err) {
       setErrores(leerErrores(err));
       setSugerencias(aLista(err.response?.data?.sugerencias));
@@ -154,7 +170,7 @@ export function DetalleReserva() {
   const cancelar = async (e) => {
     e.preventDefault();
     if (!motivo.trim()) {
-      setErrores(["Indica el motivo de la cancelación."]);
+      setErrores(["Indica el motivo de la suspensión."]);
       return;
     }
     setGuardando(true);
@@ -163,9 +179,32 @@ export function DetalleReserva() {
       const { data } = await cancelarReserva(id, motivo.trim());
       setReserva(data);
       setModo("");
-      setAviso("Reserva cancelada. El horario quedó libre en la agenda.");
+      setAviso("Reserva suspendida. El horario quedó libre en la agenda.");
+      setVersionHistorial((v) => v + 1);
     } catch (err) {
       setErrores(leerErrores(err));
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  // Cambiar el estado (los mismos de la agenda). «Suspendió» abre el formulario del motivo.
+  const guardarEstado = async () => {
+    setErrorEstado("");
+    if (!nuevoEstado || nuevoEstado === reserva.estado) return;
+    if (nuevoEstado === "CANCELADA") {
+      abrir("cancelar");
+      return;
+    }
+    setGuardando(true);
+    try {
+      const { data } = await cambiarEstado(id, nuevoEstado);
+      setReserva(data);
+      setNuevoEstado("");
+      setAviso(`Estado cambiado a «${data.estado_nombre}».`);
+      setVersionHistorial((v) => v + 1);
+    } catch (err) {
+      setErrorEstado(leerErrores(err).join(" "));
     } finally {
       setGuardando(false);
     }
@@ -199,7 +238,9 @@ export function DetalleReserva() {
     );
   }
 
-  const editable = reserva.estado === "AGENDADA";
+  // Una reserva suspendida o atendida ya no se reprograma ni se suspende (lo valida el modelo).
+  const editable = !["CANCELADA", "ATENDIDA"].includes(reserva.estado);
+  const est = estadoDe(reserva.estado);
   const volver = `/agenda?fecha=${fechaDe(reserva.inicio)}`;
 
   return (
@@ -210,8 +251,8 @@ export function DetalleReserva() {
         </p>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <h1 className="text-4xl font-bold text-[#1f1218]">Detalle de reserva</h1>
-          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${ESTILO_ESTADO[reserva.estado] ?? ""}`}>
-            {NOMBRE_ESTADO[reserva.estado] ?? reserva.estado}
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${est.chip}`}>
+            {est.nombre}
           </span>
         </div>
 
@@ -231,7 +272,7 @@ export function DetalleReserva() {
           <Dato etiqueta="Fecha">{conMayuscula(fechaLarga(reserva.inicio))}</Dato>
           <Dato etiqueta="Horario">{horaDe(reserva.inicio)} a {horaDe(reserva.fin)}</Dato>
           {reserva.estado === "CANCELADA" && (
-            <Dato etiqueta="Motivo de cancelación">{reserva.motivo_cancelacion || "—"}</Dato>
+            <Dato etiqueta="Motivo de la suspensión">{reserva.motivo_cancelacion || "—"}</Dato>
           )}
         </dl>
 
@@ -250,11 +291,34 @@ export function DetalleReserva() {
           </div>
         </div>
 
+        {/* Modificar estado (también se puede con clic derecho en la agenda) */}
+        <div className="mb-6">
+          <label htmlFor="nuevo-estado" className="mb-1 block font-semibold text-[#1f1218]">Modificar estado</label>
+          <div className="flex flex-wrap gap-2">
+            <select
+              id="nuevo-estado"
+              value={nuevoEstado}
+              onChange={(e) => setNuevoEstado(e.target.value)}
+              className={`${CAMPO} max-w-xs`}
+            >
+              <option value="">---------</option>
+              {ESTADOS.filter((e) => e.valor !== reserva.estado).map((e) => (
+                <option key={e.valor} value={e.valor}>{e.nombre}</option>
+              ))}
+            </select>
+            <button type="button" className={BOTON_BORDE} disabled={!nuevoEstado || guardando} onClick={guardarEstado}>
+              Guardar estado
+            </button>
+          </div>
+          {errorEstado && <p className="mt-2 text-red-700" role="alert">{errorEstado}</p>}
+          {est.libera && <p className="mt-2 text-sm text-gray-600">Con este estado el horario queda libre para otra clienta.</p>}
+        </div>
+
         {!editable && (
           <p className="mb-4 text-gray-600">
             {reserva.estado === "CANCELADA"
-              ? "Esta reserva está cancelada: ya no se puede reprogramar ni cancelar."
-              : "Esta reserva ya fue atendida: ya no se puede reprogramar ni cancelar."}
+              ? "Esta reserva está suspendida: para reprogramarla, primero cámbiale el estado."
+              : "Esta reserva ya fue atendida: ya no se puede reprogramar ni suspender."}
           </p>
         )}
 
@@ -265,7 +329,7 @@ export function DetalleReserva() {
               Reprogramar
             </button>
             <button type="button" className={BOTON_BORDE} onClick={() => abrir("cancelar")}>
-              Cancelar reserva
+              Suspender reserva
             </button>
           </div>
         )}
@@ -318,9 +382,9 @@ export function DetalleReserva() {
         {/* Cancelar: pide motivo y confirmación */}
         {editable && modo === "cancelar" && (
           <form onSubmit={cancelar} className="mb-4 rounded-lg border border-red-200 bg-red-50/40 p-4" noValidate>
-            <h2 className="mb-1 text-2xl font-bold text-[#1f1218]">Cancelar reserva</h2>
+            <h2 className="mb-1 text-2xl font-bold text-[#1f1218]">Suspender reserva</h2>
             <p className="mb-3 text-gray-700">
-              ¿Seguro que quieres cancelar la reserva de {reserva.cliente_nombre} del{" "}
+              ¿Seguro que quieres suspender la reserva de {reserva.cliente_nombre} del{" "}
               {fechaLarga(reserva.inicio)} a las {horaDe(reserva.inicio)}? El horario quedará libre.
             </p>
             {listaErrores}
@@ -338,7 +402,7 @@ export function DetalleReserva() {
             />
             <div className="flex flex-wrap gap-3">
               <button type="submit" className={BOTON_PELIGRO} disabled={guardando}>
-                {guardando ? "Cancelando…" : "Sí, cancelar reserva"}
+                {guardando ? "Suspendiendo…" : "Sí, suspender reserva"}
               </button>
               <button type="button" className={BOTON_BORDE} onClick={() => abrir("")}>
                 No, volver
@@ -346,6 +410,56 @@ export function DetalleReserva() {
             </div>
           </form>
         )}
+
+        {/* Histórico de la clienta (como «Histórico del Cliente» de Reservo) */}
+        <section className="mt-8 border-t border-gray-200 pt-6">
+          <h2 className="mb-3 text-2xl font-bold text-[#1f1218]">Histórico de {reserva.cliente_nombre}</h2>
+          {historial === null && <p className="text-gray-600">Cargando histórico…</p>}
+          {historial?.error && <p className="text-red-700">No se pudo cargar el histórico.</p>}
+          {historial && !historial.error && (
+            <>
+              <div className="mb-3 flex flex-wrap gap-2">
+                {historial.resumen.filter((f) => f.total > 0).map((f) => (
+                  <span key={f.estado} className={`rounded-full px-3 py-1 text-sm font-semibold ${estadoDe(f.estado).chip}`}>
+                    {f.estado_nombre}: {f.total}
+                  </span>
+                ))}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="bg-[#faf9f7] text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Especialista</th>
+                      <th className="px-3 py-2">Servicio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historial.reservas.map((h) => (
+                      <tr key={h.id} className={`border-t border-gray-100 ${h.id === reserva.id ? "bg-[#f7e3f1]" : ""}`}>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {h.id === reserva.id ? (
+                            <b>{fechaDe(h.inicio).split("-").reverse().join("/")} {horaDe(h.inicio)}</b>
+                          ) : (
+                            <Link to={`/agenda/reservas/${h.id}`} className={ENLACE}>
+                              {fechaDe(h.inicio).split("-").reverse().join("/")} {horaDe(h.inicio)}
+                            </Link>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${estadoDe(h.estado).chip}`}>{h.estado_nombre}</span>
+                        </td>
+                        <td className="px-3 py-2">{h.especialista_nombre}</td>
+                        <td className="px-3 py-2">{h.servicio_nombre}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
 
         <p className="mt-4">
           <Link to={volver} className={ENLACE}>← Volver a la agenda</Link>

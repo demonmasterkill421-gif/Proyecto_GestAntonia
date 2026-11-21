@@ -29,9 +29,19 @@ class Cliente(models.Model):
 
 class Reserva(models.Model):
     class Estado(models.TextChoices):
-        AGENDADA = "AGENDADA", "Agendada"
-        ATENDIDA = "ATENDIDA", "Atendida"
-        CANCELADA = "CANCELADA", "Cancelada"
+        # Nombres del sistema que ya usaba el local (Reservo), para que les resulten familiares.
+        # Los valores guardados AGENDADA y CANCELADA se mantienen para no migrar datos ni romper código.
+        AGENDADA = "AGENDADA", "No confirmado"        # estado inicial de toda reserva
+        CONFIRMADA = "CONFIRMADA", "Confirmado"
+        LLEGO = "LLEGO", "Llegó"
+        EN_ATENCION = "ATENCION", "En atención"
+        ATENDIDA = "ATENDIDA", "Atendido"
+        NO_LLEGO = "NO_LLEGO", "No llegó"             # faltó sin avisar
+        CANCELADA = "CANCELADA", "Suspendió"          # canceló con aviso (exige motivo)
+        ESPERA = "ESPERA", "Lista de espera"
+
+    # Estados que dejan libre el horario para otra clienta (la reserva no se borra: queda en el histórico).
+    LIBERAN_HORARIO = (Estado.CANCELADA, Estado.NO_LLEGO, Estado.ESPERA)
 
     local = models.ForeignKey("locales.Local", on_delete=models.PROTECT, related_name="reservas")
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="reservas")
@@ -51,6 +61,10 @@ class Reserva(models.Model):
     def __str__(self):
         return f"{timezone.localtime(self.inicio):%d-%m-%Y %H:%M} · {self.cliente.nombre}"
 
+    @property
+    def ocupa_horario(self):
+        return self.estado not in self.LIBERAN_HORARIO
+
     def calcular_fin(self):
         """La hora de término sale de la duración del servicio (en minutos)."""
         return self.inicio + timedelta(minutes=self.servicio.duracion)
@@ -61,11 +75,12 @@ class Reserva(models.Model):
             self.fin = self.calcular_fin()
         if self.especialista_id and self.local_id and self.especialista.local_id != self.local_id:
             raise ValidationError({"especialista": "La especialista no pertenece a este local."})
-        # Cero topes: no puede haber otra reserva activa de la misma especialista que se cruce.
-        if self.especialista_id and self.inicio and self.fin:
+        # Cero topes: no puede haber otra reserva que ocupe el horario de la misma especialista.
+        # Una reserva suspendida, de una clienta que no llegó o en lista de espera no ocupa el horario.
+        if self.especialista_id and self.inicio and self.fin and self.ocupa_horario:
             choques = (Reserva.objects
                        .filter(especialista_id=self.especialista_id, inicio__lt=self.fin, fin__gt=self.inicio)
-                       .exclude(estado=self.Estado.CANCELADA)
+                       .exclude(estado__in=self.LIBERAN_HORARIO)
                        .exclude(pk=self.pk))
             if choques.exists():
                 raise ValidationError({"inicio": "La especialista ya tiene una reserva en ese horario."})
@@ -107,4 +122,30 @@ class Reserva(models.Model):
             raise ValidationError("Indique el motivo de la cancelación.")
         self.estado = self.Estado.CANCELADA
         self.motivo_cancelacion = motivo.strip()
+        self.save()
+
+    def cambiar_estado(self, nuevo, motivo=""):
+        """Cambia el estado desde la agenda o el detalle (menú de clic derecho, como en Reservo).
+
+        - «Suspendió» usa cancelar(): exige motivo.
+        - Si la reserva vuelve a ocupar el horario (por ejemplo, de «No llegó» a «Llegó»), se revisa
+          que el horario siga libre; si otra clienta ya lo tomó, no se cambia y se avisa.
+        """
+        if nuevo not in self.Estado.values:
+            raise ValidationError({"estado": "Estado no válido."})
+        if nuevo == self.estado:
+            return
+        if nuevo == self.Estado.CANCELADA:
+            self.cancelar(motivo)
+            return
+
+        anterior, motivo_anterior = self.estado, self.motivo_cancelacion
+        self.estado = nuevo
+        if anterior == self.Estado.CANCELADA:
+            self.motivo_cancelacion = ""   # vuelve a estar vigente
+        try:
+            self.full_clean()
+        except ValidationError:
+            self.estado, self.motivo_cancelacion = anterior, motivo_anterior
+            raise
         self.save()

@@ -20,7 +20,7 @@ def armar_agenda(local, fecha):
     """Devuelve (especialistas, bloques). Cada bloque: {"inicio", "fin", "celdas": [(especialista, reserva|None)]}."""
     reservas = list(
         Reserva.objects.filter(local=local, inicio__date=fecha)
-        .exclude(estado=Reserva.Estado.CANCELADA)
+        .exclude(estado__in=Reserva.LIBERAN_HORARIO)
         .select_related("cliente", "especialista", "servicio")
     )
     # Activas, más las inactivas que tengan reservas ese día (para no esconder una reserva).

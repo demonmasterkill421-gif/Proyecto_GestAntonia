@@ -91,6 +91,8 @@ class ReservaSerializer(serializers.ModelSerializer):
     cliente_telefono = serializers.CharField(source="cliente.telefono", read_only=True)
     especialista_nombre = serializers.SerializerMethodField()
     servicio_nombre = serializers.CharField(source="servicio.nombre", read_only=True)
+    estado_nombre = serializers.CharField(source="get_estado_display", read_only=True)
+    ocupa_horario = serializers.BooleanField(read_only=True)
     # Al agendar solo se ofrecen especialistas activas y servicios vigentes (igual que ReservaForm).
     especialista = serializers.PrimaryKeyRelatedField(
         queryset=Usuario.objects.filter(rol=Usuario.Rol.TRABAJADOR, is_active=True))
@@ -100,7 +102,7 @@ class ReservaSerializer(serializers.ModelSerializer):
         model = Reserva
         fields = ["id", "local", "local_nombre", "cliente", "cliente_nombre", "cliente_telefono",
                   "especialista", "especialista_nombre", "servicio", "servicio_nombre",
-                  "inicio", "fin", "estado", "motivo_cancelacion"]
+                  "inicio", "fin", "estado", "estado_nombre", "ocupa_horario", "motivo_cancelacion"]
         read_only_fields = ["fin", "estado", "motivo_cancelacion"]
         extra_kwargs = {"local": {"required": False}}
 
@@ -124,6 +126,11 @@ class ReprogramarSerializer(serializers.Serializer):
 
 class CancelarSerializer(serializers.Serializer):
     motivo = serializers.CharField(max_length=200, allow_blank=True)
+
+
+class EstadoSerializer(serializers.Serializer):
+    estado = serializers.ChoiceField(choices=Reserva.Estado.choices)
+    motivo = serializers.CharField(max_length=200, allow_blank=True, required=False, default="")
 
 
 # ------------------------------------------------------------------ especialistas

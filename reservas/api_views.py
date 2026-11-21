@@ -26,8 +26,8 @@ from .agenda import armar_agenda
 from .forms_especialistas import reservas_futuras
 from .models import Cliente, Reserva
 from .permissions import EsAdministrador, EsRecepcionista, LecturaRecepcionEscrituraAdmin, MismoLocal
-from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer, LocalSerializer,
-                          ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
+from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer, EstadoSerializer,
+                          LocalSerializer, ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
                           errores_del_modelo)
 from .views_clientes import normalizar_telefono
 
@@ -94,6 +94,7 @@ class AgendaView(APIView):
                                 "inicio": _FECHA_HORA.to_representation(r.inicio),
                                 "fin": _FECHA_HORA.to_representation(r.fin),
                                 "estado": r.estado,
+                                "estado_nombre": r.get_estado_display(),
                             },
                         }
                         for esp, r in b["celdas"]
@@ -101,6 +102,12 @@ class AgendaView(APIView):
                 }
                 for b in bloques
             ],
+            # Reservas del día que no ocupan horario (suspendidas, «No llegó» y lista de espera):
+            # no van en la grilla porque su horario quedó libre, pero se listan para verlas.
+            "sin_horario": ReservaSerializer(
+                Reserva.objects.filter(local=local, inicio__date=fecha, estado__in=Reserva.LIBERAN_HORARIO)
+                .select_related("local", "cliente", "especialista", "servicio"),
+                many=True).data,
         })
 
 
@@ -112,6 +119,7 @@ class ReservaViewSet(viewsets.ModelViewSet):
     GET  /api/reservas/reservas/<id>/                    detalle
     POST /api/reservas/reservas/<id>/reprogramar/        {"inicio": "AAAA-MM-DDTHH:MM"}
     POST /api/reservas/reservas/<id>/cancelar/           {"motivo": "..."}
+    POST /api/reservas/reservas/<id>/estado/             {"estado": "LLEGO", "motivo": ""}
     Las reservas no se editan ni se borran: se reprograman o se cancelan (queda el registro).
     """
     serializer_class = ReservaSerializer
@@ -177,6 +185,18 @@ class ReservaViewSet(viewsets.ModelViewSet):
             return Response(errores_del_modelo(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(reserva).data)
 
+    @action(detail=True, methods=["post"])
+    def estado(self, request, pk=None):
+        """POST /reservas/<id>/estado/ {"estado": "LLEGO", "motivo": ""} (menú de clic derecho de la agenda)."""
+        reserva = self.get_object()
+        entrada = EstadoSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            reserva.cambiar_estado(entrada.validated_data["estado"], entrada.validated_data["motivo"])
+        except DjangoValidationError as e:
+            return Response(errores_del_modelo(e), status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(reserva).data)
+
 
 # ------------------------------------------------------------------ clientes
 class ClienteViewSet(viewsets.ModelViewSet):
@@ -184,6 +204,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
     GET  /api/reservas/clientes/?telefono=+56 9 ...   busca por teléfono (se normaliza igual que en Django)
     POST /api/reservas/clientes/                      {"nombre", "telefono", "consentimiento": true}
     GET  /api/reservas/clientes/<id>/
+    GET  /api/reservas/clientes/<id>/historial/       sus reservas y un resumen por estado
     Por protección de datos (ley 19.628) no se lista la base completa de clientes: se busca por teléfono.
     """
     serializer_class = ClienteSerializer
@@ -198,6 +219,25 @@ class ClienteViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         clientes = Cliente.objects.filter(telefono=telefono)
         return Response(self.get_serializer(clientes, many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def historial(self, request, pk=None):
+        """GET /clientes/<id>/historial/ → sus reservas, de la más nueva a la más antigua, y un resumen por estado.
+
+        La recepcionista ve solo las de su local (RF-22); la administradora, las de todos.
+        """
+        cliente = self.get_object()
+        reservas = (Reserva.objects.filter(cliente=cliente)
+                    .select_related("local", "cliente", "especialista", "servicio").order_by("-inicio"))
+        if not request.user.es_administrador:
+            reservas = reservas.filter(local=request.user.local) if request.user.local_id else reservas.none()
+        conteo = {fila["estado"]: fila["total"] for fila in reservas.order_by().values("estado").annotate(total=Count("id"))}
+        return Response({
+            "cliente": self.get_serializer(cliente).data,
+            "resumen": [{"estado": valor, "estado_nombre": nombre, "total": conteo.get(valor, 0)}
+                        for valor, nombre in Reserva.Estado.choices],
+            "reservas": ReservaSerializer(reservas, many=True).data,
+        })
 
 
 # ------------------------------------------------------------------ catálogo
@@ -236,7 +276,7 @@ class EspecialistaViewSet(viewsets.ModelViewSet):
               .select_related("local")
               .annotate(futuras=Count("reservas_asignadas", filter=Q(
                   reservas_asignadas__inicio__gte=timezone.now()) & ~Q(
-                  reservas_asignadas__estado=Reserva.Estado.CANCELADA)))
+                  reservas_asignadas__estado__in=Reserva.LIBERAN_HORARIO)))
               .order_by("local__nombre", "-is_active", "first_name"))
         if user.es_administrador:
             local = self.request.query_params.get("local", "")
