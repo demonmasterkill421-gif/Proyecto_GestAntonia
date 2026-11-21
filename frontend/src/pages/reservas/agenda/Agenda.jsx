@@ -10,6 +10,11 @@ import { BotonWhatsApp } from "../comun/BotonWhatsApp";
 import { MENSAJES } from "../comun/whatsapp";
 import { ESTADOS, estadoDe } from "../comun/estados";
 
+// Cuántas especialistas se ven a la vez. Desde la 5.ª aparece la barra para deslizar hacia el lado,
+// así las columnas no se achican hasta cortar los nombres cuando el local tiene muchas especialistas.
+const VISIBLES = 4;
+const ANCHO_HORA = "5rem";
+
 // Primer mensaje de error de la API (detail, inicio, motivo…)
 function mensajeDeError(err) {
   const data = err.response?.data;
@@ -37,6 +42,7 @@ export default function Agenda() {
   const [suspender, setSuspender] = useState(null); // reserva
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [filtro, setFiltro] = useState(""); // "" = todas las especialistas, o el id de una
 
   const cargarDatos = async (fecha, idLocal) => {
     localActual.current = idLocal;
@@ -127,6 +133,17 @@ export default function Agenda() {
   if (error) return <Sidebar><div className="p-6 text-red-700 bg-red-50 rounded-xl m-6">{error}</div></Sidebar>;
   if (!agenda) return null;
 
+  // Columnas a mostrar (todas o la especialista elegida). Las celdas vienen en el mismo orden.
+  const columnas = agenda.especialistas
+    .map((esp, indice) => ({ esp, indice }))
+    .filter(({ esp }) => !filtro || String(esp.id) === filtro);
+  const cantidad = columnas.length;
+  // Hasta 4 columnas ocupan todo el ancho; con más, la tabla crece y se desliza (cada columna = 1/4).
+  const estiloTabla = {
+    width: cantidad <= VISIBLES ? "100%" : `calc(${ANCHO_HORA} + ${cantidad} * (100% - ${ANCHO_HORA}) / ${VISIBLES})`,
+    minWidth: `calc(${ANCHO_HORA} + ${cantidad} * 11rem)`, // en celular, mínimo 11rem por columna
+  };
+
   return (
     <Sidebar>
       <div className="p-6 max-w-7xl mx-auto text-[#1f1218]">
@@ -135,16 +152,33 @@ export default function Agenda() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Agenda del día</h2>
           <h1 className="text-3xl font-bold text-[#b5368f] mb-6">{agenda.local.nombre}</h1>
 
-          <div className="flex items-end max-w-xs">
-            <div className="w-full">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="w-full max-w-xs">
+              <label htmlFor="fecha-agenda" className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
               <input
+                id="fecha-agenda"
                 type="date"
                 value={fechaUrl}
                 onChange={manejarCambioFecha}
                 className="w-full min-h-[44px] rounded-lg border-gray-300 border px-3 focus:border-[#b5368f] focus:ring-[#b5368f]"
               />
             </div>
+            {agenda.especialistas.length > 1 && (
+              <div className="w-full max-w-xs">
+                <label htmlFor="filtro-especialista" className="block text-sm font-medium text-gray-700 mb-1">Especialista</label>
+                <select
+                  id="filtro-especialista"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value)}
+                  className="w-full min-h-[44px] rounded-lg border-gray-300 border bg-white px-3 focus:border-[#b5368f] focus:ring-[#b5368f]"
+                >
+                  <option value="">Todas ({agenda.especialistas.length})</option>
+                  {agenda.especialistas.map((esp) => (
+                    <option key={esp.id} value={esp.id}>{esp.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Leyenda de colores */}
@@ -165,13 +199,29 @@ export default function Agenda() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
-            <table className="w-full text-center border-collapse min-w-[600px]">
-              <thead className="bg-[#faf9f7] border-b border-gray-200">
+          <>
+          {cantidad > VISIBLES && (
+            <p className="mb-2 text-sm text-gray-500">
+              {cantidad} especialistas · desliza la tabla hacia el lado para ver a todas →
+            </p>
+          )}
+          {/* La tabla se desliza hacia el lado y hacia abajo; la columna Hora y los nombres quedan fijos */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-auto max-h-[75vh]">
+            <table className="table-fixed text-center border-separate border-spacing-0" style={estiloTabla}>
+              <thead>
                 <tr>
-                  <th className="py-3 px-4 w-24 border-r border-gray-200 font-semibold text-gray-600">Hora</th>
-                  {agenda.especialistas.map(esp => (
-                    <th key={esp.id} className="py-3 px-4 font-semibold text-gray-600 border-r border-gray-200 last:border-0">
+                  <th
+                    style={{ width: ANCHO_HORA }}
+                    className="sticky left-0 top-0 z-30 bg-[#faf9f7] py-3 px-2 border-r border-b border-gray-200 font-semibold text-gray-600"
+                  >
+                    Hora
+                  </th>
+                  {columnas.map(({ esp }) => (
+                    <th
+                      key={esp.id}
+                      title={esp.nombre}
+                      className="sticky top-0 z-20 bg-[#faf9f7] py-3 px-3 font-semibold text-gray-600 border-r border-b border-gray-200 last:border-r-0 truncate"
+                    >
                       {esp.nombre} {!esp.activa && <span className="text-xs text-red-500 font-normal">(inactiva)</span>}
                     </th>
                   ))}
@@ -179,15 +229,15 @@ export default function Agenda() {
               </thead>
               <tbody>
                 {agenda.bloques.map((bloque, indexFila) => (
-                  <tr key={indexFila} className="border-b border-gray-200 last:border-0">
-                    <td className="py-4 px-4 border-r border-gray-200 font-medium text-gray-500 align-top">
+                  <tr key={indexFila}>
+                    <td className="sticky left-0 z-10 bg-white py-4 px-2 border-r border-b border-gray-200 font-medium text-gray-500 align-top">
                       {bloque.hora}
                     </td>
 
-                    {bloque.celdas.map((celda, indexCelda) => {
+                    {columnas.map(({ indice }) => bloque.celdas[indice]).map((celda, indexCelda) => {
                       if (celda.estado !== "OCUPADO") {
                         return (
-                          <td key={indexCelda} className="border-r border-gray-200 last:border-0 p-2 align-top w-48">
+                          <td key={indexCelda} className="border-r border-b border-gray-200 last:border-r-0 p-2 align-top">
                             <div className="h-full bg-green-50 border-l-4 border-green-600 p-3 rounded text-left flex flex-col justify-between">
                               <p className="font-bold text-green-700 text-sm mb-2">Libre</p>
                               <Link
@@ -202,7 +252,7 @@ export default function Agenda() {
                       }
                       const est = estadoDe(celda.reserva.estado);
                       return (
-                        <td key={indexCelda} className="border-r border-gray-200 last:border-0 p-2 align-top w-48">
+                        <td key={indexCelda} className="border-r border-b border-gray-200 last:border-r-0 p-2 align-top">
                           <div
                             onContextMenu={(e) => abrirMenu(e, celda.reserva)}
                             title="Clic derecho para cambiar el estado"
@@ -239,6 +289,7 @@ export default function Agenda() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Reservas del día que no ocupan horario: su espacio quedó libre, pero se pueden revisar */}
