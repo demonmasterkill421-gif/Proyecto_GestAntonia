@@ -5,11 +5,13 @@ import { useTitulo } from "../../../hooks/useTitulo";
 import {
   cambiarEstado,
   cancelarReserva,
+  guardarObservacion,
   obtenerHistorial,
   obtenerReserva,
   reprogramarReserva,
 } from "../../../api/reservas.api";
 import { ESTADOS, estadoDe } from "../comun/estados";
+import { AvisoObservacion } from "../comun/AvisoObservacion";
 import { BotonWhatsApp } from "../comun/BotonWhatsApp";
 import { MENSAJES } from "../comun/whatsapp";
 
@@ -85,6 +87,11 @@ export function DetalleReserva() {
   const [errorEstado, setErrorEstado] = useState("");
   const [historial, setHistorial] = useState(null);
   const [versionHistorial, setVersionHistorial] = useState(0);
+
+  // Observación interna de la clienta (texto libre)
+  const [editandoObs, setEditandoObs] = useState(false);
+  const [textoObs, setTextoObs] = useState("");
+  const [errorObs, setErrorObs] = useState("");
 
   // Carga la reserva (como DetailView en Django)
   useEffect(() => {
@@ -210,6 +217,22 @@ export function DetalleReserva() {
     }
   };
 
+  const guardarObs = async (e) => {
+    e.preventDefault();
+    setErrorObs("");
+    setGuardando(true);
+    try {
+      const { data } = await guardarObservacion(reserva.cliente, textoObs);
+      setHistorial((h) => ({ ...h, cliente: data }));
+      setReserva((r) => ({ ...r, cliente_observacion: data.observacion }));
+      setEditandoObs(false);
+    } catch (err) {
+      setErrorObs(leerErrores(err).join(" "));
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const listaErrores = errores.length > 0 && (
     <div className={ALERTA_ERROR} role="alert">
       {errores.map((m) => (
@@ -257,6 +280,7 @@ export function DetalleReserva() {
         </div>
 
         {aviso && <div className={ALERTA_OK} role="status">{aviso}</div>}
+        <AvisoObservacion texto={reserva.cliente_observacion} />
 
         <dl className="mb-6">
           <Dato etiqueta="Cliente">{reserva.cliente_nombre}</Dato>
@@ -414,6 +438,57 @@ export function DetalleReserva() {
         {/* Histórico de la clienta (como «Histórico del Cliente» de Reservo) */}
         <section className="mt-8 border-t border-gray-200 pt-6">
           <h2 className="mb-3 text-2xl font-bold text-[#1f1218]">Histórico de {reserva.cliente_nombre}</h2>
+
+          {/* Observación interna: hechos concretos (ej. «3 inasistencias sin aviso»), no opiniones sobre la persona */}
+          <div className="mb-5 rounded-lg border border-gray-200 p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold text-[#1f1218]">Observación de la clienta</h3>
+              {!editandoObs && (
+                <button
+                  type="button"
+                  className={BOTON_BORDE}
+                  onClick={() => {
+                    setTextoObs(historial?.cliente?.observacion ?? reserva.cliente_observacion ?? "");
+                    setErrorObs("");
+                    setEditandoObs(true);
+                  }}
+                >
+                  {reserva.cliente_observacion ? "Editar" : "Agregar observación"}
+                </button>
+              )}
+            </div>
+            {!editandoObs && (
+              <>
+                <p className="text-gray-800">{reserva.cliente_observacion || "Sin observaciones."}</p>
+                {historial?.cliente?.observacion_actualizada && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Actualizada el {fechaDe(historial.cliente.observacion_actualizada).split("-").reverse().join("/")}
+                    {historial.cliente.observacion_por_nombre ? ` por ${historial.cliente.observacion_por_nombre}` : ""}.
+                  </p>
+                )}
+              </>
+            )}
+            {editandoObs && (
+              <form onSubmit={guardarObs} noValidate>
+                <label htmlFor="observacion" className="sr-only">Observación</label>
+                <textarea
+                  id="observacion"
+                  rows={3}
+                  maxLength={500}
+                  value={textoObs}
+                  onChange={(e) => setTextoObs(e.target.value)}
+                  placeholder="Describe hechos concretos. Ej.: 3 inasistencias sin aviso (oct–nov)."
+                  className="mb-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-[#b5368f] focus:outline-none"
+                />
+                <p className="mb-3 text-sm text-gray-500">Déjala vacía y guarda para quitarla.</p>
+                {errorObs && <p className="mb-2 text-red-700" role="alert">{errorObs}</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button type="submit" className={BOTON} disabled={guardando}>Guardar observación</button>
+                  <button type="button" className={BOTON_BORDE} onClick={() => setEditandoObs(false)}>Volver</button>
+                </div>
+              </form>
+            )}
+          </div>
           {historial === null && <p className="text-gray-600">Cargando histórico…</p>}
           {historial?.error && <p className="text-red-700">No se pudo cargar el histórico.</p>}
           {historial && !historial.error && (

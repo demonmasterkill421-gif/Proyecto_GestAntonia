@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { TriangleAlert } from "lucide-react";
 import { cambiarEstado, obtenerAgenda } from "../../../api/reservas.api";
 import { useAuth } from "../../../auth/AuthContext";
 import { useTitulo } from "../../../hooks/useTitulo";
@@ -211,8 +212,16 @@ export default function Agenda() {
                               <div className="min-w-0">
                                 <p className={`font-bold text-sm mb-1 ${est.texto}`}>{est.nombre}</p>
                                 <Link to={`/agenda/reservas/${celda.reserva.id}`} className="text-xs text-gray-700 hover:text-[#b5368f] hover:underline block">
+                                  {celda.reserva.cliente_observacion && (
+                                    <TriangleAlert size={14} className="mr-1 inline text-amber-600" aria-label="Tiene observación" />
+                                  )}
                                   {celda.reserva.cliente_nombre} · {celda.reserva.servicio_nombre}
                                 </Link>
+                                {celda.reserva.cliente_observacion && (
+                                  <p className="mt-1 line-clamp-2 text-xs text-amber-800" title={celda.reserva.cliente_observacion}>
+                                    {celda.reserva.cliente_observacion}
+                                  </p>
+                                )}
                               </div>
                               <BotonWhatsApp
                                 compacto

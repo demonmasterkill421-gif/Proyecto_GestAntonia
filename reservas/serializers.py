@@ -59,10 +59,17 @@ class LocalSerializer(serializers.ModelSerializer):
 class ClienteSerializer(serializers.ModelSerializer):
     # Se acepta el teléfono con espacios o guiones; se guarda limpio (máximo 15 caracteres).
     telefono = serializers.CharField(max_length=30)
+    observacion_por_nombre = serializers.SerializerMethodField()
+
+    def get_observacion_por_nombre(self, obj):
+        u = obj.observacion_por
+        return (u.get_full_name() or u.email) if u else None
 
     class Meta:
         model = Cliente
-        fields = ["id", "nombre", "telefono", "consentimiento"]
+        fields = ["id", "nombre", "telefono", "consentimiento",
+                  "observacion", "observacion_actualizada", "observacion_por_nombre"]
+        read_only_fields = ["observacion", "observacion_actualizada"]
 
     def validate_telefono(self, valor):
         limpio = normalizar_telefono(valor)
@@ -89,6 +96,7 @@ class ReservaSerializer(serializers.ModelSerializer):
     local_nombre = serializers.CharField(source="local.nombre", read_only=True)
     cliente_nombre = serializers.CharField(source="cliente.nombre", read_only=True)
     cliente_telefono = serializers.CharField(source="cliente.telefono", read_only=True)
+    cliente_observacion = serializers.CharField(source="cliente.observacion", read_only=True)
     especialista_nombre = serializers.SerializerMethodField()
     servicio_nombre = serializers.CharField(source="servicio.nombre", read_only=True)
     estado_nombre = serializers.CharField(source="get_estado_display", read_only=True)
@@ -100,7 +108,7 @@ class ReservaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Reserva
-        fields = ["id", "local", "local_nombre", "cliente", "cliente_nombre", "cliente_telefono",
+        fields = ["id", "local", "local_nombre", "cliente", "cliente_nombre", "cliente_telefono", "cliente_observacion",
                   "especialista", "especialista_nombre", "servicio", "servicio_nombre",
                   "inicio", "fin", "estado", "estado_nombre", "ocupa_horario", "motivo_cancelacion"]
         read_only_fields = ["fin", "estado", "motivo_cancelacion"]
@@ -126,6 +134,10 @@ class ReprogramarSerializer(serializers.Serializer):
 
 class CancelarSerializer(serializers.Serializer):
     motivo = serializers.CharField(max_length=200, allow_blank=True)
+
+
+class ObservacionSerializer(serializers.Serializer):
+    observacion = serializers.CharField(max_length=500, allow_blank=True)
 
 
 class EstadoSerializer(serializers.Serializer):

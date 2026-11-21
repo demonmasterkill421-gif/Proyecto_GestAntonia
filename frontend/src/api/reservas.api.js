@@ -18,6 +18,7 @@ export const buscarCliente = (telefono) => api.get(`${R}/clientes/`, { params: {
 export const obtenerCliente = (id) => api.get(`${R}/clientes/${id}/`);
 export const crearCliente = (datos) => api.post(`${R}/clientes/`, datos);
 export const obtenerHistorial = (id) => api.get(`${R}/clientes/${id}/historial/`);
+export const guardarObservacion = (id, observacion) => api.post(`${R}/clientes/${id}/observacion/`, { observacion });
 
 // Servicios
 export const listarServicios = () => api.get(`${R}/servicios/`);

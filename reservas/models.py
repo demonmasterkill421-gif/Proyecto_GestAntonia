@@ -17,6 +17,12 @@ class Cliente(models.Model):
     nombre = models.CharField(max_length=100)
     telefono = models.CharField("teléfono", max_length=15, unique=True)
     consentimiento = models.BooleanField(default=False, help_text="Autorizó el uso de sus datos.")
+    # Observación interna (pedido del local, en texto libre mientras el profesor indica cómo debe quedar).
+    # Debe describir hechos (por ejemplo, «3 inasistencias sin aviso»), no opiniones sobre la persona.
+    observacion = models.CharField("observación", max_length=500, blank=True)
+    observacion_actualizada = models.DateTimeField("observación actualizada", null=True, blank=True)
+    observacion_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name="observaciones_de_clientes", verbose_name="observación escrita por")
 
     class Meta:
         verbose_name = "cliente"
@@ -25,6 +31,14 @@ class Cliente(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.telefono})"
+
+    def anotar(self, texto, usuario):
+        """Guarda la observación con quién y cuándo la escribió (vacía = se quita)."""
+        self.observacion = (texto or "").strip()
+        self.observacion_actualizada = timezone.now()
+        self.observacion_por = usuario
+        self.full_clean(exclude=["telefono"])   # largo máximo; el teléfono no cambia aquí
+        self.save(update_fields=["observacion", "observacion_actualizada", "observacion_por"])
 
 
 class Reserva(models.Model):

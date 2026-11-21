@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { useAuth } from "../../../auth/AuthContext";
+import { AvisoObservacion } from "../comun/AvisoObservacion";
 import {
   crearReserva,
   listarEspecialistas,
@@ -178,6 +179,11 @@ export function NuevaReserva() {
               </div>
             )}
             {errorDe("cliente")}
+            {cliente?.observacion && (
+              <div className="mt-2">
+                <AvisoObservacion texto={cliente.observacion} />
+              </div>
+            )}
           </div>
 
           {/* Especialista */}

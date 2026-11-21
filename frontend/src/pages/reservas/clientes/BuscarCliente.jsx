@@ -5,6 +5,7 @@ import { useTitulo } from "../../../hooks/useTitulo";
 import { Sidebar } from "../../../components/Sidebar";
 import { BotonWhatsApp } from "../comun/BotonWhatsApp";
 import { MENSAJES } from "../comun/whatsapp";
+import { AvisoObservacion } from "../comun/AvisoObservacion";
 
 export default function BuscarCliente() {
   useTitulo("Buscar Cliente");
@@ -119,6 +120,7 @@ export default function BuscarCliente() {
                 <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-green-800 mb-2">Cliente encontrado</h3>
                   <p className="mb-1"><span className="font-medium">Nombre:</span> {clienteEncontrado.nombre}</p>
+                  <AvisoObservacion texto={clienteEncontrado.observacion} />
                   <div className="mb-4 flex flex-wrap items-center gap-3">
                     <p><span className="font-medium">Teléfono:</span> {clienteEncontrado.telefono}</p>
                     <BotonWhatsApp

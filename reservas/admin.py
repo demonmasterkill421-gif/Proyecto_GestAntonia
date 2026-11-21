@@ -5,7 +5,7 @@ from .models import Cliente, Reserva
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "telefono", "consentimiento")
+    list_display = ("nombre", "telefono", "consentimiento", "observacion")
     search_fields = ("nombre", "telefono")
 
 

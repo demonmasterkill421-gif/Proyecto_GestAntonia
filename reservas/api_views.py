@@ -27,7 +27,7 @@ from .forms_especialistas import reservas_futuras
 from .models import Cliente, Reserva
 from .permissions import EsAdministrador, EsRecepcionista, LecturaRecepcionEscrituraAdmin, MismoLocal
 from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer, EstadoSerializer,
-                          LocalSerializer, ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
+                          LocalSerializer, ObservacionSerializer, ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
                           errores_del_modelo)
 from .views_clientes import normalizar_telefono
 
@@ -90,6 +90,7 @@ class AgendaView(APIView):
                                 "id": r.pk,
                                 "cliente_nombre": r.cliente.nombre,
                                 "cliente_telefono": r.cliente.telefono,
+                                "cliente_observacion": r.cliente.observacion,
                                 "servicio_nombre": r.servicio.nombre,
                                 "inicio": _FECHA_HORA.to_representation(r.inicio),
                                 "fin": _FECHA_HORA.to_representation(r.fin),
@@ -205,6 +206,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
     POST /api/reservas/clientes/                      {"nombre", "telefono", "consentimiento": true}
     GET  /api/reservas/clientes/<id>/
     GET  /api/reservas/clientes/<id>/historial/       sus reservas y un resumen por estado
+    POST /api/reservas/clientes/<id>/observacion/     {"observacion": "..."} observación interna (texto libre)
     Por protección de datos (ley 19.628) no se lista la base completa de clientes: se busca por teléfono.
     """
     serializer_class = ClienteSerializer
@@ -219,6 +221,18 @@ class ClienteViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         clientes = Cliente.objects.filter(telefono=telefono)
         return Response(self.get_serializer(clientes, many=True).data)
+
+    @action(detail=True, methods=["post"])
+    def observacion(self, request, pk=None):
+        """POST /clientes/<id>/observacion/ {"observacion": "texto"} (vacío = se quita). Guarda quién y cuándo."""
+        cliente = self.get_object()
+        entrada = ObservacionSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            cliente.anotar(entrada.validated_data["observacion"], request.user)
+        except DjangoValidationError as e:
+            return Response(errores_del_modelo(e), status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(cliente).data)
 
     @action(detail=True, methods=["get"])
     def historial(self, request, pk=None):
