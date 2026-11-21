@@ -217,7 +217,7 @@ class EspecialistaSerializer(serializers.ModelSerializer):
             quitados = set(self.instance.servicios_asignados.values_list("servicio_id", flat=True)) - set(ids)
             ocupados = (Reserva.objects.filter(especialista=self.instance, servicio_id__in=quitados,
                                                inicio__gte=timezone.now())
-                        .exclude(estado__in=Reserva.LIBERAN_HORARIO)
+                        .exclude(estado__in=Reserva.LIBERAN_HORARIO).order_by()
                         .values_list("servicio__nombre", flat=True).distinct())
             if ocupados:
                 return [f"No se puede quitar {', '.join(sorted(ocupados))}: tiene reservas futuras de ese servicio. "

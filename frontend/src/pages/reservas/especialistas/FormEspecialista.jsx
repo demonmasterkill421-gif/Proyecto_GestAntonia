@@ -1,8 +1,11 @@
 // 3.8c · Edson: agregar o editar una especialista (versión React del formulario Django 2.4).
 // Las reglas (clave segura, correo único, no cambiar de local con reservas futuras) las valida la API.
 // Servicios que realiza: solo puede agendarse en esos servicios, y la dueña define el % de comisión de cada uno.
+// Primero se elige el servicio en un desplegable y después se ajusta su comisión, así la pantalla
+// no crece aunque el catálogo tenga muchos servicios.
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Plus, Trash2 } from "lucide-react";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { listarLocales } from "../../../api/locales.api";
@@ -39,7 +42,8 @@ export function FormEspecialista() {
   const [cargando, setCargando] = useState(!esNueva);
   const [guardando, setGuardando] = useState(false);
   const [catalogo, setCatalogo] = useState([]);
-  const [asignados, setAsignados] = useState({}); // { idServicio: "12" }
+  const [asignados, setAsignados] = useState([]); // [{ servicio: 3, nombre: "Manicura", porcentaje: "12" }]
+  const [porAgregar, setPorAgregar] = useState(""); // servicio elegido en el desplegable
 
   useEffect(() => {
     listarLocales().then(({ data }) => setLocales(data)).catch(() => setLocales([]));
@@ -61,7 +65,11 @@ export function FormEspecialista() {
           clave: "",
         });
         setAsignados(
-          Object.fromEntries((data.servicios ?? []).map((s) => [s.servicio, String(Number(s.porcentaje_comision ?? 0))])),
+          (data.servicios ?? []).map((s) => ({
+            servicio: s.servicio,
+            nombre: s.servicio_nombre,
+            porcentaje: String(Number(s.porcentaje_comision ?? 0)),
+          })),
         );
       })
       .catch((e) => setErrorGeneral(mensajeGeneral(e)))
@@ -70,16 +78,31 @@ export function FormEspecialista() {
 
   const cambiar = (campo) => (ev) => setDatos({ ...datos, [campo]: ev.target.value });
 
-  // Marcar o desmarcar un servicio. Al marcarlo, parte con la comisión base.
-  const alternarServicio = (idServicio) => {
-    setAsignados((actual) => {
-      const copia = { ...actual };
-      if (idServicio in copia) delete copia[idServicio];
-      else copia[idServicio] = datos.porcentaje_comision || "0";
-      return copia;
-    });
+  // El desplegable solo ofrece los servicios que todavía no tiene (no se pueden repetir)
+  const yaAsignado = (idServicio) => asignados.some((a) => a.servicio === idServicio);
+  const disponibles = catalogo.filter((s) => !yaAsignado(s.id));
+  const duracionDe = (idServicio) => catalogo.find((s) => s.id === idServicio)?.duracion;
+
+  // Al tocar la lista se borra el aviso anterior de servicios (se vuelve a revisar al guardar)
+  const limpiarErrorServicios = () => setErrores((actual) => ({ ...actual, servicios: undefined }));
+
+  // Agregar el servicio elegido. Parte con la comisión base y se puede cambiar en la tabla.
+  const agregarServicio = () => {
+    const servicio = catalogo.find((s) => String(s.id) === porAgregar);
+    if (!servicio || yaAsignado(servicio.id)) return;
+    limpiarErrorServicios();
+    setAsignados((actual) => [
+      ...actual,
+      { servicio: servicio.id, nombre: servicio.nombre, porcentaje: datos.porcentaje_comision || "0" },
+    ]);
+    setPorAgregar("");
   };
-  const cambiarPorcentaje = (idServicio, valor) => setAsignados((actual) => ({ ...actual, [idServicio]: valor }));
+  const quitarServicio = (idServicio) => {
+    limpiarErrorServicios();
+    setAsignados((actual) => actual.filter((a) => a.servicio !== idServicio));
+  };
+  const cambiarPorcentaje = (idServicio, valor) =>
+    setAsignados((actual) => actual.map((a) => (a.servicio === idServicio ? { ...a, porcentaje: valor } : a)));
 
   // Errores de la lista de servicios: texto general o un error por servicio
   const errorServicios = (() => {
@@ -99,9 +122,9 @@ export function FormEspecialista() {
     const envio = {
       ...datos,
       local: datos.local ? Number(datos.local) : null,
-      servicios: Object.entries(asignados).map(([servicio, porcentaje]) => ({
-        servicio: Number(servicio),
-        porcentaje_comision: porcentaje === "" ? "0" : porcentaje,
+      servicios: asignados.map((a) => ({
+        servicio: a.servicio,
+        porcentaje_comision: a.porcentaje === "" ? "0" : a.porcentaje,
       })),
     };
     if (!esNueva) delete envio.clave;            // la clave solo se pide al crear
@@ -196,48 +219,95 @@ export function FormEspecialista() {
           </Campo>
 
           {/* Servicios que realiza y su comisión en cada uno */}
-          <fieldset className="mb-4 rounded-lg border border-gray-200 p-4">
+          <fieldset className="mb-4 min-w-0 rounded-lg border border-gray-200 p-4">
             <legend className="px-1 font-semibold text-[#1f1218]">Servicios que realiza y su comisión</legend>
             <p className="mb-3 text-sm text-gray-500">
-              Solo se le podrán agendar los servicios marcados. Cada uno puede tener un % distinto.
+              Elige un servicio y agrégalo. Solo se le podrán agendar los servicios de la tabla, y cada uno puede tener
+              un % distinto.
             </p>
-            {catalogo.length === 0 && <p className="text-gray-600">Cargando servicios…</p>}
-            <ul className="divide-y divide-gray-100">
-              {catalogo.map((s) => {
-                const marcado = s.id in asignados;
-                return (
-                  <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
-                    <label className="flex min-h-11 cursor-pointer items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        onChange={() => alternarServicio(s.id)}
-                        className="h-5 w-5 accent-[#b5368f]"
-                      />
-                      <span>
-                        {s.nombre} <span className="text-sm text-gray-500">({s.duracion} min)</span>
-                      </span>
-                    </label>
-                    {marcado && (
-                      <span className="flex items-center gap-2">
-                        <label htmlFor={`pct-${s.id}`} className="text-sm text-gray-600">Comisión</label>
-                        <input
-                          id={`pct-${s.id}`}
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={asignados[s.id]}
-                          onChange={(ev) => cambiarPorcentaje(s.id, ev.target.value)}
-                          className="min-h-11 w-24 rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
-                        />
-                        <span className="text-gray-600">%</span>
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-48 flex-1">
+                <label htmlFor="servicio-nuevo" className="mb-1 block text-sm text-gray-600">Agregar servicio</label>
+                <select
+                  id="servicio-nuevo"
+                  value={porAgregar}
+                  onChange={(ev) => setPorAgregar(ev.target.value)}
+                  disabled={disponibles.length === 0}
+                  className={`${ESTILO_CAMPO} border-gray-300 disabled:bg-gray-100`}
+                >
+                  <option value="">
+                    {catalogo.length === 0
+                      ? "Cargando servicios…"
+                      : disponibles.length === 0
+                        ? "Ya tiene todos los servicios"
+                        : "Elige un servicio"}
+                  </option>
+                  {disponibles.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre} ({s.duracion} min)</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={agregarServicio}
+                disabled={!porAgregar}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[#b5368f] px-4 text-lg font-semibold text-[#b5368f] transition hover:bg-[#f7e3f1] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus size={20} aria-hidden="true" /> Agregar
+              </button>
+            </div>
+
+            {asignados.length === 0 ? (
+              <p className="rounded-lg bg-gray-50 px-4 py-3 text-gray-600">Aún no tiene servicios asignados.</p>
+            ) : (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-200 text-sm text-gray-600">
+                    <th className="py-2 pr-3 font-semibold">Servicio</th>
+                    <th className="hidden py-2 pr-3 font-semibold sm:table-cell">Duración</th>
+                    <th className="py-2 pr-3 font-semibold">Comisión</th>
+                    <th className="py-2"><span className="sr-only">Quitar</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {asignados.map((a) => (
+                    <tr key={a.servicio}>
+                      <td className="py-2 pr-3">{a.nombre}</td>
+                      <td className="hidden py-2 pr-3 text-gray-600 sm:table-cell">
+                        {duracionDe(a.servicio) ? `${duracionDe(a.servicio)} min` : "—"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <span className="flex items-center gap-2">
+                          <input
+                            id={`pct-${a.servicio}`}
+                            aria-label={`Comisión de ${a.nombre}`}
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={a.porcentaje}
+                            onChange={(ev) => cambiarPorcentaje(a.servicio, ev.target.value)}
+                            className="min-h-11 w-24 rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
+                          />
+                          <span className="text-gray-600">%</span>
+                        </span>
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => quitarServicio(a.servicio)}
+                          aria-label={`Quitar ${a.nombre}`}
+                          className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-lg px-3 text-red-700 transition hover:bg-red-50"
+                        >
+                          <Trash2 size={18} aria-hidden="true" /> <span className="hidden sm:inline">Quitar</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {errorServicios && <p className="mt-2 text-sm text-red-700" role="alert">{errorServicios}</p>}
           </fieldset>
 

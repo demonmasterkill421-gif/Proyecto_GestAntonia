@@ -78,12 +78,14 @@ class AsignarServiciosTests(BaseServicios):
         self.camila.save()
         self.asignar(self.camila, self.lifting, 10)
         self.asignar(self.camila, self.manicura, 5)
-        self.reservar(self.camila, manana(11))                         # reserva de Lifting
+        self.reservar(self.camila, manana(11))                         # 2 reservas de Lifting
+        self.reservar(self.camila, manana(15))
         self.como(self.admin)
         r = self.client.patch(f"{API}especialistas/{self.camila.pk}/", {"servicios": [
             {"servicio": self.manicura.pk, "porcentaje_comision": "5"}]}, format="json")
         self.assertEqual(r.status_code, 400)
         self.assertIn("Lifting", r.data["servicios"][0])
+        self.assertEqual(r.data["servicios"][0].count("Lifting"), 1)  # el nombre no se repite por cada reserva
 
     def test_la_recepcionista_ve_los_servicios_pero_no_las_comisiones(self):
         self.asignar(self.camila, self.manicura, 5)
