@@ -90,6 +90,7 @@ class AgendaAPITests(BaseAPI):
         celda = next(c for c in bloque_11["celdas"] if c["especialista"] == self.camila.pk)
         self.assertEqual(celda["estado"], "OCUPADO")
         self.assertEqual(celda["reserva"]["cliente_nombre"], "María González")
+        self.assertEqual(celda["reserva"]["cliente_telefono"], "+56987654321")   # para el botón de WhatsApp
         libre = next(c for c in bloque_11["celdas"] if c["especialista"] == self.fernanda.pk)
         self.assertEqual(libre["estado"], "LIBRE")
 

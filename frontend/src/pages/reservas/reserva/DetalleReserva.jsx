@@ -7,6 +7,8 @@ import {
   obtenerReserva,
   reprogramarReserva,
 } from "../../../api/reservas.api";
+import { BotonWhatsApp } from "../comun/BotonWhatsApp";
+import { MENSAJES } from "../comun/whatsapp";
 
 // 3.8b · Detalle de una reserva, con reprogramar y cancelar.
 // Las reglas (cero topes, motivo obligatorio, no tocar canceladas o atendidas)
@@ -217,7 +219,12 @@ export function DetalleReserva() {
 
         <dl className="mb-6">
           <Dato etiqueta="Cliente">{reserva.cliente_nombre}</Dato>
-          <Dato etiqueta="Teléfono">{reserva.cliente_telefono}</Dato>
+          <Dato etiqueta="Teléfono">
+            <span className="inline-flex items-center gap-3">
+              {reserva.cliente_telefono}
+              <BotonWhatsApp compacto telefono={reserva.cliente_telefono} texto="Escribirle" mensaje={MENSAJES.saludo.texto(reserva)} />
+            </span>
+          </Dato>
           <Dato etiqueta="Servicio">{reserva.servicio_nombre}</Dato>
           <Dato etiqueta="Especialista">{reserva.especialista_nombre}</Dato>
           <Dato etiqueta="Local">{reserva.local_nombre}</Dato>
@@ -227,6 +234,21 @@ export function DetalleReserva() {
             <Dato etiqueta="Motivo de cancelación">{reserva.motivo_cancelacion || "—"}</Dato>
           )}
         </dl>
+
+        {/* WhatsApp: abre el chat de la clienta con el mensaje escrito; la recepcionista solo presiona Enviar */}
+        <div className="mb-6">
+          <h2 className="mb-2 font-semibold text-[#1f1218]">Avisar por WhatsApp</h2>
+          <div className="flex flex-wrap gap-2">
+            {(reserva.estado === "CANCELADA" ? ["suspendida"] : ["confirmar", "recordatorio", "reprogramada"]).map((clave) => (
+              <BotonWhatsApp
+                key={clave}
+                telefono={reserva.cliente_telefono}
+                texto={MENSAJES[clave].etiqueta}
+                mensaje={MENSAJES[clave].texto(reserva)}
+              />
+            ))}
+          </div>
+        </div>
 
         {!editable && (
           <p className="mb-4 text-gray-600">

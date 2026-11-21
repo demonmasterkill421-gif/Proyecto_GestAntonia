@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { buscarCliente, crearCliente } from "../../../api/reservas.api";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { Sidebar } from "../../../components/Sidebar";
+import { BotonWhatsApp } from "../comun/BotonWhatsApp";
+import { MENSAJES } from "../comun/whatsapp";
 
 export default function BuscarCliente() {
   useTitulo("Buscar Cliente");
@@ -117,7 +119,14 @@ export default function BuscarCliente() {
                 <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-green-800 mb-2">Cliente encontrado</h3>
                   <p className="mb-1"><span className="font-medium">Nombre:</span> {clienteEncontrado.nombre}</p>
-                  <p className="mb-4"><span className="font-medium">Teléfono:</span> {clienteEncontrado.telefono}</p>
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <p><span className="font-medium">Teléfono:</span> {clienteEncontrado.telefono}</p>
+                    <BotonWhatsApp
+                      telefono={clienteEncontrado.telefono}
+                      texto="Escribir por WhatsApp"
+                      mensaje={MENSAJES.saludo.texto(clienteEncontrado)}
+                    />
+                  </div>
                   
                   <button 
                     onClick={() => irANuevaReserva(clienteEncontrado.id)}

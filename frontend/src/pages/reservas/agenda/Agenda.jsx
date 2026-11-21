@@ -4,6 +4,8 @@ import { obtenerAgenda } from "../../../api/reservas.api";
 import { useAuth } from "../../../auth/AuthContext";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { Sidebar } from "../../../components/Sidebar";
+import { BotonWhatsApp } from "../comun/BotonWhatsApp";
+import { MENSAJES } from "../comun/whatsapp";
 
 export default function Agenda() {
   useTitulo("Agenda del día"); 
@@ -106,10 +108,20 @@ export default function Agenda() {
                       <td key={indexCelda} className="border-r border-gray-200 last:border-0 p-2 align-top w-48">
                         {celda.estado === "OCUPADO" ? (
                           <div className="h-full bg-gray-50 border-l-4 border-gray-600 p-3 rounded text-left">
-                            <p className="font-bold text-gray-700 text-sm mb-1">Ocupado</p>
-                            <Link to={`/agenda/reservas/${celda.reserva.id}`} className="text-xs text-gray-600 hover:text-[#b5368f] hover:underline block">
-                              {celda.reserva.cliente_nombre} · {celda.reserva.servicio_nombre}
-                            </Link>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-bold text-gray-700 text-sm mb-1">Ocupado</p>
+                                <Link to={`/agenda/reservas/${celda.reserva.id}`} className="text-xs text-gray-600 hover:text-[#b5368f] hover:underline block">
+                                  {celda.reserva.cliente_nombre} · {celda.reserva.servicio_nombre}
+                                </Link>
+                              </div>
+                              <BotonWhatsApp
+                                compacto
+                                telefono={celda.reserva.cliente_telefono}
+                                texto={MENSAJES.confirmar.etiqueta}
+                                mensaje={MENSAJES.confirmar.texto({ ...celda.reserva, local_nombre: agenda.local.nombre })}
+                              />
+                            </div>
                           </div>
                         ) : (
                           <div className="h-full bg-green-50 border-l-4 border-green-600 p-3 rounded text-left flex flex-col justify-between">

@@ -89,6 +89,7 @@ class AgendaView(APIView):
                             "reserva": None if r is None else {
                                 "id": r.pk,
                                 "cliente_nombre": r.cliente.nombre,
+                                "cliente_telefono": r.cliente.telefono,
                                 "servicio_nombre": r.servicio.nombre,
                                 "inicio": _FECHA_HORA.to_representation(r.inicio),
                                 "fin": _FECHA_HORA.to_representation(r.fin),
