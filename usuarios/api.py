@@ -1,4 +1,4 @@
-from rest_framework.exceptions import AuthenticationFailed, Throttled #3.10: errores del bloqueo por cuenta
+from rest_framework.exceptions import Throttled #3.10: respuesta 429 cuando la cuenta está bloqueada
 from rest_framework.permissions import IsAuthenticated #Valida si es un usuario autenticado, de lo contrario retorna un 401
 from rest_framework.response import Response #Devuelve datos desde una vista (diccionario(django) > json(http) > objetos de javascript(react))
 from rest_framework.throttling import ScopedRateThrottle #A4: limita cuántas peticiones se aceptan por minuto
@@ -29,16 +29,11 @@ def datos_usuario(usuario): #Recibe los datos de un usuario y retorna un diccion
 class LoginSerializer(TokenObtainPairSerializer): #Hereda una plantilla de serializer (validate())
     def validate(self, attrs):
         usuario = attrs.get(self.username_field)
-        try:
-            if esta_bloqueado(usuario):
-                raise AuthenticationFailed()  # ya estaba bloqueado
-            data = super().validate(attrs)
-        except AuthenticationFailed:
-            if esta_bloqueado(usuario):  # bloqueado ahora (incluye el 5to intento)
-                raise Throttled(
-                    detail="Cuenta bloqueada por 5 intentos fallidos. Intente de nuevo en 15 minutos."
-                )
-            raise
+        if esta_bloqueado(usuario):  # 3.10: la cuenta ya tiene 5 fallos seguidos; ni se revisa la clave
+            raise Throttled(
+                detail="Cuenta bloqueada por 5 intentos fallidos. Intente de nuevo en 15 minutos."
+            )
+        data = super().validate(attrs)  # clave incorrecta: responde 401 y usuarios/bloqueo.py suma el fallo
         data["usuario"] = datos_usuario(self.user) #arma el diccionario con todos los datos del usuario
         return data
 

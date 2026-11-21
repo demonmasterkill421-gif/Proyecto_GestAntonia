@@ -16,9 +16,10 @@ MALA = "clave-incorrecta"
 NOMBRE = "cristian@test.cl"
 
 
-def login_api(clave):
+def login_api(clave, ip=None):
+    extra = {"HTTP_X_FORWARDED_FOR": ip} if ip else {}   # simula otra IP (Nginx agrega la IP real)
     peticion = APIRequestFactory().post(
-        "/login/", {User.USERNAME_FIELD: NOMBRE, "password": clave}, format="json"
+        "/login/", {User.USERNAME_FIELD: NOMBRE, "password": clave}, format="json", **extra
     )
     respuesta = LoginView.as_view()(peticion)
     respuesta.render()
@@ -51,11 +52,11 @@ class SeguridadTests(TestCase):
         self.assertFalse(self.client.login(username=NOMBRE, password=CLAVE))  # bloqueado
 
     def test_bloqueo_al_5to_intento_fallido_api(self):
-        for _ in range(4):
-            self.assertEqual(login_api(MALA).status_code, 401)
-        self.assertEqual(login_api(MALA).status_code, 429)        # el 5to ya avisa que quedó bloqueada
+        for _ in range(5):
+            self.assertEqual(login_api(MALA).status_code, 401)    # 5 claves malas: la cuenta queda bloqueada
 
-        respuesta = login_api(CLAVE)                              # aun con la clave correcta
+        # Desde otra IP (para que no actúe el límite de 5 por minuto por IP de main) y con la clave correcta:
+        respuesta = login_api(CLAVE, ip="10.0.0.9")
         self.assertEqual(respuesta.status_code, 429)              # JSON limpio, no 500
         self.assertEqual(respuesta["Content-Type"], "application/json")
         self.assertIn("bloqueada", respuesta.data["detail"])
