@@ -70,8 +70,19 @@ class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = ["id", "nombre", "telefono", "consentimiento",
-                  "observacion", "observacion_actualizada", "observacion_por_nombre"]
-        read_only_fields = ["observacion", "observacion_actualizada"]
+                  "observacion", "observacion_actualizada", "observacion_por_nombre", "datos_eliminados"]
+        read_only_fields = ["observacion", "observacion_actualizada", "datos_eliminados"]
+
+    def validate_nombre(self, valor):
+        valor = valor.strip()
+        if not valor:
+            raise serializers.ValidationError("Ingrese el nombre.")
+        return valor
+
+    def validate(self, attrs):
+        if self.instance is not None and self.instance.datos_eliminados:
+            raise serializers.ValidationError({"detail": "Los datos de esta clienta fueron eliminados."})
+        return attrs
 
     def validate_telefono(self, valor):
         limpio = normalizar_telefono(valor)

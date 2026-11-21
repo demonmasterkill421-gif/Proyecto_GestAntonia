@@ -7,7 +7,7 @@ export const NEGOCIO = "Antonia Centro de Estética";
 // "+56 9 1111 1111", "911111111" o "56911111111" → "56911111111" (formato que pide wa.me: solo dígitos, con país)
 export function numeroWhatsApp(telefono) {
   const digitos = String(telefono ?? "").replace(/\D/g, "");
-  if (!digitos) return "";
+  if (digitos.length < 8) return ""; // vacío o no es un teléfono (por ejemplo, una clienta con datos eliminados)
   if (digitos.startsWith("56")) return digitos; // ya trae el código de Chile
   if (digitos.length === 9) return `56${digitos}`; // celular chileno: 9XXXXXXXX
   if (digitos.length === 8) return `569${digitos}`; // número antiguo, sin el 9 inicial

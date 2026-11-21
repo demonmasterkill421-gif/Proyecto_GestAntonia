@@ -24,6 +24,12 @@ class Cliente(models.Model):
     observacion_actualizada = models.DateTimeField("observación actualizada", null=True, blank=True)
     observacion_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name="observaciones_de_clientes", verbose_name="observación escrita por")
+    # Ley 21.719 (derecho de supresión): si la clienta pide borrar sus datos, se borran nombre, teléfono y
+    # observación, pero sus reservas pasadas se conservan (las ventas y comisiones dependen de ellas).
+    datos_eliminados = models.DateTimeField("datos eliminados el", null=True, blank=True)
+    datos_eliminados_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                             blank=True, related_name="clientes_con_datos_eliminados",
+                                             verbose_name="datos eliminados por")
 
     class Meta:
         verbose_name = "cliente"
@@ -40,6 +46,24 @@ class Cliente(models.Model):
         self.observacion_por = usuario
         self.full_clean(exclude=["telefono"])   # largo máximo; el teléfono no cambia aquí
         self.save(update_fields=["observacion", "observacion_actualizada", "observacion_por"])
+
+    def eliminar_datos(self, usuario):
+        """Borra los datos personales a pedido de la clienta (ley 21.719). Las reservas pasadas se conservan.
+
+        No se puede si tiene reservas futuras que ocupan horario: primero hay que suspenderlas.
+        """
+        if self.datos_eliminados:
+            raise ValidationError("Los datos de esta clienta ya fueron eliminados.")
+        futuras = (self.reservas.filter(inicio__gte=timezone.now())
+                   .exclude(estado__in=Reserva.LIBERAN_HORARIO).exists())
+        if futuras:
+            raise ValidationError("Tiene reservas futuras. Suspéndelas antes de eliminar sus datos.")
+        self.nombre = "Datos eliminados"
+        self.telefono = f"X{self.pk}"          # único y no es un teléfono real, así ninguna búsqueda la encuentra
+        self.consentimiento = False
+        self.observacion, self.observacion_actualizada, self.observacion_por = "", None, None
+        self.datos_eliminados, self.datos_eliminados_por = timezone.now(), usuario
+        self.save()
 
 
 class Reserva(models.Model):
@@ -90,6 +114,8 @@ class Reserva(models.Model):
             self.fin = self.calcular_fin()
         if self.especialista_id and self.local_id and self.especialista.local_id != self.local_id:
             raise ValidationError({"especialista": "La especialista no pertenece a este local."})
+        if self._state.adding and self.cliente_id and self.cliente.datos_eliminados:
+            raise ValidationError({"cliente": "Los datos de esta clienta fueron eliminados: regístrela de nuevo."})
         # La especialista solo trabaja en los servicios que se le asignaron (se revisa al agendar).
         # Las especialistas antiguas que aún no tienen servicios asignados pueden hacer cualquiera.
         if self._state.adding and self.especialista_id and self.servicio_id:

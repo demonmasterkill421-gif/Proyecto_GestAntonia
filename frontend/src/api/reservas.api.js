@@ -17,6 +17,8 @@ export const cambiarEstado = (id, estado, motivo = "") => api.post(`${R}/reserva
 export const buscarCliente = (telefono) => api.get(`${R}/clientes/`, { params: { telefono } });
 export const obtenerCliente = (id) => api.get(`${R}/clientes/${id}/`);
 export const crearCliente = (datos) => api.post(`${R}/clientes/`, datos);
+export const editarCliente = (id, datos) => api.patch(`${R}/clientes/${id}/`, datos);
+export const eliminarDatosCliente = (id) => api.post(`${R}/clientes/${id}/eliminar-datos/`);
 export const obtenerHistorial = (id) => api.get(`${R}/clientes/${id}/historial/`);
 export const guardarObservacion = (id, observacion) => api.post(`${R}/clientes/${id}/observacion/`, { observacion });
 

@@ -6,6 +6,7 @@ import { Sidebar } from "../../../components/Sidebar";
 import { BotonWhatsApp } from "../comun/BotonWhatsApp";
 import { MENSAJES } from "../comun/whatsapp";
 import { AvisoObservacion } from "../comun/AvisoObservacion";
+import { GestionCliente } from "./GestionCliente";
 
 export default function BuscarCliente() {
   useTitulo("Buscar Cliente");
@@ -129,6 +130,18 @@ export default function BuscarCliente() {
                       mensaje={MENSAJES.saludo.texto(clienteEncontrado)}
                     />
                   </div>
+
+                  {/* Corregir sus datos o, a pedido de ella, eliminarlos (ley 21.719) */}
+                  <GestionCliente
+                    key={clienteEncontrado.id}
+                    cliente={clienteEncontrado}
+                    onActualizada={setClienteEncontrado}
+                    onEliminada={() => {
+                      setClienteEncontrado(null);
+                      setBusquedaRealizada(false);
+                      setTelefonoBuscado("");
+                    }}
+                  />
                   
                   <button 
                     onClick={() => irANuevaReserva(clienteEncontrado.id)}

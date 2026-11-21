@@ -207,11 +207,13 @@ class ClienteViewSet(viewsets.ModelViewSet):
     GET  /api/reservas/clientes/<id>/
     GET  /api/reservas/clientes/<id>/historial/       sus reservas y un resumen por estado
     POST /api/reservas/clientes/<id>/observacion/     {"observacion": "..."} observación interna (texto libre)
+    PATCH /api/reservas/clientes/<id>/                {"nombre", "telefono"} corregir sus datos
+    POST /api/reservas/clientes/<id>/eliminar-datos/  solo administradora: borra sus datos (ley 21.719)
     Por protección de datos (ley 19.628) no se lista la base completa de clientes: se busca por teléfono.
     """
     serializer_class = ClienteSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista]
-    http_method_names = ["get", "post", "head", "options"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
     queryset = Cliente.objects.all()
 
     def list(self, request, *args, **kwargs):
@@ -226,10 +228,27 @@ class ClienteViewSet(viewsets.ModelViewSet):
     def observacion(self, request, pk=None):
         """POST /clientes/<id>/observacion/ {"observacion": "texto"} (vacío = se quita). Guarda quién y cuándo."""
         cliente = self.get_object()
+        if cliente.datos_eliminados:
+            return Response({"detail": "Los datos de esta clienta fueron eliminados."},
+                            status=status.HTTP_400_BAD_REQUEST)
         entrada = ObservacionSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         try:
             cliente.anotar(entrada.validated_data["observacion"], request.user)
+        except DjangoValidationError as e:
+            return Response(errores_del_modelo(e), status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(cliente).data)
+
+    @action(detail=True, methods=["post"], url_path="eliminar-datos",
+            permission_classes=[IsAuthenticated, EsAdministrador])
+    def eliminar_datos(self, request, pk=None):
+        """POST /clientes/<id>/eliminar-datos/ → borra nombre, teléfono y observación (ley 21.719, supresión).
+
+        Solo la administradora. Las reservas pasadas se conservan sin datos personales.
+        """
+        cliente = self.get_object()
+        try:
+            cliente.eliminar_datos(request.user)
         except DjangoValidationError as e:
             return Response(errores_del_modelo(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(cliente).data)
