@@ -13,13 +13,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 
-from .models import RegistroDeVenta, SolicitudAnulacion
+from .models import RegistroDeVenta, SolicitudAnulacion, ClaveAnulacion
 from .permissions import EsAdministrador, EsRecepcionista, MismoLocal
 from .serializers import (
     ResponderSolicitudSerializer,
     SolicitarAnulacionSerializer,
     SolicitudAnulacionSerializer,
     VentaSerializer,
+    AnularVentaSerializer
 )
 
 
@@ -47,7 +48,7 @@ class VentaViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == "anular":
-            return [IsAuthenticated(), EsAdministrador(), MismoLocal()]
+            return [IsAuthenticated(), EsRecepcionista(), MismoLocal()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -84,12 +85,18 @@ class VentaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def anular(self, request, pk=None):
-        """La administradora anula una venta confirmada. Exige un motivo y devuelve el stock."""
+        """Anula una venta confirmada. Exige el motivo y la clave de anulación, y devuelve el stock."""
         venta = self.get_object()
 
-        datos = SolicitarAnulacionSerializer(data=request.data)
+        datos = AnularVentaSerializer(data=request.data)
         datos.is_valid(raise_exception=True)
         motivo = datos.validated_data["motivo"]
+
+        # La clave se revisa antes de tocar la venta: si no sirve, no se bloquea nada ni se mueve el stock
+        clave = datos.validated_data["clave"]
+        registro = ClaveAnulacion.objects.first()
+        if registro is None or not registro.validar(clave):
+            return _error("Clave incorrecta.")
 
         try:
             with transaction.atomic():
@@ -124,6 +131,7 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         venta.refresh_from_db()
         return Response(self.get_serializer(venta).data)
+    
 
     @action(detail=True, methods=["post"], url_path="solicitar-anulacion")
     def solicitar_anulacion(self, request, pk=None):
