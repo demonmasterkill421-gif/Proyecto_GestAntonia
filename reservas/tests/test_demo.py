@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from reservas.models import Cliente, Reserva
+from reservas.models import Cliente, EspecialistaServicio, Reserva
 
 FECHA = "2030-03-04"
 
@@ -26,6 +26,13 @@ class CargarDemoReservasTests(TestCase):
         self.cargar()
         self.assertEqual(Cliente.objects.count(), 5)
         self.assertEqual(Reserva.objects.count(), 7)
+        self.assertEqual(EspecialistaServicio.objects.count(), 6)    # servicios de cada especialista, sin duplicar
+
+    def test_las_especialistas_quedan_con_sus_servicios_y_comisiones(self):
+        self.cargar()
+        fernanda = EspecialistaServicio.objects.filter(especialista__email="fernanda@gestantonia.cl")
+        self.assertEqual(sorted(fernanda.values_list("servicio__nombre", flat=True)),
+                         ["Diseño de uñas N°1", "Esmaltado permanente", "Manicura"])
 
     def test_la_recepcionista_del_mall_no_ve_las_reservas_del_centro(self):
         self.cargar()

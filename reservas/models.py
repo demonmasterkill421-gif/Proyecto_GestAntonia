@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -89,6 +90,13 @@ class Reserva(models.Model):
             self.fin = self.calcular_fin()
         if self.especialista_id and self.local_id and self.especialista.local_id != self.local_id:
             raise ValidationError({"especialista": "La especialista no pertenece a este local."})
+        # La especialista solo trabaja en los servicios que se le asignaron (se revisa al agendar).
+        # Las especialistas antiguas que aún no tienen servicios asignados pueden hacer cualquiera.
+        if self._state.adding and self.especialista_id and self.servicio_id:
+            asignados = EspecialistaServicio.objects.filter(especialista_id=self.especialista_id)
+            if asignados.exists() and not asignados.filter(servicio_id=self.servicio_id).exists():
+                raise ValidationError({"servicio": "La especialista no realiza este servicio. "
+                                                   "Asígnaselo en Especialistas si corresponde."})
         # Cero topes: no puede haber otra reserva que ocupe el horario de la misma especialista.
         # Una reserva suspendida, de una clienta que no llegó o en lista de espera no ocupa el horario.
         if self.especialista_id and self.inicio and self.fin and self.ocupa_horario:
@@ -163,3 +171,28 @@ class Reserva(models.Model):
             self.estado, self.motivo_cancelacion = anterior, motivo_anterior
             raise
         self.save()
+
+
+class EspecialistaServicio(models.Model):
+    """Servicios que realiza cada especialista y su % de comisión en cada uno.
+
+    La comisión no es del servicio ni solo de la especialista: la dueña la define para cada par
+    (por ejemplo, Fernanda cobra 5 % en Manicura y 12 % en Depilación). Se asignan al crear la
+    especialista y después se pueden agregar, quitar o cambiar. Solo servicios (los productos son de Ventas).
+    """
+    especialista = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                     related_name="servicios_asignados", limit_choices_to={"rol": "TRAB"})
+    servicio = models.ForeignKey("catalogo.Servicio", on_delete=models.PROTECT, related_name="especialistas_asignadas")
+    porcentaje_comision = models.DecimalField(
+        "% de comisión", max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    class Meta:
+        verbose_name = "servicio de la especialista"
+        verbose_name_plural = "servicios de las especialistas"
+        ordering = ["servicio__nombre"]
+        constraints = [models.UniqueConstraint(fields=["especialista", "servicio"],
+                                               name="servicio_unico_por_especialista")]
+
+    def __str__(self):
+        return f"{self.especialista} · {self.servicio} ({self.porcentaje_comision} %)"

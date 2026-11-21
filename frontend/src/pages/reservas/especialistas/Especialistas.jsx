@@ -113,7 +113,7 @@ export function Especialistas() {
           <table className="w-full min-w-[760px] text-left">
             <thead className="bg-[#f7e3f1] text-[#1f1218]">
               <tr>
-                {["Nombre", "Local", "Cargo", "Comisión", "Reservas futuras", "Estado", "Acciones"].map((t) => (
+                {["Nombre", "Local", "Cargo", "Servicios y comisión", "Reservas futuras", "Estado", "Acciones"].map((t) => (
                   <th key={t} className="px-4 py-3 font-semibold">{t}</th>
                 ))}
               </tr>
@@ -127,7 +127,21 @@ export function Especialistas() {
                   </td>
                   <td className="px-4 py-3">{e.local_nombre ?? "—"}</td>
                   <td className="px-4 py-3">{etiquetaCargo(e.cargo)}</td>
-                  <td className="px-4 py-3">{Number(e.porcentaje_comision)} %</td>
+                  <td className="px-4 py-3">
+                    {e.servicios?.length ? (
+                      <ul className="space-y-1 text-sm">
+                        {e.servicios.map((s) => (
+                          <li key={s.servicio}>
+                            {s.servicio_nombre}
+                            {s.porcentaje_comision != null && <span className="text-gray-500"> · {Number(s.porcentaje_comision)} %</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-sm text-amber-700">Sin servicios asignados</span>
+                    )}
+                    <span className="mt-1 block text-xs text-gray-500">Base: {Number(e.porcentaje_comision)} %</span>
+                  </td>
                   <td className="px-4 py-3">{e.reservas_futuras ?? 0}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-3 py-1 text-sm font-medium ${

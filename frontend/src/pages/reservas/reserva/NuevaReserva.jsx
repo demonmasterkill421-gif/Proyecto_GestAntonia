@@ -60,6 +60,18 @@ export function NuevaReserva() {
   const [generales, setGenerales] = useState([]);
   const [sugerencias, setSugerencias] = useState([]);
 
+  // Cada especialista solo realiza los servicios que se le asignaron en Especialistas.
+  // Las que aún no tienen servicios asignados (creadas antes del cambio) pueden hacer cualquiera.
+  const asignadosDe = (idEspecialista) =>
+    especialistas.find((s) => String(s.id) === String(idEspecialista))?.servicios?.map((s) => s.servicio) ?? [];
+  const idsAsignados = asignadosDe(especialista);
+  const serviciosDisponibles = idsAsignados.length ? servicios.filter((s) => idsAsignados.includes(s.id)) : servicios;
+  const elegirEspecialista = (valor) => {
+    setEspecialista(valor);
+    const ids = asignadosDe(valor);
+    if (servicio && ids.length && !ids.includes(Number(servicio))) setServicio(""); // ese servicio no lo realiza
+  };
+
   // La administradora cambia de local desde el selector: recargamos
   useEffect(() => {
     const alCambiar = (e) => {
@@ -195,7 +207,7 @@ export function NuevaReserva() {
               id="especialista"
               className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
               value={especialista}
-              onChange={(e) => setEspecialista(e.target.value)}
+              onChange={(e) => elegirEspecialista(e.target.value)}
               disabled={cargando}
             >
               <option value="">---------</option>
@@ -223,12 +235,17 @@ export function NuevaReserva() {
               disabled={cargando}
             >
               <option value="">---------</option>
-              {servicios.map((s) => (
+              {serviciosDisponibles.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.nombre} ({s.duracion} min)
                 </option>
               ))}
             </select>
+            {especialista && !idsAsignados.length && !cargando && (
+              <p className="mt-1 text-sm text-amber-700">
+                Esta especialista aún no tiene servicios asignados: se muestran todos. Configúralos en Especialistas.
+              </p>
+            )}
             {errorDe("servicio")}
           </div>
 

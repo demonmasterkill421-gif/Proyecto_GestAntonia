@@ -1,11 +1,12 @@
 // 3.8c · Edson: agregar o editar una especialista (versión React del formulario Django 2.4).
 // Las reglas (clave segura, correo único, no cambiar de local con reservas futuras) las valida la API.
+// Servicios que realiza: solo puede agendarse en esos servicios, y la dueña define el % de comisión de cada uno.
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { listarLocales } from "../../../api/locales.api";
-import { crearEspecialista, editarEspecialista, obtenerEspecialista } from "../../../api/reservas.api";
+import { crearEspecialista, editarEspecialista, listarServicios, obtenerEspecialista } from "../../../api/reservas.api";
 import { CARGOS, mensajeGeneral, textoError } from "./utilidades";
 
 const VACIO = { nombre: "", apellido: "", email: "", local: "", cargo: "", porcentaje_comision: "0", clave: "" };
@@ -37,16 +38,19 @@ export function FormEspecialista() {
   const [errorGeneral, setErrorGeneral] = useState("");
   const [cargando, setCargando] = useState(!esNueva);
   const [guardando, setGuardando] = useState(false);
+  const [catalogo, setCatalogo] = useState([]);
+  const [asignados, setAsignados] = useState({}); // { idServicio: "12" }
 
   useEffect(() => {
     listarLocales().then(({ data }) => setLocales(data)).catch(() => setLocales([]));
+    listarServicios().then(({ data }) => setCatalogo(data)).catch(() => setCatalogo([]));
   }, []);
 
   // Al editar, se traen los datos actuales de la especialista
   useEffect(() => {
     if (esNueva) return;
     obtenerEspecialista(id)
-      .then(({ data }) =>
+      .then(({ data }) => {
         setDatos({
           nombre: data.nombre ?? "",
           apellido: data.apellido ?? "",
@@ -55,20 +59,51 @@ export function FormEspecialista() {
           cargo: data.cargo ?? "",
           porcentaje_comision: String(Number(data.porcentaje_comision ?? 0)),
           clave: "",
-        }),
-      )
+        });
+        setAsignados(
+          Object.fromEntries((data.servicios ?? []).map((s) => [s.servicio, String(Number(s.porcentaje_comision ?? 0))])),
+        );
+      })
       .catch((e) => setErrorGeneral(mensajeGeneral(e)))
       .finally(() => setCargando(false));
   }, [id, esNueva]);
 
   const cambiar = (campo) => (ev) => setDatos({ ...datos, [campo]: ev.target.value });
 
+  // Marcar o desmarcar un servicio. Al marcarlo, parte con la comisión base.
+  const alternarServicio = (idServicio) => {
+    setAsignados((actual) => {
+      const copia = { ...actual };
+      if (idServicio in copia) delete copia[idServicio];
+      else copia[idServicio] = datos.porcentaje_comision || "0";
+      return copia;
+    });
+  };
+  const cambiarPorcentaje = (idServicio, valor) => setAsignados((actual) => ({ ...actual, [idServicio]: valor }));
+
+  // Errores de la lista de servicios: texto general o un error por servicio
+  const errorServicios = (() => {
+    const e = errores.servicios;
+    if (!e) return "";
+    if (!Array.isArray(e)) return textoError(e);
+    return e
+      .flatMap((x) => (typeof x === "string" ? [x] : Object.values(x ?? {}).flat()))
+      .join(" ");
+  })();
+
   const guardar = async (ev) => {
     ev.preventDefault();
     setGuardando(true);
     setErrores({});
     setErrorGeneral("");
-    const envio = { ...datos, local: datos.local ? Number(datos.local) : null };
+    const envio = {
+      ...datos,
+      local: datos.local ? Number(datos.local) : null,
+      servicios: Object.entries(asignados).map(([servicio, porcentaje]) => ({
+        servicio: Number(servicio),
+        porcentaje_comision: porcentaje === "" ? "0" : porcentaje,
+      })),
+    };
     if (!esNueva) delete envio.clave;            // la clave solo se pide al crear
     try {
       const { data } = esNueva ? await crearEspecialista(envio) : await editarEspecialista(id, envio);
@@ -144,9 +179,9 @@ export function FormEspecialista() {
 
           <Campo
             id="comision"
-            etiqueta="% de comisión"
+            etiqueta="Comisión base (%)"
             error={errores.porcentaje_comision}
-            ayuda="Comisión base sobre sus servicios, de 0 a 100 (regla por confirmar en la tarea 2.6)."
+            ayuda="Se usa si alguna vez registra un servicio que no tiene configurado abajo, de 0 a 100."
           >
             <input
               id="comision"
@@ -159,6 +194,52 @@ export function FormEspecialista() {
               className={`${ESTILO_CAMPO} ${borde("porcentaje_comision")} max-w-40`}
             />
           </Campo>
+
+          {/* Servicios que realiza y su comisión en cada uno */}
+          <fieldset className="mb-4 rounded-lg border border-gray-200 p-4">
+            <legend className="px-1 font-semibold text-[#1f1218]">Servicios que realiza y su comisión</legend>
+            <p className="mb-3 text-sm text-gray-500">
+              Solo se le podrán agendar los servicios marcados. Cada uno puede tener un % distinto.
+            </p>
+            {catalogo.length === 0 && <p className="text-gray-600">Cargando servicios…</p>}
+            <ul className="divide-y divide-gray-100">
+              {catalogo.map((s) => {
+                const marcado = s.id in asignados;
+                return (
+                  <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                    <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        onChange={() => alternarServicio(s.id)}
+                        className="h-5 w-5 accent-[#b5368f]"
+                      />
+                      <span>
+                        {s.nombre} <span className="text-sm text-gray-500">({s.duracion} min)</span>
+                      </span>
+                    </label>
+                    {marcado && (
+                      <span className="flex items-center gap-2">
+                        <label htmlFor={`pct-${s.id}`} className="text-sm text-gray-600">Comisión</label>
+                        <input
+                          id={`pct-${s.id}`}
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={asignados[s.id]}
+                          onChange={(ev) => cambiarPorcentaje(s.id, ev.target.value)}
+                          className="min-h-11 w-24 rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
+                        />
+                        <span className="text-gray-600">%</span>
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {errorServicios && <p className="mt-2 text-sm text-red-700" role="alert">{errorServicios}</p>}
+          </fieldset>
 
           {esNueva && (
             <Campo

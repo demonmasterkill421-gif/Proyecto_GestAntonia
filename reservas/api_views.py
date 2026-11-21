@@ -288,6 +288,7 @@ class EspecialistaViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = (Usuario.objects.filter(rol=Usuario.Rol.TRABAJADOR)
               .select_related("local")
+              .prefetch_related("servicios_asignados__servicio")
               .annotate(futuras=Count("reservas_asignadas", filter=Q(
                   reservas_asignadas__inicio__gte=timezone.now()) & ~Q(
                   reservas_asignadas__estado__in=Reserva.LIBERAN_HORARIO)))

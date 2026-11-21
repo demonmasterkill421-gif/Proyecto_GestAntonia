@@ -299,7 +299,8 @@ class LocalAPITests(BaseAPI):
 class EspecialistaAPITests(BaseAPI):
     def nueva(self, **extra):
         return {"nombre": "Javiera", "apellido": "Rojas", "email": "javiera@x.cl", "local": self.mall.pk,
-                "cargo": "MANICURISTA", "porcentaje_comision": "40", "clave": "Una-clave-segura-1", **extra}
+                "cargo": "MANICURISTA", "porcentaje_comision": "40", "clave": "Una-clave-segura-1",
+                "servicios": [{"servicio": self.lifting.pk, "porcentaje_comision": "12"}], **extra}
 
     def test_administradora_crea_una_especialista_que_puede_iniciar_sesion(self):
         self.como(self.admin)
