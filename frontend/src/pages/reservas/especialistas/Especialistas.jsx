@@ -6,7 +6,7 @@ import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { listarLocales } from "../../../api/locales.api";
 import { activarEspecialista, desactivarEspecialista, listarEspecialistas } from "../../../api/reservas.api";
-import { etiquetaCargo, mensajeGeneral } from "./utilidades";
+import { etiquetaCargo, mensajeGeneral, mostrarPorcentaje } from "./utilidades";
 
 export function Especialistas() {
   useTitulo("Especialistas");
@@ -133,14 +133,14 @@ export function Especialistas() {
                         {e.servicios.map((s) => (
                           <li key={s.servicio}>
                             {s.servicio_nombre}
-                            {s.porcentaje_comision != null && <span className="text-gray-500"> · {Number(s.porcentaje_comision)} %</span>}
+                            {s.porcentaje_comision != null && <span className="text-gray-500"> · {mostrarPorcentaje(s.porcentaje_comision)} %</span>}
                           </li>
                         ))}
                       </ul>
                     ) : (
                       <span className="text-sm text-amber-700">Sin servicios asignados</span>
                     )}
-                    <span className="mt-1 block text-xs text-gray-500">Base: {Number(e.porcentaje_comision)} %</span>
+                    <span className="mt-1 block text-xs text-gray-500">Base: {mostrarPorcentaje(e.porcentaje_comision)} %</span>
                   </td>
                   <td className="px-4 py-3">{e.reservas_futuras ?? 0}</td>
                   <td className="px-4 py-3">

@@ -10,7 +10,7 @@ import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { listarLocales } from "../../../api/locales.api";
 import { crearEspecialista, editarEspecialista, listarServicios, obtenerEspecialista } from "../../../api/reservas.api";
-import { CARGOS, mensajeGeneral, textoError } from "./utilidades";
+import { CARGOS, leerPorcentaje, mensajeGeneral, mostrarPorcentaje, textoError } from "./utilidades";
 
 const VACIO = { nombre: "", apellido: "", email: "", local: "", cargo: "", porcentaje_comision: "0", clave: "" };
 
@@ -44,6 +44,7 @@ export function FormEspecialista() {
   const [catalogo, setCatalogo] = useState([]);
   const [asignados, setAsignados] = useState([]); // [{ servicio: 3, nombre: "Manicura", porcentaje: "12" }]
   const [porAgregar, setPorAgregar] = useState(""); // servicio elegido en el desplegable
+  const [erroresFila, setErroresFila] = useState({}); // { idServicio: "mensaje" } junto a cada comisión
 
   useEffect(() => {
     listarLocales().then(({ data }) => setLocales(data)).catch(() => setLocales([]));
@@ -61,14 +62,14 @@ export function FormEspecialista() {
           email: data.email ?? "",
           local: data.local ? String(data.local) : "",
           cargo: data.cargo ?? "",
-          porcentaje_comision: String(Number(data.porcentaje_comision ?? 0)),
+          porcentaje_comision: mostrarPorcentaje(data.porcentaje_comision),
           clave: "",
         });
         setAsignados(
           (data.servicios ?? []).map((s) => ({
             servicio: s.servicio,
             nombre: s.servicio_nombre,
-            porcentaje: String(Number(s.porcentaje_comision ?? 0)),
+            porcentaje: mostrarPorcentaje(s.porcentaje_comision),
           })),
         );
       })
@@ -101,31 +102,46 @@ export function FormEspecialista() {
     limpiarErrorServicios();
     setAsignados((actual) => actual.filter((a) => a.servicio !== idServicio));
   };
-  const cambiarPorcentaje = (idServicio, valor) =>
+  const cambiarPorcentaje = (idServicio, valor) => {
+    setErroresFila((actual) => {
+      const copia = { ...actual };
+      delete copia[idServicio];
+      return copia;
+    });
     setAsignados((actual) => actual.map((a) => (a.servicio === idServicio ? { ...a, porcentaje: valor } : a)));
+  };
 
   // Errores de la lista de servicios: texto general o un error por servicio
   const errorServicios = (() => {
     const e = errores.servicios;
     if (!e) return "";
     if (!Array.isArray(e)) return textoError(e);
-    return e
-      .flatMap((x) => (typeof x === "string" ? [x] : Object.values(x ?? {}).flat()))
-      .join(" ");
+    return e.filter((x) => typeof x === "string").join(" "); // los errores de cada fila se muestran en su fila
   })();
+
+  // Revisa los porcentajes antes de enviar: así nunca se guarda un valor distinto al que se escribió
+  const base = leerPorcentaje(datos.porcentaje_comision);
+  const filas = Object.fromEntries(asignados.map((a) => [a.servicio, leerPorcentaje(a.porcentaje)]));
 
   const guardar = async (ev) => {
     ev.preventDefault();
     setGuardando(true);
     setErrores({});
     setErrorGeneral("");
+    const malos = Object.fromEntries(
+      Object.entries(filas).filter(([, f]) => f.error).map(([idServicio, f]) => [idServicio, f.error]),
+    );
+    setErroresFila(malos);
+    if (base.error || Object.keys(malos).length) {
+      if (base.error) setErrores({ porcentaje_comision: base.error });
+      setGuardando(false);
+      return;
+    }
     const envio = {
       ...datos,
+      porcentaje_comision: base.valor,
       local: datos.local ? Number(datos.local) : null,
-      servicios: asignados.map((a) => ({
-        servicio: a.servicio,
-        porcentaje_comision: a.porcentaje === "" ? "0" : a.porcentaje,
-      })),
+      servicios: asignados.map((a) => ({ servicio: a.servicio, porcentaje_comision: filas[a.servicio].valor })),
     };
     if (!esNueva) delete envio.clave;            // la clave solo se pide al crear
     try {
@@ -137,6 +153,15 @@ export function FormEspecialista() {
     } catch (e) {
       if (e.response?.status === 400 && e.response.data && typeof e.response.data === "object") {
         setErrores(e.response.data);              // { campo: ["mensaje"] } → bajo cada campo
+        // Errores de cada servicio: la API los devuelve en el mismo orden de la tabla
+        const porFila = Array.isArray(e.response.data.servicios) ? e.response.data.servicios : [];
+        setErroresFila(
+          Object.fromEntries(
+            porFila
+              .map((x, i) => [asignados[i]?.servicio, x && typeof x === "object" ? Object.values(x).flat().join(" ") : ""])
+              .filter(([idServicio, texto]) => idServicio && texto),
+          ),
+        );
         if (e.response.data.detail) setErrorGeneral(textoError(e.response.data.detail));
       } else {
         setErrorGeneral(mensajeGeneral(e));
@@ -204,18 +229,18 @@ export function FormEspecialista() {
             id="comision"
             etiqueta="Comisión base (%)"
             error={errores.porcentaje_comision}
-            ayuda="Se usa si alguna vez registra un servicio que no tiene configurado abajo, de 0 a 100."
+            ayuda="Se usa si alguna vez registra un servicio que no tiene configurado abajo, de 0 a 100. Puedes usar coma: 12,5."
           >
             <input
               id="comision"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               value={datos.porcentaje_comision}
               onChange={cambiar("porcentaje_comision")}
               className={`${ESTILO_CAMPO} ${borde("porcentaje_comision")} max-w-40`}
             />
+            {!errores.porcentaje_comision && base.aviso && <p className="mt-1 text-sm text-amber-700">{base.aviso}</p>}
           </Campo>
 
           {/* Servicios que realiza y su comisión en cada uno */}
@@ -282,16 +307,23 @@ export function FormEspecialista() {
                           <input
                             id={`pct-${a.servicio}`}
                             aria-label={`Comisión de ${a.nombre}`}
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
+                            aria-invalid={Boolean(erroresFila[a.servicio])}
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
                             value={a.porcentaje}
                             onChange={(ev) => cambiarPorcentaje(a.servicio, ev.target.value)}
-                            className="min-h-11 w-24 rounded-lg border border-gray-300 bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none"
+                            className={`min-h-11 w-24 rounded-lg border bg-white px-3 text-lg focus:border-[#b5368f] focus:outline-none ${
+                              erroresFila[a.servicio] ? "border-red-400" : "border-gray-300"
+                            }`}
                           />
                           <span className="text-gray-600">%</span>
                         </span>
+                        {erroresFila[a.servicio] ? (
+                          <p className="mt-1 text-sm text-red-700">{erroresFila[a.servicio]}</p>
+                        ) : (
+                          filas[a.servicio]?.aviso && <p className="mt-1 text-sm text-amber-700">{filas[a.servicio].aviso}</p>
+                        )}
                       </td>
                       <td className="py-2 text-right">
                         <button
