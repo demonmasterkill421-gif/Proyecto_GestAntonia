@@ -8,6 +8,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Max
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
+
 
 
 def _redondear(valor): #Función que convierte un valor FLOAT a DECIMAL y lo redondea.
@@ -281,7 +283,6 @@ class DetalleVenta(models.Model):
 
 
 class SolicitudAnulacion(models.Model):
-    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la aprueba."""
 
     class Estado(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
@@ -319,3 +320,19 @@ class SolicitudAnulacion(models.Model):
 
     def __str__(self):
         return f"Solicitud de anulación · venta #{self.venta_id} · {self.get_estado_display()}"
+
+
+
+
+class ClaveAnulacion(models.Model):
+
+    passw_hash = models.CharField(max_length=128)
+    actualizada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="clave_anulacion_actualizadas", null=True, blank=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def establecer(self, passw):
+        self.passw_hash = make_password(passw)
+        self.save()
+
+    def validar(self, passw):
+        return check_password(passw, self.passw_hash)
