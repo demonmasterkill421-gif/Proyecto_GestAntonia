@@ -1,28 +1,14 @@
 import { useState } from "react";
 import { ChevronDown, Check, Store } from "lucide-react";
-
-// Lista de ejemplo. Después se reemplaza por los datos de /api/locales/
-const SUCURSALES = [
-  { id: 1, nombre: "Local Mall Plaza Calama" },
-  { id: 2, nombre: "Local Centro 1" },
-  { id: 3, nombre: "Local Centro 2" },
-];
-
-function leerGuardada() {
-  try {
-    const id = Number(localStorage.getItem("sucursal"));
-    return SUCURSALES.find((s) => s.id === id) ?? SUCURSALES[0];
-  } catch {
-    return SUCURSALES[0];
-  }
-}
+import { SUCURSALES, guardarSucursalId, useSucursalId } from "../hooks/useSucursal";
 
 export function SelectorSucursal() {
   const [abierto, setAbierto] = useState(false);
-  const [actual, setActual] = useState(leerGuardada);
+  const id = useSucursalId();
+  const actual = SUCURSALES.find((s) => s.id === id) ?? SUCURSALES[0];
 
   const elegir = (sucursal) => {
-    setActual(sucursal);
+    guardarSucursalId(sucursal.id);
     setAbierto(false);
     // Informar al Dashboard de cambios hechos desde el selector compartido.
     window.dispatchEvent(new CustomEvent('gestantonia:sucursal-cambiada', {
