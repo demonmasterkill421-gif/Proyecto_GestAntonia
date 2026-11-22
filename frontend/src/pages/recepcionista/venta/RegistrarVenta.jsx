@@ -65,7 +65,6 @@ export function RegistrarVenta() {
 
   const pendientes = [];
   if (servicios.length === 0) pendientes.push("Agrega al menos un servicio");
-  if (servicios.some((s) => s.precioVariable)) pendientes.push("El servicio «Otro» aún no se puede registrar");
   if (errorDescuento) pendientes.push("Corrige el descuento");
   if (!metodoPago) pendientes.push("Selecciona un método de pago");
   const listo = pendientes.length === 0;
@@ -135,6 +134,8 @@ export function RegistrarVenta() {
           item: s.id,
           cantidad: 1,
           trabajador: s.especialistas[0].id,
+          // Servicio «Otro»: además se manda lo que escribió la recepcionista (el servidor valida los límites)
+          ...(s.precioVariable && { precio_manual: s.precio, nombre_manual: s.nombre }),
         })),
         ...productos.map((p) => ({ item: p.id, cantidad: p.cantidad })),
         ...insumos.map((i) => ({ item: i.id, cantidad: i.cantidad })),

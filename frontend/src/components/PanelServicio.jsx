@@ -9,8 +9,9 @@ const clp = (n) =>
 const MONTO_MAXIMO = 100000;
 const NOMBRE_MAXIMO = 100;
 
-// Servicio libre (nombre y monto a mano). Aún no existe en la base de datos.
-const OTRO = { id: "otro", nombre: "Otro", precio: 0, precioVariable: true };
+// El servicio «Otro» (nombre y monto a mano) es un servicio real de la base de datos, de tipo OTRO.
+// Los límites de monto y nombre son los mismos que exige el servidor.
+const TIPO_OTRO = "OTRO";
 
 export function PanelServicio({ servicios, setServicios }) {
   const { datos: serviciosApi, cargando, error } = useDatos(obtenerServiciosVenta, { cadaMs: 60000 });
@@ -26,9 +27,13 @@ export function PanelServicio({ servicios, setServicios }) {
   // Las especialistas se leen desde la base de datos (antes era una lista fija con IDs del entorno local)
   const { datos: presentes, cargando: cargandoTrabajadoras, error: errorTrabajadoras } =
     useDatos(obtenerTrabajadorasVenta, { cadaMs: 60000 });
-  const catalogo = [...serviciosApi, OTRO];
+  // «Otro» va al final de la lista
+  const catalogo = [
+    ...serviciosApi.filter((s) => s.tipo !== TIPO_OTRO),
+    ...serviciosApi.filter((s) => s.tipo === TIPO_OTRO),
+  ];
   const servicioElegido = catalogo.find((s) => String(s.id) === String(elegido));
-  const esOtro = servicioElegido?.precioVariable;
+  const esOtro = servicioElegido?.tipo === TIPO_OTRO;
 
   const limpiar = () => {
     setEditandoUid(null);
@@ -77,6 +82,7 @@ export function PanelServicio({ servicios, setServicios }) {
     }
     const nuevo = {
       ...servicioElegido,
+      precioVariable: esOtro, // el precio y el nombre los escribió la recepcionista
       nombre: esOtro ? nombreOtro.trim() : servicioElegido.nombre,
       precio: esOtro ? Number(montoOtro) : Number(servicioElegido.precio),
       especialistas: [{ id: persona.id, nombre: persona.nombre, porcentaje: 100 }],
@@ -180,7 +186,7 @@ export function PanelServicio({ servicios, setServicios }) {
                 </option>
                 {catalogo.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.precioVariable ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
+                    {s.tipo === TIPO_OTRO ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
                   </option>
                 ))}
               </select>

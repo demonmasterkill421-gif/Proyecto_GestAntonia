@@ -11,21 +11,22 @@ const LIMITE_MS = MINUTOS_INACTIVIDAD * 60 * 1000;
 // Acciones del usuario que cuentan como "actividad"
 const EVENTOS_ACTIVIDAD = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
 
+// La sesión vive en sessionStorage: se borra sola al cerrar la pestaña.
 const limpiarSesion = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("refresh");
-  localStorage.removeItem("ultimaActividad");
+  sessionStorage.removeItem("token");
+  sessionStorage.removeItem("refresh");
+  sessionStorage.removeItem("ultimaActividad");
 };
 
 // ¿Pasó más tiempo del permitido desde la última actividad guardada?
 const inactividadVencida = () => {
-  const ultima = Number(localStorage.getItem("ultimaActividad"));
+  const ultima = Number(sessionStorage.getItem("ultimaActividad"));
   return Boolean(ultima) && Date.now() - ultima > LIMITE_MS;
 };
 
 // Al abrir la app: ¿hay una sesión guardada que todavía se pueda recuperar?
 const hayTokenUtil = () => {
-  if (!localStorage.getItem("token")) return false;
+  if (!sessionStorage.getItem("token")) return false;
   if (inactividadVencida()) {
     limpiarSesion();
     return false;
@@ -40,7 +41,7 @@ export function AuthProvider({ children }) {
 
   // Recupera la sesión al recargar la página usando el token guardado
   useEffect(() => {
-    if (!localStorage.getItem("token")) return;
+    if (!sessionStorage.getItem("token")) return;
     obtenerMe()
       .then(({ data }) => setUsuario(data))
       .catch(() => {
@@ -51,9 +52,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const iniciarSesion = ({ access, refresh, usuario }) => {
-    localStorage.setItem("token", access);
-    localStorage.setItem("refresh", refresh);
-    localStorage.setItem("ultimaActividad", String(Date.now()));
+    sessionStorage.setItem("token", access);
+    sessionStorage.setItem("refresh", refresh);
+    sessionStorage.setItem("ultimaActividad", String(Date.now()));
     setUsuario(usuario);
   };
 
@@ -73,7 +74,7 @@ export function AuthProvider({ children }) {
       // Se guarda como máximo una vez por segundo para no escribir sin parar
       if (ahora - ultimoRegistro > 1000) {
         ultimoRegistro = ahora;
-        localStorage.setItem("ultimaActividad", String(ahora));
+        sessionStorage.setItem("ultimaActividad", String(ahora));
       }
     };
 

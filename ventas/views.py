@@ -11,11 +11,13 @@ from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 
 from .models import RegistroDeVenta, SolicitudAnulacion, ClaveAnulacion
 from .permissions import EsAdministrador, EsRecepcionista, MismoLocal
 from .serializers import (
+    CambiarClaveAnulacionSerializer,
     ResponderSolicitudSerializer,
     SolicitarAnulacionSerializer,
     SolicitudAnulacionSerializer,
@@ -41,14 +43,40 @@ def _error(texto, codigo=400):
     return Response({"detail": texto}, status=codigo)
 
 
+def _clave_correcta(clave):
+    """True si la clave coincide con la clave de anulación guardada. Si todavía no hay ninguna, es False."""
+    registro = ClaveAnulacion.objects.first()
+    return registro is not None and registro.validar(clave)
+
+
+def _estado_clave():
+    """Dice si ya hay una clave de anulación y cuándo y quién la cambió. Nunca devuelve la clave."""
+    registro = ClaveAnulacion.objects.select_related("actualizada_por").first()
+    if registro is None:
+        return {"existe": False, "fecha_actualizacion": None, "actualizada_por": None}
+
+    quien = registro.actualizada_por
+    return {
+        "existe": True,
+        "fecha_actualizacion": registro.fecha_actualizacion,
+        "actualizada_por": (quien.get_full_name() or quien.email) if quien else None,
+    }
+
+
 class VentaViewSet(viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
     http_method_names = ["get", "post", "head", "options"]
+    throttle_scope = None
 
     def get_permissions(self):
         if self.action == "anular":
             return [IsAuthenticated(), EsRecepcionista(), MismoLocal()]
+        if self.action == "verificar_clave":
+            # No trabaja sobre una venta en particular, así que no lleva MismoLocal
+            return [IsAuthenticated(), EsRecepcionista()]
+        if self.action == "clave_anulacion":
+            return [IsAuthenticated(), EsAdministrador()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -83,7 +111,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         serializer.save(recepcionista=user, local=local)
 
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], throttle_classes=[ScopedRateThrottle], throttle_scope="clave_anulacion")
     def anular(self, request, pk=None):
         """Anula una venta confirmada. Exige el motivo y la clave de anulación, y devuelve el stock."""
         venta = self.get_object()
@@ -93,9 +121,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         motivo = datos.validated_data["motivo"]
 
         # La clave se revisa antes de tocar la venta: si no sirve, no se bloquea nada ni se mueve el stock
-        clave = datos.validated_data["clave"]
-        registro = ClaveAnulacion.objects.first()
-        if registro is None or not registro.validar(clave):
+        if not _clave_correcta(datos.validated_data["clave"]):
             return _error("Clave incorrecta.")
 
         try:
@@ -113,7 +139,7 @@ class VentaViewSet(viewsets.ModelViewSet):
                     estado=SolicitudAnulacion.Estado.APROBADA,
                     resuelta_por=request.user,
                     fecha_resolucion=ahora,
-                    respuesta="La administradora anuló la venta directamente.",
+                    respuesta="La venta se anuló directamente con la clave de anulación.",
                 )
 
                 # Queda el registro de quién anuló, cuándo y por qué
@@ -124,14 +150,39 @@ class VentaViewSet(viewsets.ModelViewSet):
                     estado=SolicitudAnulacion.Estado.APROBADA,
                     resuelta_por=request.user,
                     fecha_resolucion=ahora,
-                    respuesta="Anulada directamente por la administradora.",
+                    respuesta="Anulada directamente con la clave de anulación.",
                 )
         except DjangoValidationError as e:
             return _error(" ".join(e.messages))
 
         venta.refresh_from_db()
         return Response(self.get_serializer(venta).data)
-    
+
+    @action(detail=False, methods=["post"], url_path="verificar-clave", throttle_classes=[ScopedRateThrottle], throttle_scope="clave_anulacion")
+    def verificar_clave(self, request):
+        """Solo comprueba la clave de anulación, sin anular nada. El front la usa antes de pedir la confirmación."""
+        clave = request.data.get("clave")
+        if not isinstance(clave, str) or not clave or len(clave) > 128:
+            return _error("Clave incorrecta.")
+
+        if not _clave_correcta(clave):
+            return _error("Clave incorrecta.")
+
+        return Response({"detail": "Clave correcta."})
+
+    @action(detail=False, methods=["get", "post"], url_path="clave-anulacion")
+    def clave_anulacion(self, request):
+        """GET: si ya hay clave y cuándo se cambió. POST: crea o cambia la clave. Solo ADMIN."""
+        if request.method == "GET":
+            return Response(_estado_clave())
+
+        datos = CambiarClaveAnulacionSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+
+        # Hay una sola clave para todo el negocio: si todavía no existe, se crea
+        registro = ClaveAnulacion.objects.first() or ClaveAnulacion()
+        registro.establecer(datos.validated_data["clave"], request.user)
+        return Response(_estado_clave())
 
     @action(detail=True, methods=["post"], url_path="solicitar-anulacion")
     def solicitar_anulacion(self, request, pk=None):
