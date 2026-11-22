@@ -1,3 +1,5 @@
+#ARCHIVO DE CONFIGURACIÓN MÍNIMO DJANGO
+
 from django.apps import AppConfig
 
 

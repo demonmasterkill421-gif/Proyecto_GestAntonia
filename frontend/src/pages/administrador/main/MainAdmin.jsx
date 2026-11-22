@@ -24,7 +24,7 @@ export function MainAdmin() {
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <PanelAtajo
           titulo="Ventas"
-          descripcion="Revisa las ventas, descarga el Excel y anula si hace falta"
+          descripcion="Visualizar las ventas de mis locales y descargar la información"
           boton="Ver ventas"
           ruta="/admin/ventas"
           icono={ShoppingBag}
@@ -58,7 +58,7 @@ export function MainAdmin() {
 
         <PanelAtajo
           titulo="Comisiones"
-          descripcion="Lo que gana cada especialista"
+          descripcion="Lo que gana cada especialista según sus servicios realizados"
           boton="Ver comisiones"
           icono={BadgeDollarSign}
           proximamente

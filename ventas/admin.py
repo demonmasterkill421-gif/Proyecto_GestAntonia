@@ -1,10 +1,11 @@
+#PANEL DE DJANGO ADMIN
+
 import csv
 
 from django.contrib import admin
 from django.http import HttpResponse
 
 from .models import DetalleVenta, RegistroDeVenta
-
 
 class DetalleVentaInline(admin.TabularInline):
     model = DetalleVenta
