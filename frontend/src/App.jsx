@@ -16,6 +16,7 @@ import { VentasAdmin } from './pages/administrador/venta/VentasAdmin'
 import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmin'
 import { Inventario } from "./pages/administrador/inventario/Inventario";
 import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
+import { Precios } from "./pages/administrador/precios/Precios";
 
 //RESERVAS (Equipo 4)
 import { Especialistas } from './pages/reservas/especialistas/Especialistas'
@@ -73,6 +74,7 @@ function App() {
             <Route path='/reportes' element={<ReportesAdmin/>} /> {/* Ruta original del equipo, se mantiene por si la usan en otro lado */}
             <Route path="/admin/inventario" element={<Inventario />}/>
             <Route path="/admin/inventario/registrar" element={<RegistrarProducto />}/>
+            <Route path="/admin/precios" element={<Precios />}/>
             {/* Reservas (Equipo 4) · 3.8c: especialistas por local */}
             <Route path='/especialistas' element={<Especialistas/>} />
             <Route path='/especialistas/nueva' element={<FormEspecialista/>} />

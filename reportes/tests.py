@@ -54,11 +54,13 @@ class ReporteResumenTests(TestCase):
         )
         venta = RegistroDeVenta.objects.create(
             local=self.local, recepcionista=self.recepcionista,
-            trabajador=self.trabajadora, estado=RegistroDeVenta.Estado.CONFIRMADA,
+            estado=RegistroDeVenta.Estado.CONFIRMADA,
             monto_total=30000,
             fecha=datetime(2026, 10, 5, 13, tzinfo=ZoneInfo("America/Santiago")),
         )
-        DetalleVenta.objects.create(venta=venta, item=servicio, cantidad=2, precio_unitario=15000)
+        # La trabajadora va en la línea del servicio (ya no en la venta)
+        DetalleVenta.objects.create(venta=venta, item=servicio, cantidad=2, precio_unitario=15000,
+                                    trabajador=self.trabajadora)
         self.client.force_authenticate(user=self.admin)
         respuesta = self.client.get(self.url, self.params)
         self.assertEqual(respuesta.status_code, 200)

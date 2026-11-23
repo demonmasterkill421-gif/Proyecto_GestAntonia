@@ -719,3 +719,28 @@
   .ga-reports .stat-card, .ga-reports .apply-button,
   .ga-reports .service-track span, .ga-reports .bar-total { transition: none; }
 }
+
+/* Descargas del reporte: Excel y PDF uno al lado del otro */
+.ga-reports .export-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+.ga-reports .export-buttons .export-button { margin-left: 0; min-width: 150px; }
+.ga-reports .export-button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 580px) {
+  .ga-reports .export-buttons { flex: 1 1 100%; margin-left: 0; }
+  .ga-reports .export-buttons .export-button { flex: 1 1 0; min-width: 0; }
+}
+
+/* Tabla de trabajadoras: desglose de la comisión por servicio */
+.ga-reports .worker-toggle { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0;
+  font: inherit; font-weight: 700; color: inherit; cursor: pointer; text-align: left; }
+.ga-reports .worker-toggle svg { color: #b5368f; transition: transform .2s; flex-shrink: 0; }
+.ga-reports .worker-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.ga-reports .worker-status.is-inactive { background: #eceaec; color: #5f5560; }
+.ga-reports .worker-status.is-other { background: #fdf1dc; color: #8a5a07; }
+.ga-reports .commission-detail td { background: #fdf6fa; padding-top: 4px; padding-bottom: 12px; }
+.ga-reports .commission-detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ga-reports .commission-detail th { text-align: left; font-weight: 700; color: #9c2d7b; padding: 6px 8px; border-bottom: 1px solid #ecc7de; }
+.ga-reports .commission-detail td td, .ga-reports .commission-detail td th { background: transparent; }
+.ga-reports .commission-detail td td { padding: 5px 8px; border-bottom: 1px solid #f3dbe9; }
+.ga-reports .commission-detail .num { text-align: right; white-space: nowrap; }
+.ga-reports .commission-note { margin: 8px 8px 0; font-size: 12px; color: #6b5f68; }
+.ga-reports .base-flag { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; background: #eceaec; color: #5f5560; font-size: 11px; }

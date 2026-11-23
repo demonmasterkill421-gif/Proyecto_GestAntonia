@@ -196,7 +196,7 @@ server {
     # Pantallas de React que comparten prefijo con Django (tienen prioridad por ser regex)
     # index.html sin caché: tras cada despliegue el navegador pide la versión nueva
     # (los archivos de /assets/ llevan un código único por versión, por eso sí se guardan 30 días)
-    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar)/?\$ { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
+    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar|precios)/?\$ { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
     location = /login { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
     location = /index.html { add_header Cache-Control "no-cache" always; }
 
