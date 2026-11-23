@@ -32,3 +32,11 @@ export const crearEspecialista = (datos) => api.post(`${R}/especialistas/`, dato
 export const editarEspecialista = (id, datos) => api.patch(`${R}/especialistas/${id}/`, datos);
 export const desactivarEspecialista = (id) => api.post(`${R}/especialistas/${id}/desactivar/`);
 export const activarEspecialista = (id) => api.post(`${R}/especialistas/${id}/activar/`);
+
+// Recepcionistas (solo la administradora)
+export const listarRecepcionistas = (local) => api.get(`${R}/recepcionistas/`, { params: { local } });
+export const obtenerRecepcionista = (id) => api.get(`${R}/recepcionistas/${id}/`);
+export const crearRecepcionista = (datos) => api.post(`${R}/recepcionistas/`, datos);
+export const editarRecepcionista = (id, datos) => api.patch(`${R}/recepcionistas/${id}/`, datos);
+export const desactivarRecepcionista = (id) => api.post(`${R}/recepcionistas/${id}/desactivar/`);
+export const activarRecepcionista = (id) => api.post(`${R}/recepcionistas/${id}/activar/`);

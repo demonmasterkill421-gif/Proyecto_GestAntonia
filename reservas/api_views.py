@@ -27,6 +27,7 @@ from .forms_especialistas import reservas_futuras
 from .models import Cliente, Reserva
 from .permissions import EsAdministrador, EsRecepcionista, LecturaRecepcionEscrituraAdmin, MismoLocal
 from .serializers import (CancelarSerializer, ClienteSerializer, EspecialistaSerializer, EstadoSerializer,
+                          RecepcionistaSerializer,
                           LocalSerializer, ObservacionSerializer, ReprogramarSerializer, ReservaSerializer, ServicioSerializer,
                           errores_del_modelo)
 from .views_clientes import normalizar_telefono
@@ -336,3 +337,37 @@ class EspecialistaViewSet(viewsets.ModelViewSet):
         especialista.is_active = True
         especialista.save(update_fields=["is_active"])
         return Response(self.get_serializer(self.get_object()).data)
+
+
+# ------------------------------------------------------------------ recepcionistas
+class RecepcionistaViewSet(viewsets.ModelViewSet):
+    """
+    Solo la administradora: recepcionistas de todos los locales (?local=<id> para filtrar).
+    POST /api/reservas/recepcionistas/<id>/desactivar/ y /activar/. No se borran: sus ventas quedan a su nombre.
+    Una recepcionista desactivada ya no puede iniciar sesión.
+    """
+    serializer_class = RecepcionistaSerializer
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        qs = (Usuario.objects.filter(rol=Usuario.Rol.RECEPCIONISTA)
+              .select_related("local")
+              .order_by("local__nombre", "-is_active", "first_name"))
+        local = self.request.query_params.get("local", "")
+        return qs.filter(local_id=int(local)) if local.isdigit() else qs
+
+    @action(detail=True, methods=["post"])
+    def desactivar(self, request, pk=None):
+        recepcionista = self.get_object()
+        recepcionista.is_active = False
+        recepcionista.save(update_fields=["is_active"])
+        return Response(self.get_serializer(recepcionista).data)
+
+    @action(detail=True, methods=["post"])
+    def activar(self, request, pk=None):
+        recepcionista = self.get_object()
+        recepcionista.is_active = True
+        recepcionista.save(update_fields=["is_active"])
+        return Response(self.get_serializer(recepcionista).data)
+

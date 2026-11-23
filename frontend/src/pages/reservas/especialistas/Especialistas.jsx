@@ -7,6 +7,7 @@ import { useTitulo } from "../../../hooks/useTitulo";
 import { listarLocales } from "../../../api/locales.api";
 import { activarEspecialista, desactivarEspecialista, listarEspecialistas } from "../../../api/reservas.api";
 import { etiquetaCargo, mensajeGeneral, mostrarPorcentaje } from "./utilidades";
+import { PestanasPersonal } from "../comun/PestanasPersonal";
 
 export function Especialistas() {
   useTitulo("Especialistas");
@@ -72,6 +73,7 @@ export function Especialistas() {
   return (
     <Sidebar>
       <p className="text-lg text-gray-600">Administración</p>
+      <PestanasPersonal />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-4xl font-bold text-[#1f1218]">Especialistas por local</h1>
         <Link

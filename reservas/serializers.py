@@ -19,6 +19,7 @@ from usuarios.models import Usuario
 
 from .disponibilidad import horarios_libres_cercanos
 from .forms_especialistas import EspecialistaForm
+from .forms_recepcionistas import RecepcionistaForm
 from .models import Cliente, EspecialistaServicio, Reserva
 from .views_clientes import normalizar_telefono
 
@@ -263,3 +264,44 @@ class EspecialistaSerializer(serializers.ModelSerializer):
             for servicio in data["servicios"]:
                 servicio.pop("porcentaje_comision", None)
         return data
+
+
+# ------------------------------------------------------------------ recepcionistas
+class RecepcionistaSerializer(serializers.ModelSerializer):
+    """Recepcionista = Usuario con rol Recepcionista. La validación y el guardado los hace RecepcionistaForm."""
+    nombre = serializers.CharField(source="first_name", required=False)
+    apellido = serializers.CharField(source="last_name", required=False)
+    local_nombre = serializers.CharField(source="local.nombre", read_only=True, default=None)
+    activa = serializers.BooleanField(source="is_active", read_only=True)
+    clave = serializers.CharField(write_only=True, required=False, style={"input_type": "password"})
+
+    _A_FORM = {"nombre": "first_name", "apellido": "last_name", "email": "email", "local": "local", "clave": "clave"}
+
+    class Meta:
+        model = Usuario
+        fields = ["id", "nombre", "apellido", "email", "local", "local_nombre", "activa", "clave"]
+        extra_kwargs = {"email": {"validators": []}}   # lo valida el formulario (correo único)
+
+    def validate(self, attrs):
+        datos = {}
+        if self.instance is not None:      # en PATCH se completan los campos que no vienen
+            for campo in ("first_name", "last_name", "email"):
+                datos[campo] = getattr(self.instance, campo)
+            datos["local"] = self.instance.local_id
+        for campo, valor in attrs.items():
+            datos[campo] = valor.pk if campo == "local" and valor is not None else valor
+        form = RecepcionistaForm(data=datos, instance=self.instance)
+        if not form.is_valid():
+            del_form = {v: k for k, v in self._A_FORM.items()}
+            raise serializers.ValidationError(
+                {del_form.get(campo, "detail" if campo == NON_FIELD_ERRORS else campo): mensajes
+                 for campo, mensajes in form.errors.items()})
+        self._form = form
+        return attrs
+
+    def create(self, validated_data):
+        return self._form.save()
+
+    def update(self, instance, validated_data):
+        return self._form.save()
+

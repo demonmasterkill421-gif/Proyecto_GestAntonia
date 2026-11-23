@@ -24,6 +24,8 @@ import Agenda from './pages/reservas/agenda/Agenda'
 import BuscarCliente from './pages/reservas/clientes/BuscarCliente'
 import { NuevaReserva } from './pages/reservas/reserva/NuevaReserva'
 import { DetalleReserva } from './pages/reservas/reserva/DetalleReserva'
+import { Recepcionistas } from './pages/reservas/recepcionistas/Recepcionistas'
+import { FormRecepcionista } from './pages/reservas/recepcionistas/FormRecepcionista'
 
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
@@ -77,6 +79,10 @@ function App() {
             <Route path='/especialistas' element={<Especialistas/>} />
             <Route path='/especialistas/nueva' element={<FormEspecialista/>} />
             <Route path='/especialistas/:id/editar' element={<FormEspecialista/>} />
+            {/* Personal: recepcionistas (antes solo en /admin/ de Django) */}
+            <Route path='/recepcionistas' element={<Recepcionistas/>} />
+            <Route path='/recepcionistas/nueva' element={<FormRecepcionista/>} />
+            <Route path='/recepcionistas/:id/editar' element={<FormRecepcionista/>} />
           </Route>
 
 
