@@ -12,6 +12,8 @@ import {
   Store,
   Package,
   ChartColumn,
+  Tags,
+  UserCog,
 } from "lucide-react";
 
 export function MainAdmin() {
@@ -86,6 +88,23 @@ export function MainAdmin() {
           boton="Ver reportes"
           ruta="/admin/reportes"
           icono={ChartColumn}
+        />
+
+        {/* Mismos íconos que en el menú lateral */}
+        <PanelAtajo
+          titulo="Precios"
+          descripcion="Precio base y precio de cada local"
+          boton="Ver precios"
+          ruta="/admin/precios"
+          icono={Tags}
+        />
+
+        <PanelAtajo
+          titulo="Usuarios"
+          descripcion="Recepcionistas y administradoras"
+          boton="Ver usuarios"
+          ruta="/admin/usuarios"
+          icono={UserCog}
         />
       </div>
     </Sidebar>
