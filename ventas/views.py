@@ -1,5 +1,6 @@
 from django.http import HttpResponse
 
+from .boleta import construir_boleta, nombre_archivo
 from .exportarExcel import construir_excel
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -26,7 +27,8 @@ from .serializers import (
 )
 
 
-from catalogo.models import Producto, Servicio
+from catalogo.models import Producto, Servicio, precios_del_local
+from locales.models import Local
 from usuarios.models import Usuario
 
 LIMITE_EXPORTAR = 20000
@@ -80,7 +82,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles__trabajador")
+        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles__trabajador", "detalles__item")
         user = self.request.user
 
         desde = _fecha_o_none(self.request.query_params.get("desde"))
@@ -184,6 +186,16 @@ class VentaViewSet(viewsets.ModelViewSet):
         registro.establecer(datos.validated_data["clave"], request.user)
         return Response(_estado_clave())
 
+    @action(detail=True, methods=["get"])
+    def boleta(self, request, pk=None):
+        """Boleta de la venta en PDF (80 mm, lista para imprimir). Recepción ve solo las de su local."""
+        venta = self.get_object()
+        if venta.estado == RegistroDeVenta.Estado.BORRADOR:
+            return _error("La venta aún no está confirmada.")
+        respuesta = HttpResponse(construir_boleta(venta), content_type="application/pdf")
+        respuesta["Content-Disposition"] = f'attachment; filename="{nombre_archivo(venta)}"'
+        return respuesta
+
     @action(detail=True, methods=["post"], url_path="solicitar-anulacion")
     def solicitar_anulacion(self, request, pk=None):
         """La recepcionista pide anular una venta confirmada de su local. La administradora decide."""
@@ -247,12 +259,24 @@ class VentaViewSet(viewsets.ModelViewSet):
         respuesta["Content-Disposition"] = 'attachment; filename="ventas.xlsx"'
         return respuesta
 
+    def _local_de_precios(self, request):
+        """Local cuyos precios se muestran: el de la recepcionista o, para la administradora, ?local=<id>."""
+        local_id = request.query_params.get("local")
+        if request.user.rol == "ADMIN" and local_id and local_id.isdecimal():
+            return Local.objects.filter(pk=int(local_id)).first() or request.user.local
+        return request.user.local
+
     @action(detail=False, methods=["get"])
     def servicios(self, request):
-        datos = Servicio.objects.filter(activo=True).order_by("nombre").values(
-            "id", "nombre", "precio", "duracion", "tipo"
-        )
-        return Response(list(datos))
+        """Servicios activos con el precio del local (el Mall puede tener precios distintos)."""
+        especiales = precios_del_local(self._local_de_precios(request))
+        datos = []
+        for s in Servicio.objects.filter(activo=True).order_by("nombre"):
+            datos.append({
+                "id": s.id, "nombre": s.nombre, "duracion": s.duracion, "tipo": s.tipo,
+                "precio": especiales.get(s.id, s.precio), "precio_base": s.precio,
+            })
+        return Response(datos)
 
     @action(detail=False, methods=["get"])
     def trabajadoras(self, request):
@@ -281,14 +305,15 @@ class VentaViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def productos(self, request):
         """Productos de venta e insumos activos, con el stock del local del usuario."""
-        local = request.user.local if request.user.local_id else None
+        local = self._local_de_precios(request)
+        especiales = precios_del_local(local)
         datos = []
         for p in Producto.objects.filter(activo=True).order_by("nombre"):
             datos.append({
                 "id": p.id,
                 "nombre": p.nombre,
                 "tipo": p.tipo,  # "VENTA" o "INSUMO"
-                "precio": 0 if p.tipo == Producto.Tipo.INSUMO else p.precio,
+                "precio": 0 if p.tipo == Producto.Tipo.INSUMO else especiales.get(p.id, p.precio),
                 "stock": p.stock_en(local) if local else None,
             })
         return Response(datos)

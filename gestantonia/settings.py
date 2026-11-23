@@ -59,6 +59,8 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"] + [
     o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()   # p. ej. el dominio del servidor
 ]
+# El navegador puede leer el nombre de los archivos descargados (boletas y reportes)
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

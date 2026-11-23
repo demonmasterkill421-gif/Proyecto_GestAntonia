@@ -1,172 +1,77 @@
-"""API de lectura del panel de control.
+"""API de Reportes (CU-03): resumen para la pantalla y descargas en Excel y PDF.
 
-Consulta las tablas existentes de GestAntonia; no agrega modelos ni migra datos.
-La asistencia porcentual queda sin calcular hasta disponer de turnos programados.
+Las cifras salen de reportes/datos.py, así la pantalla, el Excel y el PDF siempre coinciden.
 """
-
-from collections import Counter, defaultdict
-from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-
-from django.db.models import Sum
-from django.utils import timezone
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from asistencia.models import RegistroDeAsistencia
-from locales.models import Local
-from usuarios.models import Usuario
-from ventas.models import DetalleVenta, RegistroDeVenta
+from .datos import ErrorReporte, construir_reporte, leer_parametros
+
+# Se conservan para quien los importaba desde aquí
+from .datos import porcentaje_variacion  # noqa: F401
 
 
-def parsear_fecha(valor):
-    try:
-        return date.fromisoformat(valor)
-    except (TypeError, ValueError):
-        return None
-
-
-def porcentaje_variacion(actual, anterior):
-    if anterior == 0:
-        return None
-    return round((actual - anterior) * 100 / anterior, 1)
-
-
-def redondear_clp(valor):
-    return int(Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-
-
-class ResumenReportesView(APIView):
-    """GET /api/reportes/resumen/?local_id=1&desde=YYYY-MM-DD&hasta=YYYY-MM-DD"""
-
+class _BaseReporte(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def _preparar(self, request):
+        """Devuelve (local, desde, hasta) o una Response de error."""
         if not request.user.es_administrador:
             return Response({"detail": "Solo la administradora puede consultar reportes."},
                             status=status.HTTP_403_FORBIDDEN)
+        try:
+            return leer_parametros(request.query_params)
+        except ErrorReporte as e:
+            return Response({"detail": e.mensaje}, status=e.codigo)
 
-        hoy = timezone.localdate()
-        desde = parsear_fecha(request.query_params.get("desde")) or hoy.replace(day=1)
-        hasta = parsear_fecha(request.query_params.get("hasta")) or hoy
 
-        if "desde" in request.query_params and parsear_fecha(request.query_params["desde"]) is None:
-            return Response({"detail": "Fecha 'desde' inválida."}, status=400)
-        if "hasta" in request.query_params and parsear_fecha(request.query_params["hasta"]) is None:
-            return Response({"detail": "Fecha 'hasta' inválida."}, status=400)
-        if hasta < desde:
-            return Response({"detail": "La fecha final no puede ser anterior a la inicial."}, status=400)
-        if (hasta - desde).days > 92:
-            return Response({"detail": "Selecciona un período de hasta 93 días."}, status=400)
+def _nombre_archivo(reporte, extension):
+    local = "".join(c if c.isalnum() else "_" for c in reporte["sucursal"]["name"]).strip("_")
+    periodo = reporte["periodo"]
+    return f"Reporte_{local}_{periodo['desde']}_al_{periodo['hasta']}.{extension}"
 
-        local_id = request.query_params.get("local_id")
-        if not local_id or not local_id.isdecimal():
-            return Response({"detail": "Debes seleccionar un local válido."}, status=400)
-        local = Local.objects.filter(pk=int(local_id)).first()
-        if local is None:
-            return Response({"detail": "El local seleccionado no existe."}, status=404)
 
-        # Solo ventas confirmadas: los borradores y las anuladas no generan ingresos.
-        base_ventas = RegistroDeVenta.objects.filter(
-            local=local, estado=RegistroDeVenta.Estado.CONFIRMADA
+class ResumenReportesView(_BaseReporte):
+    """GET /api/reportes/resumen/?local_id=1&desde=YYYY-MM-DD&hasta=YYYY-MM-DD"""
+
+    def get(self, request):
+        datos = self._preparar(request)
+        if isinstance(datos, Response):
+            return datos
+        return Response(construir_reporte(*datos))
+
+
+class ExcelReportesView(_BaseReporte):
+    """GET /api/reportes/excel/?... · libro de Excel (.xlsx) con hojas de análisis y gráficos."""
+
+    def get(self, request):
+        datos = self._preparar(request)
+        if isinstance(datos, Response):
+            return datos
+        from .excel import construir_excel_reporte
+
+        reporte = construir_reporte(*datos, con_detalle=True)
+        respuesta = HttpResponse(
+            construir_excel_reporte(reporte),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        ventas = list(base_ventas.filter(fecha__date__range=(desde, hasta)))
-        ids_ventas = [v.pk for v in ventas]
-        ingresos = sum(v.monto_total for v in ventas)
+        respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_archivo(reporte, "xlsx")}"'
+        return respuesta
 
-        # Período anterior con la misma cantidad de días: variación REAL, sin cifras fabricadas.
-        cantidad_dias = (hasta - desde).days + 1
-        antes_hasta = desde - timedelta(days=1)
-        antes_desde = antes_hasta - timedelta(days=cantidad_dias - 1)
-        ventas_antes = base_ventas.filter(fecha__date__range=(antes_desde, antes_hasta))
-        ingresos_antes = ventas_antes.aggregate(total=Sum("monto_total"))["total"] or 0
 
-        ingresos_diarios = defaultdict(int)
-        for venta in ventas:
-            dia = timezone.localtime(venta.fecha).date().isoformat()
-            ingresos_diarios[dia] += venta.monto_total
+class PdfReportesView(_BaseReporte):
+    """GET /api/reportes/pdf/?... · el mismo reporte en PDF, listo para imprimir o enviar."""
 
-        # La trabajadora ya no está en la venta: está en cada línea (DetalleVenta.trabajador).
-        # Lo vendido y la comisión de cada trabajadora salen de SUS líneas, con el descuento
-        # de la venta aplicado (las propiedades subtotal_con_descuento y comision del modelo).
-        ventas_por_trabajador = defaultdict(int)
-        comisiones_por_trabajador = defaultdict(int)
-        lineas_trabajadoras = DetalleVenta.objects.filter(
-            venta_id__in=ids_ventas, trabajador__isnull=False
-        ).select_related("venta", "trabajador")
-        for linea in lineas_trabajadoras:
-            ventas_por_trabajador[linea.trabajador_id] += linea.subtotal_con_descuento
-            comisiones_por_trabajador[linea.trabajador_id] += linea.comision
+    def get(self, request):
+        datos = self._preparar(request)
+        if isinstance(datos, Response):
+            return datos
+        from .pdf import construir_pdf_reporte
 
-        detalles = list(DetalleVenta.objects.filter(
-            venta_id__in=ids_ventas, item__servicio__isnull=False
-        ).select_related("item"))
-        servicios = sum(detalle.cantidad for detalle in detalles)
-        conteo_servicios = Counter()
-        servicios_trabajador = defaultdict(int)
-        for detalle in detalles:
-            conteo_servicios[detalle.item.nombre] += detalle.cantidad
-            if detalle.trabajador_id:
-                servicios_trabajador[detalle.trabajador_id] += detalle.cantidad
-
-        detalles_antes = DetalleVenta.objects.filter(
-            venta__in=ventas_antes, item__servicio__isnull=False
-        ).aggregate(total=Sum("cantidad"))["total"] or 0
-
-        trabajadores = list(Usuario.objects.filter(
-            rol=Usuario.Rol.TRABAJADOR, local=local, is_active=True
-        ).order_by("first_name", "last_name"))
-        asistencias = RegistroDeAsistencia.objects.filter(
-            local=local, fecha__range=(desde, hasta), trabajador_id__in=[w.pk for w in trabajadores]
-        )
-        horas_por_trabajador = defaultdict(float)
-        for registro in asistencias:
-            horas_por_trabajador[registro.trabajador_id] += registro.horas_trabajadas
-
-        filas_trabajadores = [
-            {
-                "id": t.pk,
-                "nombre": t.get_full_name() or t.email,
-                "servicios": servicios_trabajador[t.pk],
-                "ventas": ventas_por_trabajador[t.pk],
-                # No existen turnos programados en estos modelos: porcentaje no calculable.
-                "asistencia": None,
-                "horas": round(horas_por_trabajador[t.pk], 1),
-                "comision": comisiones_por_trabajador[t.pk],
-                "estado": "Activa",
-            }
-            for t in trabajadores
-        ]
-        ganancias_diarias = [
-            {
-                "fecha": (desde + timedelta(days=i)).isoformat(),
-                "ganancias": ingresos_diarios[(desde + timedelta(days=i)).isoformat()],
-            }
-            for i in range(cantidad_dias)
-        ]
-        top_servicios = [
-            {"nombre": nombre, "porcentaje": round(cantidad * 100 / servicios, 1)}
-            for nombre, cantidad in conteo_servicios.most_common(5)
-        ] if servicios else []
-
-        return Response({
-            "modo": "api",
-            "sucursal": {"id": local.pk, "name": local.nombre},
-            "periodo": {"desde": desde.isoformat(), "hasta": hasta.isoformat()},
-            "hayDatos": bool(ventas),
-            "indicadores": {
-                "ganancias": ingresos,
-                "variacionGanancias": porcentaje_variacion(ingresos, ingresos_antes),
-                "servicios": servicios,
-                "variacionServicios": servicios - detalles_antes if detalles_antes else None,
-                "trabajadoresActivos": len(trabajadores),
-                "sucursales": 1,
-                "asistencia": None,
-                "variacionAsistencia": None,
-            },
-            "gananciasDiarias": ganancias_diarias,
-            "serviciosPorTipo": top_servicios,
-            "trabajadores": filas_trabajadores,
-        })
+        reporte = construir_reporte(*datos)
+        respuesta = HttpResponse(construir_pdf_reporte(reporte), content_type="application/pdf")
+        respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_archivo(reporte, "pdf")}"'
+        return respuesta

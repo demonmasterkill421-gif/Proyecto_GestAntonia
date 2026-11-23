@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import IndicadorCard from './components/IndicadorCard.jsx';
 import { GraficoGanancias, GraficoServicios } from './components/Graficos.jsx';
 import TablaTrabajadores from './components/TablaTrabajadores.jsx';
-import { exportarReporteCSV, formatoCLP, formatoFecha, obtenerReporte } from './services/reportesApi.js';
+import { descargarReporte, formatoCLP, formatoFecha, mensajeDeDescarga, obtenerReporte } from './services/reportesApi.js';
 
 function fechaISOLocal(fecha) {
   const year = fecha.getFullYear();
@@ -61,10 +61,20 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
     setAplicado({ desde, hasta, sucursal: selectedSucursal });
   }
 
-  function exportar() {
-    if (!reporte) return;
-    exportarReporteCSV(reporte);
-    mostrarAviso('Reporte consultado desde Django exportado como CSV.');
+  const [descargando, setDescargando] = useState('');
+
+  // Se descarga el período APLICADO (el que se ve en pantalla), no lo que se esté escribiendo en las fechas
+  async function exportar(tipo) {
+    if (!reporte || descargando) return;
+    setDescargando(tipo);
+    try {
+      const nombre = await descargarReporte(tipo, aplicado);
+      mostrarAviso(`Reporte descargado: ${nombre}`);
+    } catch (err) {
+      mostrarAviso(await mensajeDeDescarga(err));
+    } finally {
+      setDescargando('');
+    }
   }
 
   const indicadores = reporte?.indicadores;
@@ -103,9 +113,14 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
         </div>
         <button className="apply-button" type="submit">Aplicar filtros</button>
         <span className="applied-period sr-only" aria-live="polite">{formatoFecha(aplicado.desde)} – {formatoFecha(aplicado.hasta)}</span>
-        <button type="button" className="export-button" onClick={exportar} disabled={!reporte}>
-          <Download size={15} /><span>Exportar reporte</span>
-        </button>
+        <div className="export-buttons">
+          <button type="button" className="export-button" onClick={() => exportar('excel')} disabled={!reporte || !!descargando}>
+            <FileSpreadsheet size={15} /><span>{descargando === 'excel' ? 'Generando…' : 'Exportar Excel'}</span>
+          </button>
+          <button type="button" className="export-button" onClick={() => exportar('pdf')} disabled={!reporte || !!descargando}>
+            <FileText size={15} /><span>{descargando === 'pdf' ? 'Generando…' : 'Exportar PDF'}</span>
+          </button>
+        </div>
       </form>
 
       {cargando && <p className="loading-report" role="status">Consultando PostgreSQL mediante Django…</p>}

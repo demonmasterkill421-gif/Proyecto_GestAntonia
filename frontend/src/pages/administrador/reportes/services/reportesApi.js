@@ -20,33 +20,35 @@ export function formatoFecha(fechaISO) {
   return `${day}/${month}/${year}`;
 }
 
-export function exportarReporteCSV(reporte) {
-  const { periodo, sucursal, indicadores, trabajadores } = reporte;
-  const filas = [
-    ['REPORTE — GestAntonia'],
-    ['Origen', 'API Django / PostgreSQL (ventas confirmadas)'],
-    ['Sucursal', sucursal.name],
-    ['Desde', formatoFecha(periodo.desde)],
-    ['Hasta', formatoFecha(periodo.hasta)],
-    [],
-    ['Indicador', 'Valor'],
-    ['Ganancias CLP', indicadores.ganancias],
-    ['Servicios realizados', indicadores.servicios],
-    ['Trabajadores activos', indicadores.trabajadoresActivos],
-    ['Asistencia promedio', indicadores.asistencia === null ? 'No calculable' : `${indicadores.asistencia}%`],
-    [],
-    ['Trabajador', 'Servicios', 'Ventas CLP', 'Asistencia', 'Horas', 'Comisión CLP', 'Estado'],
-    ...trabajadores.map((w) => [w.nombre, w.servicios, w.ventas,
-      w.asistencia === null ? 'No calculable' : `${w.asistencia}%`, w.horas, w.comision, w.estado]),
-  ];
-  const csv = '\uFEFF' + filas.map((fila) =>
-    fila.map((valor) => `"${String(valor ?? '').replaceAll('"', '""')}"`).join(';')
-  ).join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
+// Descarga el reporte ya filtrado en Excel ("excel") o PDF ("pdf"), generado por Django.
+export async function descargarReporte(tipo, { sucursal, desde, hasta }) {
+  const respuesta = await api.get(`/api/reportes/${tipo}/`, {
+    params: { local_id: sucursal, desde, hasta },
+    responseType: 'blob',
+  });
+  const extension = tipo === 'excel' ? 'xlsx' : 'pdf';
+  const coincide = /filename="?([^";]+)"?/i.exec(respuesta.headers['content-disposition'] ?? '');
+  const nombre = coincide ? coincide[1] : `GestAntonia_Reporte_${desde}_${hasta}.${extension}`;
+  const url = URL.createObjectURL(respuesta.data);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `GestAntonia_Reporte_${periodo.desde}_${periodo.hasta}.csv`;
+  link.download = nombre;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return nombre;
+}
+
+// Los errores de una descarga llegan como Blob: se leen para mostrar el mensaje de Django.
+export async function mensajeDeDescarga(err) {
+  const datos = err?.response?.data;
+  if (datos instanceof Blob) {
+    try {
+      return JSON.parse(await datos.text()).detail ?? 'No se pudo generar el archivo.';
+    } catch {
+      return 'No se pudo generar el archivo.';
+    }
+  }
+  return err?.response ? 'No se pudo generar el archivo.' : 'No hay conexión con el servidor.';
 }

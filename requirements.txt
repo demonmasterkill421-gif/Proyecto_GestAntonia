@@ -9,3 +9,6 @@ django-cors-headers==4.7.0
 
 #Excel
 openpyxl
+
+#PDF (boletas y reportes)
+reportlab==5.0.1

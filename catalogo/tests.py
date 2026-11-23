@@ -56,9 +56,6 @@ class InventarioAPITests(TestCase):
         self.assertEqual(respuesta.data['registros'], [])
         self.assertEqual(respuesta.data['resumen'], {'total_productos': 2, 'stock_total': 15, 'stock_bajo': 1})
 
-    def test_pantalla_django_original(self):
-        self.client.force_login(self.admin)
-        respuesta = self.client.get('/inventario/', {'buscar': 'Esmalte'})
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, 'Esmalte rojo')
-        self.assertNotContains(respuesta, '<td>Crema</td>')
+    # test_pantalla_django_original se quitó: probaba la pantalla /inventario/ hecha con plantillas
+    # de Django, que ya no está conectada (Inventario ahora es React y usa /api/catalogo/inventario/,
+    # probado arriba). Por eso fallaba con 404.
