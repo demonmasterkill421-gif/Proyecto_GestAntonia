@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import IndicadorCard from './components/IndicadorCard.jsx';
@@ -21,7 +22,7 @@ function rangoInicial() {
   };
 }
 
-export default function Reportes({ selectedSucursal, mostrarAviso }) {
+export default function Reportes({ selectedSucursal }) {
   const [rango] = useState(rangoInicial);
   const [desde, setDesde] = useState(rango.desde);
   const [hasta, setHasta] = useState(rango.hasta);
@@ -51,12 +52,12 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
   function aplicarFiltros(event) {
     event.preventDefault();
     if (!desde || !hasta || desde > hasta) {
-      mostrarAviso('Selecciona un período válido: la fecha inicial no puede superar la final.');
+      toast.error('Selecciona un período válido: la fecha inicial no puede superar la final.');
       return;
     }
     const diferencia = Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000);
     if (diferencia > 92) {
-      mostrarAviso('Selecciona un período de hasta 93 días.');
+      toast.error('Selecciona un período de hasta 93 días.');
       return;
     }
     setAplicado({ desde, hasta, sucursal: selectedSucursal });
@@ -69,9 +70,10 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
     if (!reporte || descargando) return;
     setDescargando(tipo);
     try {
-      mostrarAviso(await descargarReporte(tipo, aplicado));
+      // Mismo aviso verde que las descargas de la lista de ventas
+      toast.success(await descargarReporte(tipo, aplicado));
     } catch (err) {
-      mostrarAviso(await mensajeDeDescarga(err));
+      toast.error(await mensajeDeDescarga(err));
     } finally {
       setDescargando('');
     }

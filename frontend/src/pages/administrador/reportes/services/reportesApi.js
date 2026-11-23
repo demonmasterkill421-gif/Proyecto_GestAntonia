@@ -34,7 +34,7 @@ export async function descargarReporte(tipo, { sucursal, desde, hasta }) {
   const coincide = /filename="?([^";]+)"?/i.exec(respuesta.headers['content-disposition'] ?? '');
   const nombre = coincide ? coincide[1] : `GestAntonia_Reporte_${desde}_${hasta}.${extension}`;
   const donde = await guardarArchivo(respuesta.data, nombre, carpeta);
-  return donde === 'carpeta' ? `Reporte guardado en «Reportes Ventas»: ${nombre}` : `Reporte descargado: ${nombre}`;
+  return donde === 'carpeta' ? `Guardado en «Reportes Ventas»: ${nombre}` : `Descargado: ${nombre}`;
 }
 
 // Los errores de una descarga llegan como Blob: se leen para mostrar el mensaje de Django.
