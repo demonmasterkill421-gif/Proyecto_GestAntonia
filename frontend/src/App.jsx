@@ -17,6 +17,14 @@ import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmi
 import { Inventario } from "./pages/administrador/inventario/Inventario";
 import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
 
+//RESERVAS (Equipo 4)
+import { Especialistas } from './pages/reservas/especialistas/Especialistas'
+import { FormEspecialista } from './pages/reservas/especialistas/FormEspecialista'
+import Agenda from './pages/reservas/agenda/Agenda'
+import BuscarCliente from './pages/reservas/clientes/BuscarCliente'
+import { NuevaReserva } from './pages/reservas/reserva/NuevaReserva'
+import { DetalleReserva } from './pages/reservas/reserva/DetalleReserva'
+
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
 import { RegistrarVenta } from './pages/recepcionista/venta/RegistrarVenta'
@@ -65,6 +73,10 @@ function App() {
             <Route path='/reportes' element={<ReportesAdmin/>} /> {/* Ruta original del equipo, se mantiene por si la usan en otro lado */}
             <Route path="/admin/inventario" element={<Inventario />}/>
             <Route path="/admin/inventario/registrar" element={<RegistrarProducto />}/>
+            {/* Reservas (Equipo 4) · 3.8c: especialistas por local */}
+            <Route path='/especialistas' element={<Especialistas/>} />
+            <Route path='/especialistas/nueva' element={<FormEspecialista/>} />
+            <Route path='/especialistas/:id/editar' element={<FormEspecialista/>} />
           </Route>
 
 
@@ -79,6 +91,14 @@ function App() {
           {/* 3. TRABAJADOR: solo entra el rol TRAB */}
           <Route element={<RutaPrivada roles={["TRAB"]} />}>
             <Route path='/especialista/inicio' element={<MainTrabajador/>} />
+          </Route>
+
+          {/* 4. RESERVAS (Equipo 4): ADMIN y RECEP · 3.8a Cristian */}
+          <Route element={<RutaPrivada roles={["ADMIN", "RECEP"]} />}>
+            <Route path='/agenda' element={<Agenda/>} />
+            <Route path='/agenda/clientes' element={<BuscarCliente/>} />
+            <Route path='/agenda/nueva' element={<NuevaReserva/>} />
+            <Route path='/agenda/reservas/:id' element={<DetalleReserva/>} />
           </Route>
 
           {/* M5: Registro por QR compartido entre trabajadoras y recepcionistas */}

@@ -66,6 +66,6 @@ class EspecialistaForm(forms.ModelForm):
 
 
 def reservas_futuras(especialista):
-    """Reservas activas (no canceladas) de la especialista desde ahora en adelante."""
+    """Reservas que ocupan horario (no suspendidas, ni «No llegó» ni en lista de espera) desde ahora en adelante."""
     return (Reserva.objects.filter(especialista=especialista, inicio__gte=timezone.now())
-            .exclude(estado=Reserva.Estado.CANCELADA))
+            .exclude(estado__in=Reserva.LIBERAN_HORARIO))

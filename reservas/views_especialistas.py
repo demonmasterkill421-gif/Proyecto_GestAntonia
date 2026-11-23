@@ -29,7 +29,7 @@ def lista_especialistas(request):
                      .select_related("local")
                      .annotate(futuras=Count("reservas_asignadas", filter=Q(
                          reservas_asignadas__inicio__gte=timezone.now()) & ~Q(
-                         reservas_asignadas__estado=Reserva.Estado.CANCELADA)))
+                         reservas_asignadas__estado__in=Reserva.LIBERAN_HORARIO)))
                      .order_by("local__nombre", "-is_active", "first_name"))
     if local_id.isdigit():
         especialistas = especialistas.filter(local_id=int(local_id))

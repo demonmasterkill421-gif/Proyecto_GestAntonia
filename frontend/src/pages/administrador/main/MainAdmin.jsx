@@ -39,21 +39,21 @@ export function MainAdmin() {
           icono={UserCheck}
         />
 
-        {/* A1: estas tres pantallas aún no existen. Agenda y Especialistas llegan con Reservas (A5). */}
+        {/* Agenda y Especialistas ya existen (módulo de Reservas, Equipo 4). Comisiones aún no. */}
         <PanelAtajo
           titulo="Agenda"
           descripcion="Las citas y horas agendadas"
           boton="Ver agenda"
+          ruta="/agenda"
           icono={CalendarDays}
-          proximamente
         />
 
         <PanelAtajo
           titulo="Especialistas"
           descripcion="Tu equipo de trabajo"
           boton="Ver especialistas"
+          ruta="/especialistas"
           icono={Users}
-          proximamente
         />
 
         <PanelAtajo
