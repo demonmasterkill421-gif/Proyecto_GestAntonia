@@ -15,6 +15,7 @@ import {
   X,
   Package,
   Tags,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { INICIO_POR_ROL } from "../config/roles";
@@ -33,6 +34,7 @@ const MENU = [
   { ruta: "/admin/reportes", etiqueta: "Reportes", icono: ChartColumn, roles: ["ADMIN"] },
   { ruta: "/admin/inventario", etiqueta: "Inventario", icono: Package, roles: ["ADMIN"],},
   { ruta: "/admin/precios", etiqueta: "Precios", icono: Tags, roles: ["ADMIN"] },
+  { ruta: "/admin/usuarios", etiqueta: "Usuarios", icono: UserCog, roles: ["ADMIN"] },
 ];
 
 const ETIQUETA_ROL = { ADMIN: "Propietaria", RECEP: "Recepcionista", TRAB: "Especialista" };

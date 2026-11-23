@@ -17,6 +17,8 @@ import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmi
 import { Inventario } from "./pages/administrador/inventario/Inventario";
 import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
 import { Precios } from "./pages/administrador/precios/Precios";
+import { Usuarios } from "./pages/administrador/usuarios/Usuarios";
+import { Instalacion } from "./pages/Instalacion";
 
 //RESERVAS (Equipo 4)
 import { Especialistas } from './pages/reservas/especialistas/Especialistas'
@@ -61,6 +63,7 @@ function App() {
           {/* LOGIN GLOBAL*/}
 
           <Route path='/' element={<Navigate to="/login"/>}/> {/* No se ingresa a la ruta raíz, en su caso, la lleva a login automáticamente*/}
+          <Route path='/instalacion' element={<Instalacion />} /> {/* Primera administradora (base sin usuarios) */}
           <Route path='/login' element={<Login />} /> {/* Renderización de la página Login*/}
 
 
@@ -75,6 +78,7 @@ function App() {
             <Route path="/admin/inventario" element={<Inventario />}/>
             <Route path="/admin/inventario/registrar" element={<RegistrarProducto />}/>
             <Route path="/admin/precios" element={<Precios />}/>
+            <Route path="/admin/usuarios" element={<Usuarios />}/>
             {/* Reservas (Equipo 4) · 3.8c: especialistas por local */}
             <Route path='/especialistas' element={<Especialistas/>} />
             <Route path='/especialistas/nueva' element={<FormEspecialista/>} />

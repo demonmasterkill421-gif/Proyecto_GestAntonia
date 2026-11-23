@@ -4,6 +4,7 @@ import IndicadorCard from './components/IndicadorCard.jsx';
 import { GraficoGanancias, GraficoServicios } from './components/Graficos.jsx';
 import TablaTrabajadores from './components/TablaTrabajadores.jsx';
 import { descargarReporte, formatoCLP, formatoFecha, mensajeDeDescarga, obtenerReporte } from './services/reportesApi.js';
+import { CarpetaDestino } from '../../../components/CarpetaDestino.jsx';
 
 function fechaISOLocal(fecha) {
   const year = fecha.getFullYear();
@@ -68,8 +69,7 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
     if (!reporte || descargando) return;
     setDescargando(tipo);
     try {
-      const nombre = await descargarReporte(tipo, aplicado);
-      mostrarAviso(`Reporte descargado: ${nombre}`);
+      mostrarAviso(await descargarReporte(tipo, aplicado));
     } catch (err) {
       mostrarAviso(await mensajeDeDescarga(err));
     } finally {
@@ -121,6 +121,7 @@ export default function Reportes({ selectedSucursal, mostrarAviso }) {
             <FileText size={15} /><span>{descargando === 'pdf' ? 'Generando…' : 'Exportar PDF'}</span>
           </button>
         </div>
+        <CarpetaDestino tipo="ventas" className="report-folder" />
       </form>
 
       {cargando && <p className="loading-report" role="status">Consultando PostgreSQL mediante Django…</p>}

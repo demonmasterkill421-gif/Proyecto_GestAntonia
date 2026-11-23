@@ -9,7 +9,9 @@ import {
   obtenerDia,
   obtenerResumen,
 } from "../api/asistencia.api";
-import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
+import { useSucursales, useSucursalId } from "../hooks/useSucursal";
+import { guardarArchivo, prepararCarpeta } from "../utils/carpetas";
+import { CarpetaDestino } from "./CarpetaDestino";
 
 // ---------- Utilidades de fecha y hora ----------
 const dos = (n) => String(n).padStart(2, "0");
@@ -134,6 +136,7 @@ function Tarjeta({ icono: Icono, titulo, valor }) {
 // rol: "ADMIN" o "RECEP". Los dos marcan entrada y salida; solo ADMIN corrige (lápiz), elimina (basurero),
 // descarga el Excel y cambia de sucursal con los botones. La recepcionista solo ve su local (lo filtra el backend).
 export function ListaAsistencia({ rol }) {
+  const SUCURSALES = useSucursales(); // locales de la base de datos
   const esAdmin = rol === "ADMIN";
   const sucursalId = useSucursalId();
 
@@ -226,20 +229,16 @@ export function ListaAsistencia({ rol }) {
   const descargar = async () => {
     setDescargando(true);
     try {
+      // Carpeta "Reportes Asistencia" (si ya se eligió); se pide antes de esperar al servidor
+      const carpeta = await prepararCarpeta("asistencia", { elegirSiFalta: false });
       const archivo = await exportarAsistencias({
         desde: periodo.desde,
         hasta: periodo.hasta,
         local: localId,
       });
-      const url = URL.createObjectURL(archivo);
-      const enlace = document.createElement("a");
-      enlace.href = url;
-      enlace.download = `asistencia_${periodo.desde}_a_${periodo.hasta}.xlsx`;
-      document.body.appendChild(enlace);
-      enlace.click();
-      enlace.remove();
-      URL.revokeObjectURL(url);
-      toast.success("Excel descargado");
+      const nombre = `asistencia_${periodo.desde}_a_${periodo.hasta}.xlsx`;
+      const donde = await guardarArchivo(archivo, nombre, carpeta);
+      toast.success(donde === "carpeta" ? `Guardado en «Reportes Asistencia»: ${nombre}` : `Descargado: ${nombre}`);
     } catch {
       toast.error("No se pudo descargar el Excel");
     } finally {
@@ -555,6 +554,7 @@ export function ListaAsistencia({ rol }) {
             )}
           </div>
         </div>
+        {esAdmin && <CarpetaDestino tipo="asistencia" className="-mt-2 mb-4 lg:justify-end" />}
 
         {resumen.error && <p className="mb-2 text-base font-medium text-[#b5368f]">{resumen.error}</p>}
         {resumen.cargando && <p className="py-2 text-base font-medium text-[#9c2d7b]">Cargando...</p>}

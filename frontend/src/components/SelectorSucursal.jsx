@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { ChevronDown, Check, Store } from "lucide-react";
-import { SUCURSALES, guardarSucursalId, useSucursalId } from "../hooks/useSucursal";
+import { guardarSucursalId, useSucursales, useSucursalId } from "../hooks/useSucursal";
 
 export function SelectorSucursal() {
+  const SUCURSALES = useSucursales(); // locales de la base de datos
   const [abierto, setAbierto] = useState(false);
   const id = useSucursalId();
-  const actual = SUCURSALES.find((s) => s.id === id) ?? SUCURSALES[0];
+  const actual = SUCURSALES.find((s) => s.id === id) ?? SUCURSALES[0] ?? { id: null, nombre: "Sin locales" };
 
   const elegir = (sucursal) => {
     guardarSucursalId(sucursal.id);

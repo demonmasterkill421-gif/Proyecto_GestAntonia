@@ -45,6 +45,14 @@ def _error(texto, codigo=400):
     return Response({"detail": texto}, status=codigo)
 
 
+SIN_CLAVE = ("Aún no hay clave de anulación. La administradora debe crearla en Ventas "
+             "(botón «Crear clave de anulación»).")
+
+
+def _hay_clave():
+    return ClaveAnulacion.objects.exists()
+
+
 def _clave_correcta(clave):
     """True si la clave coincide con la clave de anulación guardada. Si todavía no hay ninguna, es False."""
     registro = ClaveAnulacion.objects.first()
@@ -123,6 +131,8 @@ class VentaViewSet(viewsets.ModelViewSet):
         motivo = datos.validated_data["motivo"]
 
         # La clave se revisa antes de tocar la venta: si no sirve, no se bloquea nada ni se mueve el stock
+        if not _hay_clave():
+            return _error(SIN_CLAVE)
         if not _clave_correcta(datos.validated_data["clave"]):
             return _error("Clave incorrecta.")
 
@@ -167,6 +177,8 @@ class VentaViewSet(viewsets.ModelViewSet):
         if not isinstance(clave, str) or not clave or len(clave) > 128:
             return _error("Clave incorrecta.")
 
+        if not _hay_clave():
+            return _error(SIN_CLAVE)
         if not _clave_correcta(clave):
             return _error("Clave incorrecta.")
 

@@ -103,6 +103,9 @@ DB_PASSWORD="$(leer_env DB_PASSWORD)"
 [ -n "$DB_PASSWORD" ] || DB_PASSWORD="$(openssl rand -hex 24)"
 SECRET_KEY="$(leer_env DJANGO_SECRET_KEY)"
 [ -n "$SECRET_KEY" ] || SECRET_KEY="$(openssl rand -base64 48 | tr -d '\n/+=')"
+# Código para crear la primera administradora desde la página (solo sirve mientras no haya usuarios)
+CODIGO_INSTALACION="$(leer_env CODIGO_INSTALACION)"
+[ -n "$CODIGO_INSTALACION" ] || CODIGO_INSTALACION="$(openssl rand -hex 4)"
 
 sudo -u postgres psql -q -v ON_ERROR_STOP=1 \
   -v usr="$DB_USER" -v pwd="$DB_PASSWORD" <<'SQL'
@@ -129,6 +132,7 @@ DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
 DB_HOST=localhost
 DB_PORT=5432
+CODIGO_INSTALACION=$CODIGO_INSTALACION
 EOF
 chown "$USUARIO:$USUARIO" "$ENV_FILE" && chmod 600 "$ENV_FILE"
 
@@ -196,7 +200,7 @@ server {
     # Pantallas de React que comparten prefijo con Django (tienen prioridad por ser regex)
     # index.html sin caché: tras cada despliegue el navegador pide la versión nueva
     # (los archivos de /assets/ llevan un código único por versión, por eso sí se guardan 30 días)
-    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar|precios)/?\$ { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
+    location ~ ^/admin/(inicio|locales|ventas|asistencia|reportes|inventario|inventario/registrar|precios|usuarios)/?\$ { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
     location = /login { add_header Cache-Control "no-cache" always; try_files /index.html =404; }
     location = /index.html { add_header Cache-Control "no-cache" always; }
 
@@ -252,8 +256,12 @@ echo "Comprobación local:  /  -> $(cod /)   /login -> $(cod /login)   /api/me/ 
 echo
 echo "=================================================================="
 echo " GestAntonia publicado en:  $URL"
-echo " Crear el primer administrador (una sola vez):"
-echo "   sudo -u $USUARIO $VENV/bin/python $APP/manage.py createsuperuser"
+USUARIOS_EN_BASE="$(MANAGE shell -c "'from usuarios.models import Usuario; print(Usuario.objects.count())'" 2>/dev/null | tail -1 || true)"
+if [ "$USUARIOS_EN_BASE" = "0" ]; then
+  echo " La base no tiene usuarios: abre $URL, crea la cuenta de la administradora"
+  echo " y escribe este código de instalación:  $CODIGO_INSTALACION"
+  echo " (también se puede con: sudo -u $USUARIO $VENV/bin/python $APP/manage.py createsuperuser)"
+fi
 echo " Ver registros del backend:   sudo journalctl -u gestantonia -f"
 echo " Actualizar tras un push:     sudo bash $0"
 echo "=================================================================="

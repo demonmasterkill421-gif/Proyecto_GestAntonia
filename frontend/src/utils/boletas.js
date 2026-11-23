@@ -1,132 +1,17 @@
-// Guarda las boletas en PDF dentro de una carpeta "Boletas Ventas" en el computador del local.
-//
-// Los navegadores no dejan que una página escriba en el disco por su cuenta: una vez se elige la
-// carpeta (botón "Elegir carpeta" en Registrar venta) y desde ahí cada boleta se guarda sola en ella.
-// La carpeta elegida se recuerda en este navegador.
-//
-// OJO: Chrome NO deja elegir directamente Documentos, Descargas ni Escritorio ("contiene archivos del
-// sistema"), pero sí una carpeta DENTRO de ellas. Por eso se pide crear "Boletas Ventas" dentro de
-// Documentos y elegir esa.
-//
-// Funciona en Chrome y Edge (API de acceso a archivos). En otros navegadores (Firefox, Safari) o
-// si se cancela la elección, la boleta se descarga normalmente a la carpeta de descargas.
+// Boletas en PDF: se guardan en la carpeta "Boletas Ventas" (la lógica de carpetas está en carpetas.js,
+// que también usan los reportes de ventas y de asistencia).
+import { carpetaActual as carpetaDe, guardarArchivo, prepararCarpeta } from "./carpetas";
 
-const NOMBRE_CARPETA = "Boletas Ventas";
-const BASE_DATOS = "gestantonia";
-const ALMACEN = "carpetas";
-const CLAVE = "boletas";
+export { soportaCarpeta } from "./carpetas";
 
-export const soportaCarpeta = () => typeof window !== "undefined" && "showDirectoryPicker" in window;
-
-function abrirBase() {
-  return new Promise((resolver, rechazar) => {
-    const pedido = indexedDB.open(BASE_DATOS, 1);
-    pedido.onupgradeneeded = () => pedido.result.createObjectStore(ALMACEN);
-    pedido.onsuccess = () => resolver(pedido.result);
-    pedido.onerror = () => rechazar(pedido.error);
-  });
-}
-
-async function leerCarpetaGuardada() {
-  try {
-    const base = await abrirBase();
-    return await new Promise((resolver) => {
-      const pedido = base.transaction(ALMACEN).objectStore(ALMACEN).get(CLAVE);
-      pedido.onsuccess = () => resolver(pedido.result ?? null);
-      pedido.onerror = () => resolver(null);
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function recordarCarpeta(carpeta) {
-  try {
-    const base = await abrirBase();
-    await new Promise((resolver) => {
-      const tx = base.transaction(ALMACEN, "readwrite");
-      tx.objectStore(ALMACEN).put(carpeta, CLAVE);
-      tx.oncomplete = resolver;
-      tx.onerror = resolver;
-    });
-  } catch {
-    // Sin IndexedDB (ventana privada): se volverá a preguntar la próxima vez
-  }
-}
-
-async function elegirCarpeta() {
-  const base = await window.showDirectoryPicker({ id: "gestantonia-boletas", mode: "readwrite", startIn: "documents" });
-  await recordarCarpeta(base);
-  return base;
-}
-
-/**
- * Deja lista la carpeta "Boletas Ventas". Hay que llamarla DIRECTO desde el clic del botón
- * (antes de esperar al servidor): el navegador solo muestra sus ventanas de permiso en respuesta a un clic.
- * cambiar: abre la ventana para elegir otra carpeta.
- * elegirSiFalta: si aún no hay carpeta, abre la ventana; con false devuelve null (la boleta se descarga).
- * Devuelve la carpeta o null (navegador sin soporte, sin carpeta elegida, o la persona canceló).
- */
-export async function prepararCarpetaBoletas({ cambiar = false, elegirSiFalta = true } = {}) {
-  if (!soportaCarpeta()) return null;
-  try {
-    let base = cambiar ? null : await leerCarpetaGuardada();
-    if (base) {
-      let permiso = await base.queryPermission({ mode: "readwrite" });
-      if (permiso !== "granted") permiso = await base.requestPermission({ mode: "readwrite" });
-      if (permiso !== "granted") base = null;
-    }
-    if (!base) {
-      if (!cambiar && !elegirSiFalta) return null;
-      base = await elegirCarpeta();
-    }
-    // Si eligieron directamente una carpeta llamada "Boletas Ventas", se usa esa misma
-    if (base.name === NOMBRE_CARPETA) return base;
-    return await base.getDirectoryHandle(NOMBRE_CARPETA, { create: true });
-  } catch (error) {
-    if (error?.name !== "AbortError") console.warn("No se pudo usar la carpeta de boletas:", error);
-    return null;
-  }
-}
+/** Deja lista la carpeta "Boletas Ventas" (ver prepararCarpeta en carpetas.js). */
+export const prepararCarpetaBoletas = (opciones) => prepararCarpeta("boletas", opciones);
 
 /** Nombre de la carpeta donde se están guardando las boletas (para mostrarlo), o null. */
-export async function carpetaActual() {
-  const base = await leerCarpetaGuardada();
-  if (!base) return null;
-  if (!base.name || base.name === NOMBRE_CARPETA) return NOMBRE_CARPETA;
-  return `${base.name} › ${NOMBRE_CARPETA}`;
-}
+export const carpetaActual = () => carpetaDe("boletas");
 
-function descargar(blob, nombre) {
-  const url = URL.createObjectURL(blob);
-  const enlace = document.createElement("a");
-  enlace.href = url;
-  enlace.download = nombre;
-  document.body.appendChild(enlace);
-  enlace.click();
-  enlace.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-/**
- * Guarda la boleta. Con carpeta (de prepararCarpetaBoletas) la escribe ahí; si no, la descarga.
- * Devuelve "carpeta" o "descarga".
- */
-export async function guardarBoleta(blob, nombre, carpeta) {
-  if (carpeta) {
-    try {
-      const archivo = await carpeta.getFileHandle(nombre, { create: true });
-      const escritor = await archivo.createWritable();
-      await escritor.write(blob);
-      await escritor.close();
-      return "carpeta";
-    } catch (error) {
-      console.warn("No se pudo escribir en la carpeta de boletas; se descarga:", error);
-    }
-  }
-  descargar(blob, nombre);
-  return "descarga";
-}
+/** Guarda la boleta en la carpeta o, si no hay, la descarga. Devuelve "carpeta" o "descarga". */
+export const guardarBoleta = guardarArchivo;
 
 /** Abre el diálogo de impresión con la boleta (sin salir de la página). */
 export function imprimirBoleta(blob) {

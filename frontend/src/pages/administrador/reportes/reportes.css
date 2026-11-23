@@ -744,3 +744,6 @@
 .ga-reports .commission-detail .num { text-align: right; white-space: nowrap; }
 .ga-reports .commission-note { margin: 8px 8px 0; font-size: 12px; color: #6b5f68; }
 .ga-reports .base-flag { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; background: #eceaec; color: #5f5560; font-size: 11px; }
+
+/* Carpeta donde se guardan los reportes (debajo de los filtros) */
+.ga-reports .report-folder { flex: 1 1 100%; margin: 4px 0 0; }
