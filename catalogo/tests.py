@@ -56,9 +56,85 @@ class InventarioAPITests(TestCase):
         self.assertEqual(respuesta.data['registros'], [])
         self.assertEqual(respuesta.data['resumen'], {'total_productos': 2, 'stock_total': 15, 'stock_bajo': 1})
 
-    def test_pantalla_django_original(self):
-        self.client.force_login(self.admin)
-        respuesta = self.client.get('/inventario/', {'buscar': 'Esmalte'})
+
+
+class EditarInventarioAPITests(TestCase):
+    """M11: editar producto y reponer stock desde la pantalla de Inventario."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = Usuario.objects.create_user(username='admin', email='admin@test.cl', password='Prueba123!', rol='ADMIN')
+        cls.trabajador = Usuario.objects.create_user(username='trab', email='trab@test.cl', rol='TRAB')
+        cls.local = Local.objects.create(nombre='Centro', ubicacion='Calama')
+        cls.producto = Producto.objects.create(nombre='Esmalte rojo', precio=3000, tipo='VENTA')
+        cls.inventario = Inventario.objects.create(producto=cls.producto, local=cls.local, cantidad=5, stock_minimo=2)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = f'/api/catalogo/inventario/{self.inventario.pk}/'
+        self.url_ajustar = f'/api/catalogo/inventario/{self.inventario.pk}/ajustar/'
+
+    def test_solo_administradora(self):
+        self.assertEqual(self.client.patch(self.url, {'nombre': 'X'}, format='json').status_code, 401)
+        self.assertEqual(self.client.post(self.url_ajustar, {'cantidad': 1}, format='json').status_code, 401)
+        self.client.force_authenticate(self.trabajador)
+        self.assertEqual(self.client.patch(self.url, {'nombre': 'X'}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(self.url_ajustar, {'cantidad': 1}, format='json').status_code, 403)
+
+    def test_editar_datos_del_producto_y_stock_minimo(self):
+        self.client.force_authenticate(self.admin)
+        respuesta = self.client.patch(self.url, {
+            'nombre': 'Esmalte rojo pasión', 'marca': 'Essie', 'precio': 3500, 'stock_minimo': 4,
+        }, format='json')
         self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, 'Esmalte rojo')
-        self.assertNotContains(respuesta, '<td>Crema</td>')
+        self.producto.refresh_from_db()
+        self.inventario.refresh_from_db()
+        self.assertEqual(self.producto.nombre, 'Esmalte rojo pasión')
+        self.assertEqual(self.producto.marca, 'Essie')
+        self.assertEqual(self.producto.precio, 3500)
+        self.assertEqual(self.inventario.stock_minimo, 4)
+        self.assertEqual(respuesta.data['producto'], 'Esmalte rojo pasión')
+
+    def test_editar_no_cambia_la_cantidad(self):
+        # La cantidad solo cambia con /ajustar/, para que quede el movimiento.
+        self.client.force_authenticate(self.admin)
+        self.client.patch(self.url, {'cantidad': 999}, format='json')
+        self.inventario.refresh_from_db()
+        self.assertEqual(self.inventario.cantidad, 5)
+
+    def test_editar_con_datos_invalidos(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.patch(self.url, {'nombre': ''}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(self.url, {'precio': -1}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(self.url, {'stock_minimo': -1}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(self.url, {'tipo': 'OTRO'}, format='json').status_code, 400)
+
+    def test_reponer_stock_deja_movimiento(self):
+        self.client.force_authenticate(self.admin)
+        respuesta = self.client.post(self.url_ajustar, {'cantidad': 10}, format='json')
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data['cantidad'], 15)
+        self.assertEqual(self.inventario.movimientos.first().cantidad, 10)
+        listado = self.client.get('/api/catalogo/inventario/').data['registros'][0]
+        self.assertEqual(listado['cantidad'], 15)
+        self.assertEqual(listado['ultimo_movimiento'], 10)
+
+    def test_no_permite_stock_bajo_cero(self):
+        self.client.force_authenticate(self.admin)
+        respuesta = self.client.post(self.url_ajustar, {'cantidad': -6}, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('Stock insuficiente', respuesta.data['detail'])
+        self.inventario.refresh_from_db()
+        self.assertEqual(self.inventario.cantidad, 5)
+        self.assertFalse(self.inventario.movimientos.exists())
+
+    def test_cantidad_invalida(self):
+        self.client.force_authenticate(self.admin)
+        for valor in [None, 'diez', 0, 1.5]:
+            datos = {} if valor is None else {'cantidad': valor}
+            self.assertEqual(self.client.post(self.url_ajustar, datos, format='json').status_code, 400, valor)
+
+    def test_registro_inexistente(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.patch('/api/catalogo/inventario/9999/', {'nombre': 'X'}, format='json').status_code, 404)
+        self.assertEqual(self.client.post('/api/catalogo/inventario/9999/ajustar/', {'cantidad': 1}, format='json').status_code, 404)
