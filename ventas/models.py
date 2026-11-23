@@ -65,6 +65,11 @@ class RegistroDeVenta(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
 
+    #Descuento en pesos___________________________________________
+    # Si es mayor que 0, el descuento es un monto fijo (ej.: dejar la venta "en 80 mil cerrados") y
+    # "descuento" (%) solo informa a cuánto equivale. Si es 0, rige el porcentaje.
+    descuento_monto = models.PositiveIntegerField("descuento en pesos (CLP)", default=0)
+
     #Monto base___________________________________________
     monto_base = models.PositiveIntegerField("monto base (CLP)", default=0)
 
@@ -113,6 +118,12 @@ class RegistroDeVenta(models.Model):
         if cantidad < 1:
             raise ValidationError("La cantidad debe ser al menos 1.")
 
+        # El % de comisión se guarda en la línea: si después cambia, las ventas ya hechas no cambian.
+        porcentaje, por_servicio = None, False
+        if trabajador is not None:
+            from reservas.comisiones import porcentaje_comision  # import local: evita importaciones circulares
+            porcentaje, por_servicio = porcentaje_comision(trabajador, item)
+
         # Servicio "Otro": el precio y el nombre los escribió la recepcionista.
         # Cada uno queda en su propia línea; si se juntaran con otro igual, se perdería su precio.
         if precio_manual is not None:
@@ -126,18 +137,21 @@ class RegistroDeVenta(models.Model):
             detalle = self.detalles.create(
                 item=item, cantidad=cantidad, trabajador=trabajador,
                 precio_unitario=precio_manual, nombre_manual=nombre_manual, es_precio_manual=True,
+                porcentaje_comision=porcentaje, comision_por_servicio=por_servicio,
             )
             self.recalcular()
             return detalle
 
-        # Los insumos se descuentan del stock pero NO se cobran: su precio de venta es 0.
-        precio = item.precio
+        # Precio del local de la venta (el Mall puede tener otro precio). Los insumos se descuentan
+        # del stock pero NO se cobran: su precio de venta es 0.
+        precio = item.precio_en(self.local)
         if item.es_producto and item.producto.tipo == "INSUMO":
             precio = 0
 
         detalle, creado = self.detalles.get_or_create(
-            item=item, trabajador=trabajador,
-            defaults={"cantidad": cantidad, "precio_unitario": precio},
+            item=item, trabajador=trabajador, es_precio_manual=False,
+            defaults={"cantidad": cantidad, "precio_unitario": precio,
+                      "porcentaje_comision": porcentaje, "comision_por_servicio": por_servicio},
         )
         if not creado:
             detalle.cantidad += cantidad
@@ -159,19 +173,46 @@ class RegistroDeVenta(models.Model):
         if not Decimal(0) <= descuento <= Decimal(100):
             raise ValidationError("El descuento debe estar entre 0% y 100%.")
         self.descuento = descuento
+        self.descuento_monto = 0
+        self.recalcular()
+        return self.monto_total
+
+    def aplicar_descuento_monto(self, monto):
+        """Descuento fijo en pesos: el total queda exacto (85.000 - 5.000 = 80.000)."""
+        self._validar_editable()
+        monto = int(monto)
+        if monto < 0:
+            raise ValidationError("El descuento no puede ser negativo.")
+        self.descuento_monto = monto
         self.recalcular()
         return self.monto_total
 
     @property
     def factor_descuento(self):
-        """Proporción que se cobra después del descuento (ej.: 15% de descuento => 0.85)."""
+        """Proporción que se cobra después del descuento (ej.: 15% de descuento => 0.85).
+        Con descuento en pesos es total / base, para repartirlo entre las líneas (y las comisiones)."""
+        if self.descuento_monto and self.monto_base:
+            return Decimal(self.monto_base - min(self.descuento_monto, self.monto_base)) / Decimal(self.monto_base)
         return (Decimal(100) - Decimal(self.descuento)) / Decimal(100)
+
+    @property
+    def descuento_clp(self):
+        """Cuántos pesos se descontaron, sea cual sea el tipo de descuento."""
+        return self.monto_base - self.monto_total
 
     def recalcular(self):
         """montoBase = suma de los detalles; montoTotal = montoBase menos el descuento."""
         self.monto_base = sum(d.subtotal for d in self.detalles.all())
-        self.monto_total = _redondear(Decimal(self.monto_base) * self.factor_descuento)
-        self.save(update_fields=["monto_base", "monto_total", "descuento"])
+        if self.descuento_monto:
+            if self.descuento_monto > self.monto_base:
+                raise ValidationError("El descuento no puede ser mayor que el subtotal de la venta.")
+            self.monto_total = self.monto_base - self.descuento_monto
+            # El % queda como referencia (a cuánto equivale el monto descontado)
+            self.descuento = (Decimal(self.descuento_monto) * 100 / Decimal(self.monto_base)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP)
+        else:
+            self.monto_total = _redondear(Decimal(self.monto_base) * self.factor_descuento)
+        self.save(update_fields=["monto_base", "monto_total", "descuento", "descuento_monto"])
 
     @transaction.atomic
     def confirmar_venta(self):
@@ -250,11 +291,22 @@ class DetalleVenta(models.Model):
 
 
     #Trabajadora Asociada___________________________________________
+    # PROTECT: una trabajadora con ventas no se puede borrar (se desactiva), así sus ventas y
+    # comisiones siguen en los reportes.
     trabajador = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
         related_name="servicios_realizados", limit_choices_to={"rol": "TRAB"},
         help_text="Trabajadora asignada a este servicio (base de su comisión).",
     )
+
+    #% de comisión al momento de la venta___________________________________________
+    porcentaje_comision = models.DecimalField(
+        "% de comisión", max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% de la trabajadora para este servicio, guardado al registrar la venta.",
+    )
+    # True: el % es el que la administradora definió para ese servicio y esa trabajadora.
+    # False: no había % para ese servicio y se usó la comisión base de la trabajadora.
+    comision_por_servicio = models.BooleanField(default=False)
 
 
 
@@ -264,6 +316,11 @@ class DetalleVenta(models.Model):
 
     def __str__(self):
         return f"{self.nombre_manual or self.item.nombre} x{self.cantidad}"
+
+    @property
+    def nombre_visible(self):
+        """Nombre para boletas y reportes: el que escribió la recepcionista en el servicio «Otro»."""
+        return self.nombre_manual or self.item.nombre
 
 
     #@property sirve para convertir un método en un atributo llamado bajo su propia función
@@ -285,10 +342,18 @@ class DetalleVenta(models.Model):
     @property
     def comision(self):
         """Comisión de la trabajadora asignada a esta línea: subtotal con descuento × su porcentaje."""
-        if not self.trabajador:
+        if not self.trabajador_id:
             return 0
-        pct = Decimal(self.trabajador.porcentaje_comision) / Decimal(100)
-        return _redondear(Decimal(self.subtotal_con_descuento) * pct)
+        return _redondear(Decimal(self.subtotal_con_descuento) * self.porcentaje_aplicado / Decimal(100))
+
+    @property
+    def porcentaje_aplicado(self):
+        """El % guardado en la venta; en ventas antiguas sin él, el % base actual de la trabajadora."""
+        if self.porcentaje_comision is not None:
+            return Decimal(self.porcentaje_comision)
+        if not self.trabajador_id:
+            return Decimal(0)
+        return Decimal(self.trabajador.porcentaje_comision or 0)
 
     @classmethod
     def comision_de(cls, trabajadora, desde=None, hasta=None):

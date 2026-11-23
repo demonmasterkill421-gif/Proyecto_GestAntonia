@@ -49,3 +49,9 @@ export const aprobarSolicitud = (id, respuesta = "") =>
 
 export const rechazarSolicitud = (id, respuesta = "") =>
   api.post(`/api/solicitudes-anulacion/${id}/rechazar/`, { respuesta });
+// Boleta de una venta en PDF: { blob, nombre }
+export const descargarBoleta = async (id) => {
+  const respuesta = await api.get(`/api/ventas/${id}/boleta/`, { responseType: "blob" });
+  const coincide = /filename="?([^";]+)"?/i.exec(respuesta.headers["content-disposition"] ?? "");
+  return { blob: respuesta.data, nombre: coincide ? coincide[1] : `Boleta_${id}.pdf` };
+};

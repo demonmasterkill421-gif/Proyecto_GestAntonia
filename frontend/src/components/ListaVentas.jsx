@@ -27,7 +27,9 @@ import {
   cambiarClaveAnulacion,
   solicitarAnulacion,
   obtenerSolicitudes,
+  descargarBoleta,
 } from "../api/ventas.api";
+import { guardarBoleta, imprimirBoleta, prepararCarpetaBoletas } from "../utils/boletas";
 import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
 
 const clp = (n) =>
@@ -474,6 +476,28 @@ export function ListaVentas({ rol }) {
     }
   };
 
+  // Boleta en PDF: se guarda en la carpeta "Boletas Ventas" (o se descarga) o se imprime directo
+  const [boletaEnCurso, setBoletaEnCurso] = useState(null);
+  const boleta = async (v, accion) => {
+    if (boletaEnCurso) return;
+    setBoletaEnCurso(v.id);
+    try {
+      const carpeta = accion === "guardar" ? await prepararCarpetaBoletas() : null;
+      const { blob, nombre } = await descargarBoleta(v.id);
+      if (accion === "imprimir") {
+        imprimirBoleta(blob);
+      } else {
+        const donde = await guardarBoleta(blob, nombre, carpeta);
+        toast.success(donde === "carpeta" ? "Boleta guardada en «Boletas Ventas»" : "Boleta descargada");
+      }
+    } catch (err) {
+      const sinDetalle = err?.response?.data instanceof Blob;
+      toast.error(sinDetalle ? "No se pudo generar la boleta." : mensajeError(err));
+    } finally {
+      setBoletaEnCurso(null);
+    }
+  };
+
   // Detalle de una venta. Es el mismo en el celular y en el computador.
   // Las líneas separan secciones; los ítems van agrupados, sin línea entre ellos.
   const detalle = (v) => (
@@ -510,7 +534,9 @@ export function ListaVentas({ rol }) {
       {Number(v.descuento) > 0 && (
         <div className="flex items-center justify-between gap-3 py-3 text-base font-medium text-[#9c2d7b]">
           <span>Descuento aplicado</span>
-          <span className="font-semibold">{Number(v.descuento)}%</span>
+          <span className="font-semibold">
+            {v.descuento_monto > 0 ? `- ${clp(v.descuento_monto)}` : `${Number(v.descuento)}%`}
+          </span>
         </div>
       )}
 
@@ -518,6 +544,27 @@ export function ListaVentas({ rol }) {
         <div className="py-3">
           <p className="text-base text-[#9c2d7b]">Descripción</p>
           <p className="break-words text-base text-[#1f1218]">{v.descripcion}</p>
+        </div>
+      )}
+
+      {v.estado !== "BORRADOR" && (
+        <div className="grid gap-2 py-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => boleta(v, "guardar")}
+            disabled={boletaEnCurso === v.id}
+            className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#b5368f] px-4 text-base font-semibold text-white hover:bg-[#9c2d7b] disabled:opacity-60"
+          >
+            <Download size={18} /> Descargar boleta
+          </button>
+          <button
+            type="button"
+            onClick={() => boleta(v, "imprimir")}
+            disabled={boletaEnCurso === v.id}
+            className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#f7e3f1] disabled:opacity-60"
+          >
+            <Receipt size={18} /> Imprimir boleta
+          </button>
         </div>
       )}
 

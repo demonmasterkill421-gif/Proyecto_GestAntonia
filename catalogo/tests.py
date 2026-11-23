@@ -57,6 +57,9 @@ class InventarioAPITests(TestCase):
         self.assertEqual(respuesta.data['resumen'], {'total_productos': 2, 'stock_total': 15, 'stock_bajo': 1})
 
 
+    # test_pantalla_django_original se quitó: probaba la pantalla /inventario/ hecha con plantillas
+    # de Django, que ya no está conectada (Inventario ahora es React y usa /api/catalogo/inventario/,
+    # probado arriba). Por eso fallaba con 404.
 
 class EditarInventarioAPITests(TestCase):
     """M11: editar producto y reponer stock desde la pantalla de Inventario."""
@@ -138,3 +141,5 @@ class EditarInventarioAPITests(TestCase):
         self.client.force_authenticate(self.admin)
         self.assertEqual(self.client.patch('/api/catalogo/inventario/9999/', {'nombre': 'X'}, format='json').status_code, 404)
         self.assertEqual(self.client.post('/api/catalogo/inventario/9999/ajustar/', {'cantidad': 1}, format='json').status_code, 404)
+
+

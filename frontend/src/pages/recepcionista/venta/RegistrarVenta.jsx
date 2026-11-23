@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, User, ShoppingBag, Droplets, CreditCard, ChevronDown, ClipboardCheck, Printer, FolderOpen, CircleCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { Sidebar } from "../../../components/Sidebar";
 import { PanelServicio } from "../../../components/PanelServicio";
 import { PanelItems } from "../../../components/PanelItems";
 import { SeccionPlegable } from "../../../components/SeccionPlegable";
 import { useTitulo } from "../../../hooks/useTitulo";
-import { registrarVenta } from "../../../api/ventas.api";
+import { descargarBoleta, registrarVenta } from "../../../api/ventas.api";
+import { carpetaActual, guardarBoleta, imprimirBoleta, prepararCarpetaBoletas, soportaCarpeta } from "../../../utils/boletas";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -44,6 +45,10 @@ export function RegistrarVenta() {
   const [enviando, setEnviando] = useState(false);
   const [resumenAbierto, setResumenAbierto] = useState(true);
   const [confirmando, setConfirmando] = useState(false); // Visualizar panel de confirmar ventas
+  // Venta recién registrada: { folio, total, boleta: Blob | null, guardada: "carpeta" | "descarga" | null }
+  const [registrada, setRegistrada] = useState(null);
+  const [carpeta, setCarpeta] = useState(null); // nombre de la carpeta de boletas, para mostrarlo
+  useEffect(() => { carpetaActual().then(setCarpeta); }, []);
   const botonVolver = useRef(null);
 
 
@@ -121,10 +126,9 @@ export function RegistrarVenta() {
     if (!listo || enviando) return; //Si no está listo o si se envía, se cancela. Return = Break
     setEnviando(true);
 
-    //Transformar descuento dependiendo de su tipo
-    //si es un porcentaje, bien, de lo contrario, se transforma a porcentaje
-    const porcentaje =
-      tipoDescuento === "%" ? valor : Number(((valor / subtotal) * 100).toFixed(2));
+    // La carpeta "Boletas Ventas" se prepara ANTES de hablar con el servidor: el navegador solo
+    // muestra su ventana de permiso en respuesta directa al clic. Sin carpeta, la boleta se descarga.
+    const carpetaBoletas = await prepararCarpetaBoletas();
 
 
       //Objeto de registro de venta
@@ -141,23 +145,48 @@ export function RegistrarVenta() {
         ...insumos.map((i) => ({ item: i.id, cantidad: i.cantidad })),
       ],
       metodo_pago: metodoPago,
-      descuento: porcentaje, //porcentaje calculado previamente
+      // El descuento viaja tal como se escribió: en % o en pesos (así el total queda exacto, ej.: 80.000 cerrados)
+      descuento: tipoDescuento === "%" ? valor : 0,
+      descuento_monto: tipoDescuento === "CLP" ? valor : 0,
       descripcion: descripcion.trim(), //función que quita los espacios de inicio y final del texto
     };
 
+    let venta;
     try {
-      await registrarVenta(datos);
-      setConfirmando(false);
-      reiniciar();
-      toast.success(`Venta registrada por ${clp(total)}`);
-      navigate("/recepcionista/ventas");
+      ({ data: venta } = await registrarVenta(datos));
     } catch (err) {
       console.log("Error al registrar:", err.response?.data);
       setConfirmando(false);
       const motivo = err.response ? primerMensaje(err.response.data) : "sin conexión con el servidor";
       toast.error(motivo ? `No se pudo registrar la venta: ${motivo}` : "No se pudo registrar la venta");
-    } finally {
       setEnviando(false);
+      return;
+    }
+
+    // La venta ya quedó registrada: ahora la boleta (si falla, la venta igual está guardada)
+    let boleta = null;
+    let guardada = null;
+    try {
+      const { blob, nombre } = await descargarBoleta(venta.id);
+      boleta = blob;
+      guardada = await guardarBoleta(blob, nombre, carpetaBoletas);
+      if (carpetaBoletas) carpetaActual().then(setCarpeta);
+    } catch (err) {
+      console.log("Error al generar la boleta:", err);
+      toast.error("La venta quedó registrada, pero no se pudo generar la boleta. Puedes descargarla desde Ventas.");
+    }
+    setConfirmando(false);
+    reiniciar();
+    setRegistrada({ folio: venta.folio, total: venta.monto_total, boleta, guardada });
+    setEnviando(false);
+  };
+
+  const cambiarCarpeta = async () => {
+    const elegida = await prepararCarpetaBoletas({ cambiar: true });
+    if (elegida) {
+      const nombre = await carpetaActual();
+      setCarpeta(nombre);
+      toast.success(`Las boletas se guardarán en ${nombre}`);
     }
   };
 
@@ -420,6 +449,17 @@ export function RegistrarVenta() {
                 Confirmar venta
               </button>
             </div>
+            {soportaCarpeta() && (
+              <p className="mt-4 flex flex-wrap items-center gap-x-2 text-sm text-gray-600">
+                <FolderOpen size={16} className="shrink-0 text-[#b5368f]" />
+                {carpeta ? <>Boletas en «{carpeta}»</> : <>Al confirmar podrás elegir dónde crear la carpeta «Boletas Ventas»</>}
+                {carpeta && (
+                  <button type="button" onClick={cambiarCarpeta} className="cursor-pointer font-semibold text-[#b5368f] underline">
+                    Cambiar
+                  </button>
+                )}
+              </p>
+            )}
           </section>
         </div>
       </div>
@@ -502,6 +542,47 @@ export function RegistrarVenta() {
           </div>
         </div>
       </div>
+      {/* Venta registrada: imprimir la boleta, otra venta o ver la lista */}
+      {registrada && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-registrada"
+            className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700">
+              <CircleCheck size={36} />
+            </span>
+            <h2 id="titulo-registrada" className="mt-4 text-2xl font-bold text-[#1f1218]">
+              Venta registrada · Boleta N° {registrada.folio}
+            </h2>
+            <p className="mt-1 text-lg font-semibold text-[#b5368f]">{clp(registrada.total)}</p>
+            {registrada.guardada === "carpeta" && (
+              <p className="mt-3 flex items-center justify-center gap-2 text-base text-gray-600">
+                <FolderOpen size={18} /> Boleta guardada en «{carpeta ?? "Boletas Ventas"}»
+              </p>
+            )}
+            {registrada.guardada === "descarga" && (
+              <p className="mt-3 text-base text-gray-600">La boleta se descargó en la carpeta de descargas.</p>
+            )}
+            <div className="mt-6 grid gap-3">
+              {registrada.boleta && (
+                <button type="button" autoFocus onClick={() => imprimirBoleta(registrada.boleta)}
+                  className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#b5368f] text-lg font-semibold text-white hover:bg-[#9c2d7b]">
+                  <Printer size={20} /> Imprimir boleta
+                </button>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => setRegistrada(null)}
+                  className="h-12 cursor-pointer rounded-lg border border-[#b5368f] bg-white text-lg font-semibold text-[#b5368f] hover:bg-[#fbeef6]">
+                  Nueva venta
+                </button>
+                <button type="button" onClick={() => navigate("/recepcionista/ventas")}
+                  className="h-12 cursor-pointer rounded-lg border border-gray-300 bg-white text-lg font-semibold text-gray-700 hover:bg-gray-50">
+                  Ver ventas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Sidebar>
   );
 }

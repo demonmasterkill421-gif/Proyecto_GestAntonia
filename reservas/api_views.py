@@ -275,10 +275,15 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
 # ------------------------------------------------------------------ catálogo
 class ServicioViewSet(viewsets.ReadOnlyModelViewSet):
-    """GET /api/reservas/servicios/ → servicios vigentes (con duración, para calcular el fin)."""
+    """GET /api/reservas/servicios/ → servicios vigentes (con duración, para calcular el fin).
+
+    No incluye el servicio «Otro» de las ventas: su nombre y precio se escriben a mano al cobrar,
+    así que no se puede agendar."""
     serializer_class = ServicioSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista]
-    queryset = Servicio.objects.filter(activo=True).order_by("nombre")
+    queryset = (Servicio.objects.filter(activo=True)
+                .exclude(nombre__iexact="Otro", tipo=Servicio.Tipo.OTRO)
+                .order_by("nombre"))
 
 
 # ------------------------------------------------------------------ locales

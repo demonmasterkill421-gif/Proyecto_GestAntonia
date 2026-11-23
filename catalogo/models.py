@@ -18,6 +18,14 @@ class Item(models.Model):
     def __str__(self):
         return f"{self.nombre} (${self.precio:,})".replace(",", ".")
 
+    def precio_en(self, local):
+        """Precio del ítem en un local: el precio especial de ese local si la administradora lo
+        definió (ej.: el Mall es más caro) o, si no, el precio base."""
+        if local is None:
+            return self.precio
+        especial = self.precios_local.filter(local=local).values_list("precio", flat=True).first()
+        return self.precio if especial is None else especial
+
     @property
     def es_producto(self):
         return hasattr(self, "producto")
@@ -109,3 +117,32 @@ class MovimientoInventario(models.Model):
     def __str__(self):
         tipo = "Entrada" if self.cantidad > 0 else "Salida"
         return f"{tipo} {self.cantidad:+d}"
+
+def es_servicio_otro(item):
+    """True solo para el servicio «Otro» de las ventas (tipo OTRO y llamado "Otro"): su nombre y precio
+    se escriben a mano al cobrar. Otros servicios de tipo OTRO (ej.: Limpieza facial) cobran su precio."""
+    return bool(item.es_servicio and item.servicio.tipo == Servicio.Tipo.OTRO
+                and item.nombre.strip().lower() == "otro")
+
+
+class PrecioLocal(models.Model):
+    """Precio especial de un servicio o producto en un local. Sin registro, rige el precio base del ítem."""
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="precios_local")
+    local = models.ForeignKey("locales.Local", on_delete=models.CASCADE, related_name="precios_items")
+    precio = models.PositiveIntegerField("precio en el local (CLP)")
+
+    class Meta:
+        verbose_name = "precio por local"
+        verbose_name_plural = "precios por local"
+        constraints = [models.UniqueConstraint(fields=["item", "local"], name="precio_unico_por_local")]
+
+    def __str__(self):
+        return f"{self.item.nombre} en {self.local}: ${self.precio:,}".replace(",", ".")
+
+
+def precios_del_local(local):
+    """{id_item: precio} con los precios especiales de un local (para listar muchos ítems sin una consulta por cada uno)."""
+    if local is None:
+        return {}
+    return dict(PrecioLocal.objects.filter(local=local).values_list("item_id", "precio"))

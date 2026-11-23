@@ -12,6 +12,8 @@ const NOMBRE_MAXIMO = 100;
 // El servicio «Otro» (nombre y monto a mano) es un servicio real de la base de datos, de tipo OTRO.
 // Los límites de monto y nombre son los mismos que exige el servidor.
 const TIPO_OTRO = "OTRO";
+// Solo el servicio llamado «Otro» pide nombre y monto; otro servicio de tipo OTRO (ej.: Limpieza facial) cobra su precio
+const esServicioOtro = (s) => s?.tipo === TIPO_OTRO && s?.nombre?.trim().toLowerCase() === "otro";
 
 export function PanelServicio({ servicios, setServicios }) {
   const { datos: serviciosApi, cargando, error } = useDatos(obtenerServiciosVenta, { cadaMs: 60000 });
@@ -29,11 +31,11 @@ export function PanelServicio({ servicios, setServicios }) {
     useDatos(obtenerTrabajadorasVenta, { cadaMs: 60000 });
   // «Otro» va al final de la lista
   const catalogo = [
-    ...serviciosApi.filter((s) => s.tipo !== TIPO_OTRO),
-    ...serviciosApi.filter((s) => s.tipo === TIPO_OTRO),
+    ...serviciosApi.filter((s) => !esServicioOtro(s)),
+    ...serviciosApi.filter((s) => esServicioOtro(s)),
   ];
   const servicioElegido = catalogo.find((s) => String(s.id) === String(elegido));
-  const esOtro = servicioElegido?.tipo === TIPO_OTRO;
+  const esOtro = esServicioOtro(servicioElegido);
 
   const limpiar = () => {
     setEditandoUid(null);
@@ -186,7 +188,7 @@ export function PanelServicio({ servicios, setServicios }) {
                 </option>
                 {catalogo.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.tipo === TIPO_OTRO ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
+                    {esServicioOtro(s) ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
                   </option>
                 ))}
               </select>

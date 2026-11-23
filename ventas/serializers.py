@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from catalogo.models import Servicio
+from catalogo.models import es_servicio_otro
 
 from .models import (
     NOMBRE_MANUAL_MAXIMO,
@@ -17,12 +17,14 @@ MAX_CANTIDAD_POR_ITEM = 10
 
 
 def _es_servicio_otro(item):
-    """True si el ítem es el servicio «Otro», el único que admite precio y nombre escritos a mano."""
-    return item.es_servicio and item.servicio.tipo == Servicio.Tipo.OTRO
+    """True si el ítem es el servicio «Otro», el único que admite precio y nombre escritos a mano.
+    Se reconoce por tipo OTRO y nombre "Otro": un servicio normal de tipo OTRO cobra su precio."""
+    return es_servicio_otro(item)
 
 
 class DetalleVentaSerializer(serializers.ModelSerializer):
     subtotal = serializers.ReadOnlyField()
+    item_nombre = serializers.CharField(source="nombre_visible", read_only=True)
     trabajador_nombre = serializers.SerializerMethodField()
 
     # Solo para el servicio «Otro»: el precio llega aquí y se guarda en precio_unitario
@@ -48,10 +50,10 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
     class Meta:
         model = DetalleVenta
         fields = [
-            "item", "cantidad", "precio_unitario", "subtotal", "trabajador", "trabajador_nombre",
-            "nombre_manual", "es_precio_manual", "precio_manual",
+            "item", "item_nombre", "cantidad", "precio_unitario", "subtotal", "trabajador", "trabajador_nombre",
+            "nombre_manual", "es_precio_manual", "precio_manual", "porcentaje_comision",
         ]
-        read_only_fields = ["precio_unitario", "es_precio_manual"]
+        read_only_fields = ["precio_unitario", "es_precio_manual", "porcentaje_comision"]
 
     def validate_cantidad(self, value):
         if value < 1:
@@ -97,8 +99,8 @@ class VentaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RegistroDeVenta
-        fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "metodo_pago", "descuento", "descripcion", "monto_base",
-                  "monto_total", "estado", "detalles"]
+        fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "metodo_pago", "descuento",
+                  "descuento_monto", "descripcion", "monto_base", "monto_total", "estado", "detalles"]
         read_only_fields = ["folio", "fecha", "recepcionista", "monto_base", "monto_total", "estado"]
         extra_kwargs = {"local": {"required": False}}
         validators = []
@@ -125,7 +127,17 @@ class VentaSerializer(serializers.ModelSerializer):
                 )
         return value
     
+    def validate_descuento_monto(self, value):
+        if value > 10_000_000:
+            raise serializers.ValidationError("El descuento en pesos no es válido.")
+        return value
+
     def validate(self, attrs):
+        # Descuento en pesos o en %, no ambos (el de pesos deja el total exacto)
+        if attrs.get("descuento_monto") and attrs.get("descuento"):
+            raise serializers.ValidationError(
+                {"descuento": "Indica el descuento en pesos o en porcentaje, no ambos."}
+            )
         # Cada servicio debe indicar la trabajadora que lo realiza (base de su comisión).
         for d in attrs.get("detalles", []):
             if not d["item"].es_producto and d.get("trabajador") is None:
@@ -144,7 +156,8 @@ class VentaSerializer(serializers.ModelSerializer):
                 metodoPago=validated_data.get("metodo_pago", RegistroDeVenta.MetodoPago.EFECTIVO),
                 descuento=validated_data.get("descuento", 0),
                 descripcion=validated_data.get("descripcion", ""),
-                itemsLista=detalles
+                itemsLista=detalles,
+                descuento_monto=validated_data.get("descuento_monto", 0),
             )
         except DjangoValidationError as e:
             raise serializers.ValidationError(e.messages)
