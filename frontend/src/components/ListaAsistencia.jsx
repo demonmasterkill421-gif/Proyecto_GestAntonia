@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleCheck, Clock, Download, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
+import { CircleCheck, Clock, Download, FileText, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   corregirAsistencia,
@@ -226,8 +226,8 @@ export function ListaAsistencia({ rol }) {
   };
 
   // ---------- Descargar el Excel del período (solo ADMIN) ----------
-  const descargar = async () => {
-    setDescargando(true);
+  const descargar = async (formato = "excel") => {
+    setDescargando(formato);
     try {
       // Carpeta "Reportes Asistencia" (si ya se eligió); se pide antes de esperar al servidor
       const carpeta = await prepararCarpeta("asistencia", { elegirSiFalta: false });
@@ -235,12 +235,12 @@ export function ListaAsistencia({ rol }) {
         desde: periodo.desde,
         hasta: periodo.hasta,
         local: localId,
-      });
-      const nombre = `asistencia_${periodo.desde}_a_${periodo.hasta}.xlsx`;
+      }, formato);
+      const nombre = `asistencia_${periodo.desde}_a_${periodo.hasta}.${formato === "pdf" ? "pdf" : "xlsx"}`;
       const donde = await guardarArchivo(archivo, nombre, carpeta);
       toast.success(donde === "carpeta" ? `Guardado en «Reportes Asistencia»: ${nombre}` : `Descargado: ${nombre}`);
     } catch {
-      toast.error("No se pudo descargar el Excel");
+      toast.error(formato === "pdf" ? "No se pudo descargar el PDF" : "No se pudo descargar el Excel");
     } finally {
       setDescargando(false);
     }
@@ -542,15 +542,26 @@ export function ListaAsistencia({ rol }) {
             </select>
 
             {esAdmin && (
-              <button
-                type="button"
-                onClick={descargar}
-                disabled={descargando}
-                className={`${botonEntrada} inline-flex h-12 items-center justify-center gap-2 px-5`}
-              >
-                <Download size={20} />
-                {descargando ? "Descargando..." : "Descargar Excel"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => descargar("excel")}
+                  disabled={Boolean(descargando)}
+                  className={`${botonEntrada} inline-flex h-12 items-center justify-center gap-2 px-5`}
+                >
+                  <Download size={20} />
+                  {descargando === "excel" ? "Descargando..." : "Descargar Excel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => descargar("pdf")}
+                  disabled={Boolean(descargando)}
+                  className={`${botonSalida} inline-flex h-12 items-center justify-center gap-2 px-5`}
+                >
+                  <FileText size={20} />
+                  {descargando === "pdf" ? "Generando..." : "Descargar PDF"}
+                </button>
+              </>
             )}
           </div>
         </div>

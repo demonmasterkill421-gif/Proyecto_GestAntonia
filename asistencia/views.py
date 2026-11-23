@@ -14,6 +14,7 @@ from usuarios.models import Usuario
 from ventas.permissions import EsRecepcionista, MismoLocal
 
 from .exportarExcel import construir_excel
+from .exportarPdf import construir_pdf
 from .models import RegistroDeAsistencia, CodigoQR
 from .permissions import EsAdministrador
 from .serializers import (
@@ -185,7 +186,10 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
         local = modelo_local.objects.filter(pk=local_id).first()
         local_nombre = local.nombre if local else f"Local {local_id}"
 
-        contenido = construir_excel(
+        # ?formato=pdf → PDF; si no, Excel (como antes)
+        es_pdf = request.query_params.get("formato") == "pdf"
+        construir = construir_pdf if es_pdf else construir_excel
+        contenido = construir(
             registros,
             _filas_resumen(trabajadoras, registros),
             desde,
@@ -193,9 +197,10 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             local_nombre,
         )
 
-        respuesta = HttpResponse(contenido, content_type=TIPO_XLSX)
+        extension = "pdf" if es_pdf else "xlsx"
+        respuesta = HttpResponse(contenido, content_type="application/pdf" if es_pdf else TIPO_XLSX)
         respuesta["Content-Disposition"] = (
-            f'attachment; filename="asistencia_{desde}_a_{hasta}.xlsx"'
+            f'attachment; filename="asistencia_{desde}_a_{hasta}.{extension}"'
         )
         return respuesta
 
