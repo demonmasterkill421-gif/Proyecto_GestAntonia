@@ -1,22 +1,57 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import DetalleVenta, RegistroDeVenta, SolicitudAnulacion
+from catalogo.models import Servicio
+
+from .models import (
+    NOMBRE_MANUAL_MAXIMO,
+    PRECIO_MANUAL_MAXIMO,
+    ClaveAnulacion,
+    DetalleVenta,
+    RegistroDeVenta,
+    SolicitudAnulacion,
+)
 from .services import registrar_venta
 
-# Tope de unidades de un mismo ítem en una sola venta (evita vaciar el stock por error o mal uso).
 MAX_CANTIDAD_POR_ITEM = 10
+
+
+def _es_servicio_otro(item):
+    """True si el ítem es el servicio «Otro», el único que admite precio y nombre escritos a mano."""
+    return item.es_servicio and item.servicio.tipo == Servicio.Tipo.OTRO
 
 
 class DetalleVentaSerializer(serializers.ModelSerializer):
     subtotal = serializers.ReadOnlyField()
-    # Nombre de la trabajadora, para mostrarlo sin depender de listas fijas en el frontend
     trabajador_nombre = serializers.SerializerMethodField()
+
+    # Solo para el servicio «Otro»: el precio llega aquí y se guarda en precio_unitario
+    precio_manual = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        min_value=1,
+        max_value=PRECIO_MANUAL_MAXIMO,
+        error_messages={
+            "invalid": "El precio debe ser un número entero.",
+            "min_value": "El precio debe ser al menos $1.",
+            "max_value": f"El precio máximo es ${PRECIO_MANUAL_MAXIMO:,}.".replace(",", "."),
+        },
+    )
+    nombre_manual = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=NOMBRE_MANUAL_MAXIMO,
+        error_messages={"max_length": f"El nombre no puede superar los {NOMBRE_MANUAL_MAXIMO} caracteres."},
+    )
 
     class Meta:
         model = DetalleVenta
-        fields = ["item", "cantidad", "precio_unitario", "subtotal", "trabajador", "trabajador_nombre"]
-        read_only_fields = ["precio_unitario"]
+        fields = [
+            "item", "cantidad", "precio_unitario", "subtotal", "trabajador", "trabajador_nombre",
+            "nombre_manual", "es_precio_manual", "precio_manual",
+        ]
+        read_only_fields = ["precio_unitario", "es_precio_manual"]
 
     def validate_cantidad(self, value):
         if value < 1:
@@ -36,6 +71,25 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
         if value is not None and value.rol != "TRAB":
             raise serializers.ValidationError("El usuario debe tener rol de Trabajador.")
         return value
+
+    def validate(self, datos):
+        item = datos["item"]
+        precio = datos.get("precio_manual")
+        nombre = (datos.get("nombre_manual") or "").strip()
+
+        if _es_servicio_otro(item):
+            if precio is None:
+                raise serializers.ValidationError({"precio_manual": "Escribe el precio del servicio «Otro»."})
+            if not nombre:
+                raise serializers.ValidationError({"nombre_manual": "Escribe el nombre del servicio «Otro»."})
+            if datos["cantidad"] != 1:
+                raise serializers.ValidationError({"cantidad": "El servicio «Otro» se registra de a uno."})
+            datos["nombre_manual"] = nombre
+        elif precio is not None or nombre:
+            # Un servicio normal siempre cobra el precio del catálogo
+            raise serializers.ValidationError("Solo el servicio «Otro» admite precio o nombre escritos a mano.")
+
+        return datos
 
 class VentaSerializer(serializers.ModelSerializer):
     detalles = DetalleVentaSerializer(many=True)
@@ -60,7 +114,6 @@ class VentaSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("La venta debe tener al menos un item")
 
-        # Si el mismo ítem viene en varias líneas, se suman: el tope vale por ítem en toda la venta.
         totales = {}
         for d in value:
             item = d["item"]
@@ -128,6 +181,12 @@ def _nombre_de(usuario):
     return usuario.get_full_name() or usuario.email
 
 
+
+class AnularVentaSerializer(SolicitarAnulacionSerializer):
+    clave = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+
+
+
 class SolicitudAnulacionSerializer(serializers.ModelSerializer):
     """Una solicitud de anulación con los datos de la venta, para mostrarla en listas."""
 
@@ -157,3 +216,34 @@ class SolicitudAnulacionSerializer(serializers.ModelSerializer):
 
     def get_resuelta_por_nombre(self, obj):
         return _nombre_de(obj.resuelta_por)
+
+
+
+class CambiarClaveAnulacionSerializer(serializers.Serializer):
+    clave = serializers.CharField(
+        write_only=True,
+        min_length=6,
+        max_length=128,
+        trim_whitespace=False,
+        error_messages={
+            "blank": "Escribe la clave nueva.",
+            "required": "Escribe la clave nueva.",
+            "min_length": "La clave debe tener al menos 6 caracteres.",
+            "max_length": "La clave no puede tener más de 128 caracteres.",
+        },
+    )
+    repetir_clave = serializers.CharField(
+        write_only=True,
+        max_length=128,
+        trim_whitespace=False,
+        error_messages={
+            "blank": "Repite la clave.",
+            "required": "Repite la clave.",
+        },
+    )
+
+    def validate(self, datos):
+        # Se revisa después de validar cada campo por separado
+        if datos["clave"] != datos["repetir_clave"]:
+            raise serializers.ValidationError({"repetir_clave": "Las claves no coinciden."})
+        return datos

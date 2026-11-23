@@ -68,7 +68,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     #login acepta como máximo 5 peticiones por minuto.
-    "DEFAULT_THROTTLE_RATES": {"login": "5/min"},
+    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "clave_anulacion": "20/hour"},
     # A4: hay un proxy delante (Nginx). Con esto el límite usa la IP real que agrega
     # Nginx y no lo que el navegador escriba en la cabecera X-Forwarded-For
     # (si no, bastaba con cambiar esa cabecera para saltarse el límite).
@@ -87,8 +87,8 @@ CACHES = {
 
 # Duración de la sesión de la página (token JWT)
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(hours=8),
 }
 
 ROOT_URLCONF = "gestantonia.urls"

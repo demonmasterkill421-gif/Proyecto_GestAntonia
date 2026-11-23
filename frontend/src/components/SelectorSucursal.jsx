@@ -23,16 +23,21 @@ export function SelectorSucursal() {
 
   return (
     <div className="relative">
+      {/* En el celular es un botón redondo solo con el ícono; desde "sm" muestra también el nombre y la flecha */}
       <button
         type="button"
         onClick={() => setAbierto(!abierto)}
-        className="flex cursor-pointer items-center gap-2 rounded-full bg-[#f7e3f1] px-4 py-1.5 text-[15px] font-medium text-[#b5368f] transition hover:bg-[#f4cfe6] active:scale-95"
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        aria-label={`Local: ${actual.nombre}. Cambiar local`}
+        title={actual.nombre}
+        className="flex h-10 w-10 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#f7e3f1] text-[15px] font-medium text-[#b5368f] transition hover:bg-[#f4cfe6] active:scale-95 sm:h-auto sm:w-auto sm:px-4 sm:py-1.5"
       >
-        <Store size={16} />
-        {actual.nombre}
+        <Store size={20} className="shrink-0 sm:h-4 sm:w-4" />
+        <span className="hidden max-w-[11rem] truncate sm:inline lg:max-w-none">{actual.nombre}</span>
         <ChevronDown
           size={16}
-          className={`transition-transform ${abierto ? "rotate-180" : ""}`}
+          className={`hidden shrink-0 transition-transform sm:block ${abierto ? "rotate-180" : ""}`}
         />
       </button>
 

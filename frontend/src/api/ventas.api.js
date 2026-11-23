@@ -22,15 +22,22 @@ export const exportarVentas = async (ids) => {
 };
 
 
+// Solo comprueba la clave de anulación (no anula nada). Falla con 400 si es incorrecta
+export const verificarClaveAnulacion = (clave) => api.post("/api/ventas/verificar-clave/", { clave });
 
+// Clave de anulación (solo la administradora): si ya existe y cuándo se cambió. Nunca devuelve la clave
+export const obtenerEstadoClave = async () => {
+  const { data } = await api.get("/api/ventas/clave-anulacion/");
+  return data;
+};
 
+// Crea o cambia la clave de anulación; devuelve el estado nuevo
+export const cambiarClaveAnulacion = async (clave, repetirClave) => {
+  const { data } = await api.post("/api/ventas/clave-anulacion/", { clave, repetir_clave: repetirClave });
+  return data;
+};
 
-
-
-
-
-
-export const anularVenta = (id, motivo) => api.post(`/api/ventas/${id}/anular/`, { motivo });
+export const anularVenta = (id, motivo, clave) => api.post(`/api/ventas/${id}/anular/`, { motivo, clave });
 
 export const solicitarAnulacion = (id, motivo) =>
   api.post(`/api/ventas/${id}/solicitar-anulacion/`, { motivo });

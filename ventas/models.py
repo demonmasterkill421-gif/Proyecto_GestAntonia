@@ -8,10 +8,16 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Max
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
+
 
 
 def _redondear(valor): #Función que convierte un valor FLOAT a DECIMAL y lo redondea.
     return int(Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+#Límites del servicio "Otro" (precio y nombre escritos a mano por la recepcionista)
+PRECIO_MANUAL_MAXIMO = 100000
+NOMBRE_MANUAL_MAXIMO = 100
 
 
 
@@ -102,10 +108,27 @@ class RegistroDeVenta(models.Model):
 
 
     #Agregar un Item a la lista(Servicio, producto o insumo)___________________________________________
-    def agregar_item(self, item, cantidad=1, trabajador=None): #Se obtiene del detalle de la venta
+    def agregar_item(self, item, cantidad=1, trabajador=None, precio_manual=None, nombre_manual=""): #Se obtiene del detalle de la venta
         self._validar_editable() 
         if cantidad < 1:
             raise ValidationError("La cantidad debe ser al menos 1.")
+
+        # Servicio "Otro": el precio y el nombre los escribió la recepcionista.
+        # Cada uno queda en su propia línea; si se juntaran con otro igual, se perdería su precio.
+        if precio_manual is not None:
+            nombre_manual = (nombre_manual or "").strip()
+            if not nombre_manual:
+                raise ValidationError("Escribe el nombre del servicio.")
+            if len(nombre_manual) > NOMBRE_MANUAL_MAXIMO:
+                raise ValidationError(f"El nombre del servicio no puede superar los {NOMBRE_MANUAL_MAXIMO} caracteres.")
+            if not 1 <= precio_manual <= PRECIO_MANUAL_MAXIMO:
+                raise ValidationError(f"El precio debe estar entre $1 y ${PRECIO_MANUAL_MAXIMO:,}.".replace(",", "."))
+            detalle = self.detalles.create(
+                item=item, cantidad=cantidad, trabajador=trabajador,
+                precio_unitario=precio_manual, nombre_manual=nombre_manual, es_precio_manual=True,
+            )
+            self.recalcular()
+            return detalle
 
         # Los insumos se descuentan del stock pero NO se cobran: su precio de venta es 0.
         precio = item.precio
@@ -221,6 +244,10 @@ class DetalleVenta(models.Model):
     #Precio del Item___________________________________________
     precio_unitario = models.PositiveIntegerField("precio unitario (CLP)")
 
+    #Servicio "Otro": nombre escrito por la recepcionista y marca de que el precio se puso a mano___________________________________________
+    nombre_manual = models.CharField("nombre manual", max_length=100, blank=True, default="")
+    es_precio_manual = models.BooleanField("precio manual", default=False)
+
 
     #Trabajadora Asociada___________________________________________
     trabajador = models.ForeignKey(
@@ -236,7 +263,7 @@ class DetalleVenta(models.Model):
         verbose_name_plural = "detalles de venta"
 
     def __str__(self):
-        return f"{self.item.nombre} x{self.cantidad}"
+        return f"{self.nombre_manual or self.item.nombre} x{self.cantidad}"
 
 
     #@property sirve para convertir un método en un atributo llamado bajo su propia función
@@ -281,7 +308,6 @@ class DetalleVenta(models.Model):
 
 
 class SolicitudAnulacion(models.Model):
-    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la aprueba."""
 
     class Estado(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
@@ -319,3 +345,25 @@ class SolicitudAnulacion(models.Model):
 
     def __str__(self):
         return f"Solicitud de anulación · venta #{self.venta_id} · {self.get_estado_display()}"
+
+
+
+
+class ClaveAnulacion(models.Model):
+
+    passw_hash = models.CharField(max_length=128)
+    actualizada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="clave_anulacion_actualizadas", null=True, blank=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def establecer(self, passw, user=None):
+        self.passw_hash = make_password(passw)
+        self.actualizada_por = user
+        self.save()
+
+    def save(self, *args, **kwargs):
+        # Solo puede haber una clave en todo el sistema: siempre se guarda en la misma fila
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def validar(self, passw):
+        return check_password(passw, self.passw_hash)
