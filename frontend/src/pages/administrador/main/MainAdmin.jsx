@@ -23,7 +23,8 @@ export function MainAdmin() {
     <Sidebar fondo="bg-[#f1cfe4]">
       <TituloAnimado />
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      {/* auto-rows-fr: todas las filas igual de altas, aunque la descripción de una tarjeta ocupe una sola línea */}
+      <div className="mt-6 grid gap-5 lg:grid-cols-2 lg:auto-rows-fr">
         <PanelAtajo
           titulo="Ventas"
           descripcion="Visualizar las ventas de mis locales y descargar la información"
