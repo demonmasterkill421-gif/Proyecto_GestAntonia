@@ -28,3 +28,8 @@ Thumbs.db
 
 # Caché de Django (límite de intentos del login)
 .cache_django/
+
+# Carpeta deploy: respaldos de la base, copias del .env y scripts locales NO se suben.
+# Solo se versiona el script de despliegue (el servidor lo descarga desde main).
+deploy/*
+!deploy/deploy_gestantonia.sh
