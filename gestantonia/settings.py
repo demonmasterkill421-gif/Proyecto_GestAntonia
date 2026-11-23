@@ -7,15 +7,22 @@ que NO se sube a GitHub. Use .env.example como plantilla.
 import os
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "solo-para-desarrollo-cambiar-en-el-archivo-env")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+
+# En producción la clave secreta DEBE venir del .env: si falta, el sistema no arranca
+# (con la clave de desarrollo, que es pública en GitHub, se podrían falsificar sesiones).
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("Falta DJANGO_SECRET_KEY en el archivo .env")
+    SECRET_KEY = "solo-para-desarrollo-cambiar-en-el-archivo-env"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 
 INSTALLED_APPS = [
@@ -50,7 +57,7 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"] + [
-    o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()   # p. ej. el frontend en Vercel
+    o.strip() for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o.strip()   # p. ej. el dominio del servidor
 ]
 
 REST_FRAMEWORK = {
@@ -60,12 +67,28 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    #login acepta como máximo 5 peticiones por minuto.
+    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "clave_anulacion": "20/hour"},
+    # A4: hay un proxy delante (Nginx). Con esto el límite usa la IP real que agrega
+    # Nginx y no lo que el navegador escriba en la cabecera X-Forwarded-For
+    # (si no, bastaba con cambiar esa cabecera para saltarse el límite).
+    "NUM_PROXIES": 1,
+}
+
+# A4: caché compartida en archivos para que los 3 procesos de Gunicorn del servidor
+# lleven una sola cuenta de intentos de login (con la caché en memoria cada proceso
+# contaba por separado y el límite real subía a unos 15 por minuto).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": BASE_DIR / ".cache_django",
+    }
 }
 
 # Duración de la sesión de la página (token JWT)
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(hours=8),
 }
 
 ROOT_URLCONF = "gestantonia.urls"
@@ -91,24 +114,7 @@ WSGI_APPLICATION = "gestantonia.wsgi.application"
 # Base de datos: PostgreSQL (valores en .env)
 # DB_ENGINE=sqlite solo para pruebas rápidas sin PostgreSQL instalado.
 # ---------------------------------------------------------------------------
-# En Vercel (u otro servidor) la conexión llega en una sola variable: DATABASE_URL.
-if os.getenv("DATABASE_URL"):
-    _db = urlparse(os.environ["DATABASE_URL"])
-    _opciones = {k: v[0] for k, v in parse_qs(_db.query).items() if k in ("sslmode",)}
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": _db.path.lstrip("/"),
-            "USER": _db.username,
-            "PASSWORD": _db.password,
-            "HOST": _db.hostname,
-            "PORT": _db.port or 5432,
-            "OPTIONS": _opciones or {"sslmode": "require"},
-            "CONN_MAX_AGE": 0,
-            "DISABLE_SERVER_SIDE_CURSORS": True,   # necesario con el pooler de conexiones de Neon
-        }
-    }
-elif os.getenv("DB_ENGINE", "postgresql") == "sqlite":
+if os.getenv("DB_ENGINE", "postgresql") == "sqlite":
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 else:
     DATABASES = {
@@ -127,9 +133,13 @@ else:
 # ---------------------------------------------------------------------------
 AUTH_USER_MODEL = "usuarios.Usuario"          # debe existir ANTES del primer migrate
 
+# Bloqueo tras 5 intentos fallidos (ver usuarios/bloqueo.py). Protege el login web, el admin y la API.
+AUTHENTICATION_BACKENDS = ["usuarios.bloqueo.BackendConBloqueo"]
+
+# La caché que usa el bloqueo es la misma CACHES de arriba (archivos compartidos por los procesos de Gunicorn).
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -138,8 +148,10 @@ LOGIN_URL = "usuarios:login"
 LOGIN_REDIRECT_URL = "usuarios:inicio"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
-# Cierre de sesión automático por inactividad (EA_002): 30 minutos sin actividad.
-SESSION_COOKIE_AGE = 30 * 60
+# Cierre de sesión automático por inactividad: 15 minutos sin actividad (antes 30).
+SESSION_COOKIE_AGE = 15 * 60
+# hace que ese reloj de 15 minutos se reinicie cada vez que el usuario hace clic en algo; 
+# solo se cierra si pasa 15 minutos inactivo.
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
@@ -153,16 +165,22 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"        # collectstatic deja aquí los archivos (Vercel lo ejecuta solo)
+STATIC_ROOT = BASE_DIR / "staticfiles"        # collectstatic deja aquí los archivos (Nginx los sirve)
 
 # ---------------------------------------------------------------------------
-# Producción (Vercel): solo se activa con DJANGO_DEBUG=False
+# Producción (servidor con Nginx): solo se activa con DJANGO_DEBUG=False
 # ---------------------------------------------------------------------------
+# Dirección pública de React: se usa para armar enlaces que se abren fuera del sistema (QR de asistencia).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")   # Vercel atiende por HTTPS delante de Django
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")   # Nginx atiende por HTTPS delante de Django
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    # HSTS: el navegador usará siempre HTTPS con este sitio. Se parte con 1 hora;
+    # cuando el dominio sea definitivo se puede subir a 31536000 (1 año).
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "3600"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

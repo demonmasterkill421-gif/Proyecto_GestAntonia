@@ -1,16 +1,38 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar } from "../../../components/Sidebar";
 import { useTitulo } from "../../../hooks/useTitulo";
-import { SUCURSALES, guardarSucursal } from "../../../data/sucursales";
+import { guardarSucursalId } from "../../../hooks/useSucursal";
+import { obtenerLocales } from "../../../api/inventario.api";
 import { TarjetaSucursal } from "../../../components/TarjetaSucursal";
 
 export function AdminSucursales() {
   useTitulo("Sucursales");
   const navigate = useNavigate();
 
-  // Deja elegida esa sucursal y va a la pantalla pedida
+  // A3: los locales vienen de la base de datos (API), no de datos de ejemplo
+  const [locales, setLocales] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const control = new AbortController();
+    obtenerLocales(control.signal)
+      .then(({ data }) => {
+        setLocales(data);
+        setCargando(false);
+      })
+      .catch((e) => {
+        if (e.code === "ERR_CANCELED") return; // la pantalla se cerró antes de recibir la respuesta
+        setError("No se pudieron cargar los locales.");
+        setCargando(false);
+      });
+    return () => control.abort();
+  }, []);
+
+  // Deja elegido ese local (avisa al selector del encabezado) y va a la pantalla pedida
   const ir = (id, ruta) => {
-    guardarSucursal(id);
+    guardarSucursalId(id);
     navigate(ruta);
   };
 
@@ -23,13 +45,20 @@ export function AdminSucursales() {
           
         </p>
 
+        {cargando && <p className="text-lg text-gray-700">Cargando locales…</p>}
+        {error && <p className="text-lg font-medium text-red-600">{error}</p>}
+        {!cargando && !error && locales.length === 0 && (
+          <p className="text-lg text-gray-700">Aún no hay locales registrados.</p>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {SUCURSALES.map((s) => (
+          {locales.map((s) => (
             <TarjetaSucursal
               key={s.id}
               sucursal={s}
-              onVerAgenda={() => ir(s.id, "/agenda")}
-              onVerAsistencia={() => ir(s.id, "/asistencia")}
+              onVerVentas={() => ir(s.id, "/admin/ventas")}
+              onVerAsistencia={() => ir(s.id, "/admin/asistencia")}
+              onVerReporte={() => ir(s.id, "/admin/reportes")}
             />
           ))}
         </div>

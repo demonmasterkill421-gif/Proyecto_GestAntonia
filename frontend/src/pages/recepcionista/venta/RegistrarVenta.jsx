@@ -65,7 +65,6 @@ export function RegistrarVenta() {
 
   const pendientes = [];
   if (servicios.length === 0) pendientes.push("Agrega al menos un servicio");
-  if (servicios.some((s) => s.precioVariable)) pendientes.push("El servicio «Otro» aún no se puede registrar");
   if (errorDescuento) pendientes.push("Corrige el descuento");
   if (!metodoPago) pendientes.push("Selecciona un método de pago");
   const listo = pendientes.length === 0;
@@ -119,26 +118,31 @@ export function RegistrarVenta() {
   }, [confirmando, enviando]);
 
   const confirmar = async () => { //Confirma la venta y 
-    if (!listo || enviando) return;
+    if (!listo || enviando) return; //Si no está listo o si se envía, se cancela. Return = Break
     setEnviando(true);
 
-    // El backend recibe el descuento solo en porcentaje (0 a 100).
+    //Transformar descuento dependiendo de su tipo
+    //si es un porcentaje, bien, de lo contrario, se transforma a porcentaje
     const porcentaje =
       tipoDescuento === "%" ? valor : Number(((valor / subtotal) * 100).toFixed(2));
 
-    const datos = {
-      detalles: [
-        ...servicios.map((s) => ({
+
+      //Objeto de registro de venta
+    const datos = { 
+      detalles: [ //Es una lista que contiene cada servicios, productos e insumos
+        ...servicios.map((s) => ({ //Recorre lista de servicios, por cada servicio, devuelve cada sub objeto
           item: s.id,
           cantidad: 1,
           trabajador: s.especialistas[0].id,
+          // Servicio «Otro»: además se manda lo que escribió la recepcionista (el servidor valida los límites)
+          ...(s.precioVariable && { precio_manual: s.precio, nombre_manual: s.nombre }),
         })),
         ...productos.map((p) => ({ item: p.id, cantidad: p.cantidad })),
         ...insumos.map((i) => ({ item: i.id, cantidad: i.cantidad })),
       ],
       metodo_pago: metodoPago,
-      descuento: porcentaje,
-      descripcion: descripcion.trim(),
+      descuento: porcentaje, //porcentaje calculado previamente
+      descripcion: descripcion.trim(), //función que quita los espacios de inicio y final del texto
     };
 
     try {
@@ -156,6 +160,11 @@ export function RegistrarVenta() {
       setEnviando(false);
     }
   };
+
+
+
+
+
 
   const botonTipo = (tipo) =>
     `h-12 w-14 cursor-pointer text-lg font-semibold ${

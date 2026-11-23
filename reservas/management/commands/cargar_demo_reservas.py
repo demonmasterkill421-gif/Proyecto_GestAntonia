@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from catalogo.models import Servicio
 from locales.models import Local
-from reservas.models import Cliente, Reserva
+from reservas.models import Cliente, EspecialistaServicio, Reserva
 from usuarios.management.commands.cargar_datos_demo import CLAVE_DEMO
 from usuarios.models import Usuario
 
@@ -43,6 +43,13 @@ RESERVAS_DEMO = [
 ]
 CANCELADA = ("camila@gestantonia.cl", 16, "El cliente avisó que no puede asistir.")
 
+# Servicios que realiza cada especialista y su % de comisión en cada uno (solo puede agendar esos servicios).
+SERVICIOS_DEMO = {
+    "fernanda@gestantonia.cl": [("Manicura", 10), ("Esmaltado permanente", 10), ("Diseño de uñas N°1", 12)],
+    "camila@gestantonia.cl": [("Lifting de pestañas", 15)],
+    "liz@gestantonia.cl": [("Depilación de rostro", 12), ("Manicura", 8)],
+}
+
 
 class Command(BaseCommand):
     help = "Carga clientes y reservas de prueba para la demostración del módulo Reservas."
@@ -64,6 +71,13 @@ class Command(BaseCommand):
         self._usuario("camila@gestantonia.cl", "Camila", "Soto", Usuario.Rol.TRABAJADOR, mall,
                       cargo=Usuario.Cargo.COSMETOLOGA, porcentaje_comision=10)
         self._usuario("rocio@gestantonia.cl", "Rocío", "Recepción", Usuario.Rol.RECEPCIONISTA, centro1)
+
+        for correo, servicios in SERVICIOS_DEMO.items():
+            especialista = Usuario.objects.get(email=correo)
+            for nombre_servicio, porcentaje in servicios:
+                EspecialistaServicio.objects.update_or_create(
+                    especialista=especialista, servicio=Servicio.objects.get(nombre=nombre_servicio),
+                    defaults={"porcentaje_comision": porcentaje})
 
         clientes = {}
         for nombre, telefono in CLIENTES_DEMO:

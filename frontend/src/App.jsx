@@ -17,6 +17,14 @@ import { AsistenciaAdmin } from './pages/administrador/asistencia/AsistenciaAdmi
 import { Inventario } from "./pages/administrador/inventario/Inventario";
 import { RegistrarProducto } from "./pages/administrador/inventario/RegistrarProducto";
 
+//RESERVAS (Equipo 4)
+import { Especialistas } from './pages/reservas/especialistas/Especialistas'
+import { FormEspecialista } from './pages/reservas/especialistas/FormEspecialista'
+import Agenda from './pages/reservas/agenda/Agenda'
+import BuscarCliente from './pages/reservas/clientes/BuscarCliente'
+import { NuevaReserva } from './pages/reservas/reserva/NuevaReserva'
+import { DetalleReserva } from './pages/reservas/reserva/DetalleReserva'
+
 //RECEPCIONISTA
 import { MainRecepcionista } from './pages/recepcionista/main/MainRecepcionista'
 import { RegistrarVenta } from './pages/recepcionista/venta/RegistrarVenta'
@@ -25,13 +33,23 @@ import { AsistenciaRecepcionista } from './pages/recepcionista/asistencia/Asiste
 
 //TRABAJADOR
 import { MainTrabajador } from './pages/trabajador/main/MainTrabajador'
+import { RegistrarAsistencia } from './pages/trabajador/asistencia/RegistrarAsistencia'
 
 
 
-import { AuthProvider } from "./auth/AuthContext";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { INICIO_POR_ROL } from "./config/roles";
 
 //2. Establecer un Route con la url como se ve abajo, DENTRO del grupo del rol que puede entrar
 //3. agregar la función exportada
+
+// A1: cualquier dirección que no exista lleva al inicio del rol de la persona.
+// Antes mandaba a /login, y el login cierra la sesión al abrirse.
+function IrAlInicio() {
+  const { usuario, cargando } = useAuth();
+  if (cargando) return null; // todavía se está recuperando la sesión
+  return <Navigate to={usuario ? (INICIO_POR_ROL[usuario.rol] ?? "/login") : "/login"} replace />;
+}
 
 function App() {
   return (
@@ -55,6 +73,10 @@ function App() {
             <Route path='/reportes' element={<ReportesAdmin/>} /> {/* Ruta original del equipo, se mantiene por si la usan en otro lado */}
             <Route path="/admin/inventario" element={<Inventario />}/>
             <Route path="/admin/inventario/registrar" element={<RegistrarProducto />}/>
+            {/* Reservas (Equipo 4) · 3.8c: especialistas por local */}
+            <Route path='/especialistas' element={<Especialistas/>} />
+            <Route path='/especialistas/nueva' element={<FormEspecialista/>} />
+            <Route path='/especialistas/:id/editar' element={<FormEspecialista/>} />
           </Route>
 
 
@@ -71,7 +93,20 @@ function App() {
             <Route path='/especialista/inicio' element={<MainTrabajador/>} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          {/* 4. RESERVAS (Equipo 4): ADMIN y RECEP · 3.8a Cristian */}
+          <Route element={<RutaPrivada roles={["ADMIN", "RECEP"]} />}>
+            <Route path='/agenda' element={<Agenda/>} />
+            <Route path='/agenda/clientes' element={<BuscarCliente/>} />
+            <Route path='/agenda/nueva' element={<NuevaReserva/>} />
+            <Route path='/agenda/reservas/:id' element={<DetalleReserva/>} />
+          </Route>
+
+          {/* M5: Registro por QR compartido entre trabajadoras y recepcionistas */}
+          <Route element={<RutaPrivada roles={["TRAB", "RECEP"]} pedirCambioDeCuenta />}> {/* Con otra cuenta abierta (ej. admin) ofrece cambiar de cuenta en vez de ir a su menú */}
+            <Route path='/trabajador/asistencia' element={<RegistrarAsistencia />} />
+          </Route>
+
+          <Route path="*" element={<IrAlInicio />} /> {/* A1: dirección inexistente → inicio del rol (sin cerrar la sesión) */}
 
         </Routes>
 

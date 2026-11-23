@@ -4,13 +4,17 @@ import {
   Ban,
   ChevronDown,
   Download,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
   FileText,
+  Key,
   Receipt,
   Search,
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import logo from "../assets/logo.png";
 import { useDatos } from "../hooks/useDatos";
 import {
   obtenerAllVentas,
@@ -18,10 +22,12 @@ import {
   obtenerProductosVenta,
   exportarVentas,
   anularVenta,
+  verificarClaveAnulacion,
+  obtenerEstadoClave,
+  cambiarClaveAnulacion,
   solicitarAnulacion,
   obtenerSolicitudes,
 } from "../api/ventas.api";
-import { ESPECIALISTAS } from "../data/catalogo";
 import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
 
 const clp = (n) =>
@@ -32,6 +38,10 @@ const clp = (n) =>
 const cargarServicios = () => obtenerServiciosVenta();
 const cargarProductos = () => obtenerProductosVenta();
 const cargarPendientes = () => obtenerSolicitudes({ estado: "PENDIENTE" });
+
+// Largo máximo de la clave de anulación (el servidor exige lo mismo)
+const CLAVE_MAXIMO = 128;
+const CLAVE_MINIMO = 6;
 
 const fechaLocal = (fecha) => new Date(fecha).toLocaleDateString("sv-SE"); // aaaa-mm-dd
 const fechaCorta = (fecha) =>
@@ -49,6 +59,13 @@ const inicioMes = () => {
   return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString("sv-SE");
 };
 
+// Lunes de esta semana (la semana chilena parte el lunes)
+const inicioSemana = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toLocaleDateString("sv-SE");
+};
+
 const PAGOS = { EFECTIVO: "Efectivo", DEBITO: "Débito", CREDITO: "Crédito", TRANSFER: "Transferencia" };
 const ESTADOS = {
   CONFIRMADA: { texto: "Confirmada", clase: "bg-emerald-100 text-emerald-700" },
@@ -61,6 +78,8 @@ const MOTIVO_MAXIMO = 500;
 
 // Saca un texto legible del error que devuelve el servidor
 const mensajeError = (err) => {
+  // 429: demasiados intentos seguidos (el servidor lo responde en inglés)
+  if (err?.response?.status === 429) return "Demasiados intentos. Espera un rato antes de volver a probar.";
   const d = err?.response?.data;
   if (!d) return "No hay conexión con el servidor.";
   if (typeof d === "string") return "No se pudo completar la acción.";
@@ -90,15 +109,22 @@ function EtiquetaPendiente() {
 }
 
 // Botones de opción (como las estrellas del ejemplo): uno solo queda marcado
-function Opciones({ valor, onChange, opciones }) {
+// deslizable: en el celular los botones van en una sola fila que se desliza con el dedo
+function Opciones({ valor, onChange, opciones, deslizable = false }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div
+      className={
+        deslizable
+          ? "flex gap-2 overflow-x-auto px-4 pb-1 sm:flex-wrap sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          : "flex flex-wrap gap-2"
+      }
+    >
       {opciones.map(([v, nombre]) => (
         <button
           key={v}
           type="button"
           onClick={() => onChange(v)}
-          className={`cursor-pointer rounded-full border px-4 py-2 text-base font-semibold ${
+          className={`shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-4 py-2 text-base font-semibold ${
             valor === v
               ? "border-[#b5368f] bg-[#b5368f] text-white"
               : "border-[#e6b8d4] bg-white text-[#b5368f] hover:bg-[#fbeef6]"
@@ -118,9 +144,9 @@ export function ListaVentas({ rol }) {
 
   const sucursalId = useSucursalId();
   const porDefecto = () => ({
-    desde: inicioMes(),
+    desde: hoy(),
     hasta: hoy(),
-    local: String(sucursalId),
+    local: "", // vacío = todos los locales
     estado: "",
     pago: "",
   });
@@ -133,14 +159,28 @@ export function ListaVentas({ rol }) {
   const [abierta, setAbierta] = useState(null); // id de la venta desplegada
   const [errorDescarga, setErrorDescarga] = useState("");
   const [exportando, setExportando] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
 
-  // Ventana para anular (propietaria) o solicitar la anulación (recepcionista)
+  // Ventana para anular una venta con la clave de anulación
   const [dialogo, setDialogo] = useState(false); // ventana abierta o cerrada
   const [anulando, setAnulando] = useState(null); // venta de la ventana (se conserva mientras se cierra)
   const [motivo, setMotivo] = useState("");
+  const [clave, setClave] = useState("");
+  const [verClave, setVerClave] = useState(false); // false: la clave se muestra como puntos
+  const [confirmando, setConfirmando] = useState(false); // false: pide motivo y clave; true: pide la confirmación final
   const [enviandoAnulacion, setEnviandoAnulacion] = useState(false);
+  const [verificando, setVerificando] = useState(false); // se está comprobando la clave en el servidor
   const [errorMotivo, setErrorMotivo] = useState("");
   const motivoRef = useRef(null);
+
+  // Panel para crear o cambiar la clave de anulación (solo la administradora)
+  const [panelClave, setPanelClave] = useState(false);
+  const [estadoClave, setEstadoClave] = useState(null); // { existe, fecha_actualizacion, actualizada_por }; null mientras carga
+  const [claveNueva, setClaveNueva] = useState("");
+  const [claveRepetida, setClaveRepetida] = useState("");
+  const [verClaveNueva, setVerClaveNueva] = useState(false);
+  const [guardandoClave, setGuardandoClave] = useState(false);
+  const [errorClave, setErrorClave] = useState("");
 
   // Las ventas se piden al servidor ya filtradas por período (y por local, si es la administradora),
   // en vez de traer todo el historial. Al cambiar estos filtros, useDatos vuelve a pedirlas.
@@ -162,13 +202,17 @@ export function ListaVentas({ rol }) {
   // Ids de las ventas que tienen una solicitud de anulación esperando respuesta
   const idsPendientes = new Set((pendientes ?? []).map((s) => s.venta));
 
-  // La administradora sigue la sucursal elegida en el encabezado (igual que Reportes)
+  // Si la administradora cambia la sucursal del encabezado, la lista la sigue (igual que Reportes).
+  // Al abrir la pantalla no se aplica, para que parta mostrando todos los locales.
+  const sucursalAnterior = useRef(sucursalId);
   useEffect(() => {
+    if (sucursalAnterior.current === sucursalId) return;
+    sucursalAnterior.current = sucursalId;
     setFiltros((f) => ({ ...f, local: String(sucursalId) }));
   }, [sucursalId]);
 
   // Con un panel abierto: Escape lo cierra y la página de atrás no se desplaza
-  const hayPanel = panel || descarga || dialogo;
+  const hayPanel = panel || descarga || dialogo || panelClave;
   useEffect(() => {
     if (!hayPanel) return;
     const tecla = (e) => {
@@ -177,6 +221,7 @@ export function ListaVentas({ rol }) {
         setPanel(false);
         setDescarga(false);
         if (!enviandoAnulacion) setDialogo(false);
+        if (!guardandoClave) setPanelClave(false);
       }
     };
     document.addEventListener("keydown", tecla);
@@ -186,7 +231,7 @@ export function ListaVentas({ rol }) {
       document.removeEventListener("keydown", tecla);
       document.body.style.overflow = anterior;
     };
-  }, [hayPanel, enviandoAnulacion]);
+  }, [hayPanel, enviandoAnulacion, guardandoClave]);
 
   // Al abrir la ventana de anulación, el cursor queda listo para escribir el motivo
   useEffect(() => {
@@ -218,8 +263,53 @@ export function ListaVentas({ rol }) {
   };
   const cambiarBorrador = (nombre) => (valor) => setBorrador({ ...borrador, [nombre]: valor });
 
+  // Clave de anulación: abrir el panel (pide el estado al servidor), cerrarlo y guardar
+  const abrirPanelClave = () => {
+    setClaveNueva("");
+    setClaveRepetida("");
+    setVerClaveNueva(false);
+    setErrorClave("");
+    setEstadoClave(null);
+    setPanelClave(true);
+    obtenerEstadoClave()
+      .then(setEstadoClave)
+      .catch((err) => setErrorClave(mensajeError(err)));
+  };
+  const cerrarPanelClave = () => {
+    if (guardandoClave) return;
+    document.activeElement?.blur();
+    setPanelClave(false);
+  };
+  const guardarClave = async () => {
+    if (guardandoClave) return;
+    if (claveNueva.length < CLAVE_MINIMO) {
+      setErrorClave(`La clave debe tener al menos ${CLAVE_MINIMO} caracteres.`);
+      return;
+    }
+    if (claveNueva !== claveRepetida) {
+      setErrorClave("Las claves no coinciden.");
+      return;
+    }
+    setGuardandoClave(true);
+    setErrorClave("");
+    try {
+      const estado = await cambiarClaveAnulacion(claveNueva, claveRepetida);
+      setEstadoClave(estado);
+      toast.success("Clave de anulación guardada.");
+      document.activeElement?.blur();
+      setPanelClave(false);
+    } catch (err) {
+      setErrorClave(mensajeError(err));
+    } finally {
+      setGuardandoClave(false);
+    }
+  };
+
   // Anulación: abrir y cerrar la ventana del motivo
   const abrirAnulacion = (venta) => {
+    setClave("");
+    setVerClave(false);
+    setConfirmando(false);
     setAnulando(venta);
     setMotivo("");
     setErrorMotivo("");
@@ -234,24 +324,35 @@ export function ListaVentas({ rol }) {
   const motivoLimpio = motivo.trim();
   const motivoValido = motivoLimpio.length >= MOTIVO_MINIMO;
 
-  // La propietaria anula la venta; la recepcionista envía la solicitud
+  // Paso 1: el servidor comprueba la clave; solo si es correcta se pasa a la confirmación
+  const continuarAnulacion = async () => {
+    if (verificando || enviandoAnulacion || !motivoValido || !clave) return;
+    setVerificando(true);
+    setErrorMotivo("");
+    try {
+      await verificarClaveAnulacion(clave);
+      setConfirmando(true);
+    } catch (err) {
+      setErrorMotivo(mensajeError(err));
+    } finally {
+      setVerificando(false);
+    }
+  };
+
+  // Paso 2: anula la venta (el servidor vuelve a comprobar la clave)
   const confirmarAnulacion = async () => {
-    if (!anulando || enviandoAnulacion || !motivoValido) return;
+    if (!anulando || enviandoAnulacion || !motivoValido || !clave) return;
     setEnviandoAnulacion(true);
     setErrorMotivo("");
     try {
-      if (esAdmin) {
-        await anularVenta(anulando.id, motivoLimpio);
-        toast.success(`Venta con folio ${anulando.folio ?? "—"} anulada.`);
-      } else {
-        await solicitarAnulacion(anulando.id, motivoLimpio);
-        toast.success("Solicitud enviada. La propietaria la revisará.");
-      }
+      await anularVenta(anulando.id, motivoLimpio, clave);
+      toast.success(`Venta con folio ${anulando.folio ?? "—"} anulada.`);
       document.activeElement?.blur();
       setDialogo(false);
       await Promise.all([recargar(), recargarPendientes()]);
     } catch (err) {
       setErrorMotivo(mensajeError(err));
+      setConfirmando(false);
     } finally {
       setEnviandoAnulacion(false);
     }
@@ -260,19 +361,30 @@ export function ListaVentas({ rol }) {
   // Atajo de sucursal: cambia el local de la lista al instante, sin abrir los filtros
   const elegirLocal = (valor) => setFiltros((f) => ({ ...f, local: valor }));
 
+  // Cambia el período de la lista al instante, sin abrir los filtros
+  const PERIODOS_RAPIDOS = ["Hoy", "Esta semana", "Este mes"];
+  const elegirPeriodo = (nombre) => {
+    const a = atajos.find((x) => x.nombre === nombre);
+    setFiltros((f) => ({ ...f, desde: a.desde, hasta: a.hasta }));
+  };
+
   const atajos = [
     { nombre: "Hoy", desde: hoy(), hasta: hoy() },
+    { nombre: "Esta semana", desde: inicioSemana(), hasta: hoy() },
     { nombre: "Últimos 7 días", desde: haceDias(6), hasta: hoy() },
     { nombre: "Este mes", desde: inicioMes(), hasta: hoy() },
     { nombre: "Todo", desde: "", hasta: "" },
   ];
 
+  // Período que coincide con las fechas aplicadas (para marcar su botón)
+  const periodoRapido = atajos.find((a) => a.desde === filtros.desde && a.hasta === filtros.hasta)?.nombre;
+
   const nombreItem = Object.fromEntries([...servicios, ...productos].map((i) => [i.id, i.nombre]));
-  const nombreTrabajadora = (id) =>
-    ESPECIALISTAS.find((e) => String(e.id) === String(id))?.nombre ?? `Trabajadora #${id}`;
+  // El nombre viene desde la API en cada detalle (trabajador_nombre)
+  const nombreTrabajadora = (d) => d.trabajador_nombre || `Trabajadora #${d.trabajador}`;
   const nombreLocal = (id) => SUCURSALES.find((s) => String(s.id) === String(id))?.nombre ?? `Local #${id}`;
   const trabajadorasDe = (v) =>
-    [...new Set(v.detalles.filter((d) => d.trabajador).map((d) => nombreTrabajadora(d.trabajador)))];
+    [...new Set(v.detalles.filter((d) => d.trabajador).map((d) => nombreTrabajadora(d)))];
   const estadoDe = (v) => ESTADOS[v.estado] ?? { texto: v.estado, clase: "bg-gray-200 text-gray-600" };
 
   const rangoValido = !filtros.desde || !filtros.hasta || filtros.desde <= filtros.hasta;
@@ -333,6 +445,35 @@ export function ListaVentas({ rol }) {
     }
   };
 
+  // Descarga en PDF lo mismo que se ve en la lista, con el logo de fondo.
+  // La librería del PDF se carga recién aquí, para no hacer más pesada la página.
+  const exportarPdf = async () => {
+    setErrorDescarga("");
+    setExportandoPdf(true);
+    try {
+      const { generarPdfVentas } = await import("../utils/ventasPdf");
+      await generarPdfVentas({
+        ventas: filtradas,
+        esAdmin,
+        nombreLocal,
+        trabajadorasDe,
+        periodo:
+          !filtros.desde && !filtros.hasta
+            ? "todo el historial"
+            : `${verFecha(filtros.desde)} - ${verFecha(filtros.hasta)}`,
+        localTexto: esAdmin ? (filtros.local ? nombreLocal(filtros.local) : "Todos los locales") : null,
+        total,
+        logo,
+      });
+      cerrarDescarga();
+    } catch (err) {
+      console.error(err);
+      setErrorDescarga("No se pudo generar el PDF. Intenta de nuevo.");
+    } finally {
+      setExportandoPdf(false);
+    }
+  };
+
   // Detalle de una venta. Es el mismo en el celular y en el computador.
   // Las líneas separan secciones; los ítems van agrupados, sin línea entre ellos.
   const detalle = (v) => (
@@ -352,8 +493,14 @@ export function ListaVentas({ rol }) {
         {v.detalles.map((d, i) => (
           <li key={i} className="flex items-start justify-between gap-3 text-base">
             <span className="min-w-0">
-              {d.cantidad} × <span className="font-semibold">{nombreItem[d.item] ?? `Ítem #${d.item}`}</span>
-              {d.trabajador && <span className="block text-[#9c2d7b]">{nombreTrabajadora(d.trabajador)}</span>}
+              {d.cantidad} ×{" "}
+              <span className="font-semibold">{d.nombre_manual || (nombreItem[d.item] ?? `Ítem #${d.item}`)}</span>
+              {d.es_precio_manual && (
+                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-800">
+                  Precio manual
+                </span>
+              )}
+              {d.trabajador && <span className="block text-[#9c2d7b]">{nombreTrabajadora(d)}</span>}
             </span>
             <span className="shrink-0 font-semibold">{clp(d.subtotal)}</span>
           </li>
@@ -378,22 +525,17 @@ export function ListaVentas({ rol }) {
         <div className="pt-3">
           {idsPendientes.has(v.id) && (
             <p className="mb-3 rounded-lg bg-amber-100 px-3 py-2 text-base font-semibold text-amber-800">
-              {esAdmin
-                ? "Hay una solicitud de anulación pendiente para esta venta."
-                : "Pediste anular esta venta. Estamos esperando la respuesta de la propietaria."}
+              Hay una solicitud de anulación pendiente para esta venta.
             </p>
           )}
 
-          {/* La recepcionista no puede pedir dos veces la misma venta */}
-          {(esAdmin || !idsPendientes.has(v.id)) && (
-            <button
-              type="button"
-              onClick={() => abrirAnulacion(v)}
-              className="h-11 w-full cursor-pointer rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#f7e3f1]"
-            >
-              {esAdmin ? "Anular venta" : "Solicitar anulación"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => abrirAnulacion(v)}
+            className="h-11 w-full cursor-pointer rounded-lg border border-[#b5368f] bg-white px-4 text-base font-semibold text-[#b5368f] hover:bg-[#f7e3f1]"
+          >
+            Anular venta
+          </button>
         </div>
       )}
     </div>
@@ -412,6 +554,19 @@ export function ListaVentas({ rol }) {
             {filtradas.length} {filtradas.length === 1 ? "venta" : "ventas"} · {clp(total)}
           </p>
         </div>
+        {esAdmin && (
+          <button
+            type="button"
+            onClick={abrirPanelClave}
+            aria-haspopup="dialog"
+            aria-label="Cambiar clave de anulación"
+            title="Cambiar clave de anulación"
+            className="flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#b5368f] bg-white px-3 text-base font-semibold text-[#b5368f] hover:bg-[#fbeef6] sm:px-5"
+          >
+            <Key size={20} />
+            <span className="hidden sm:inline">Cambiar clave de anulación</span>
+          </button>
+        )}
         {/* Solo la administradora descarga. En celular solo se ve el ícono */}
         {esAdmin && (
           <button
@@ -464,8 +619,10 @@ export function ListaVentas({ rol }) {
 
       {/* Atajos de sucursal (solo la administradora): cambian la lista al instante */}
       {esAdmin && (
-        <div role="group" aria-label="Sucursal" className="px-4 pb-3 sm:px-6">
+        <div role="group" aria-label="Sucursal" className="pb-3 sm:px-6">
+          <p className="mb-1 px-4 text-sm font-semibold text-[#9c2d7b] sm:hidden">Local</p>
           <Opciones
+            deslizable
             valor={filtros.local}
             onChange={elegirLocal}
             opciones={[["", "Todos"], ...SUCURSALES.map((s) => [String(s.id), s.nombre])]}
@@ -473,7 +630,23 @@ export function ListaVentas({ rol }) {
         </div>
       )}
 
-      <p className="px-4 pb-4 text-base font-medium text-[#9c2d7b] sm:px-6">
+      {/* Atajos de período: Hoy, Esta semana y Este mes. Queda marcado el que coincide con las fechas aplicadas */}
+      <div role="group" aria-label="Período" className="pb-3 sm:px-6">
+        <p className="mb-1 px-4 text-sm font-semibold text-[#9c2d7b] sm:hidden">Período</p>
+        <Opciones
+          deslizable
+          valor={periodoRapido}
+          onChange={elegirPeriodo}
+          opciones={PERIODOS_RAPIDOS.map((nombre) => [nombre, nombre])}
+        />
+      </div>
+
+      {/* En el celular, si hay un botón de período marcado, ya dice las fechas y esta línea se esconde */}
+      <p
+        className={`px-4 pb-4 text-base font-medium text-[#9c2d7b] sm:px-6 ${
+          PERIODOS_RAPIDOS.includes(periodoRapido) ? "hidden sm:block" : ""
+        }`}
+      >
         Período: {verFecha(filtros.desde)} – {verFecha(filtros.hasta)}
         {!filtros.desde && !filtros.hasta && " (todo el historial)"}
       </p>
@@ -798,25 +971,21 @@ export function ListaVentas({ rol }) {
               <button
                 type="button"
                 onClick={exportar}
-                disabled={exportando || filtradas.length === 0}
+                disabled={exportando || exportandoPdf || filtradas.length === 0}
                 className="flex h-24 w-full cursor-pointer items-center justify-center gap-4 rounded-2xl bg-[#b5368f] px-6 text-xl font-bold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FileSpreadsheet size={32} />
                 {exportando ? "Descargando..." : "Descargar en Excel"}
               </button>
 
-              {/* Bloqueado por ahora */}
               <button
                 type="button"
-                disabled
-                aria-disabled="true"
-                className="flex h-24 w-full cursor-not-allowed flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-gray-300 bg-gray-100 px-6 text-xl font-bold text-gray-400"
+                onClick={exportarPdf}
+                disabled={exportando || exportandoPdf || filtradas.length === 0}
+                className="flex h-24 w-full cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-[#b5368f] bg-white px-6 text-xl font-bold text-[#b5368f] hover:bg-[#fbeef6] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="flex items-center gap-4">
-                  <FileText size={32} />
-                  Descargar en PDF
-                </span>
-                <span className="text-sm font-semibold">Próximamente</span>
+                <FileText size={32} />
+                {exportandoPdf ? "Generando PDF..." : "Descargar en PDF"}
               </button>
 
               {errorDescarga && <p className="text-base font-medium text-[#b5368f]">{errorDescarga}</p>}
@@ -825,7 +994,132 @@ export function ListaVentas({ rol }) {
         </div>
       )}
 
-      {/* Ventana de anulación: la propietaria anula; la recepcionista envía la solicitud.
+      {/* Panel de la clave de anulación (solo ADMIN), con la misma animación que los otros */}
+      {esAdmin && (
+        <div
+          inert={!panelClave}
+          aria-hidden={!panelClave}
+          className={`fixed inset-0 z-[60] flex items-end justify-center transition-all duration-300 sm:items-center sm:p-6 ${
+            panelClave ? "visible bg-black/40" : "invisible bg-black/0"
+          }`}
+          onClick={cerrarPanelClave}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Clave de anulación"
+            onClick={(e) => e.stopPropagation()}
+            className={`flex max-h-[90vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl transition-all duration-300 ease-out sm:max-w-md sm:rounded-3xl ${
+              panelClave
+                ? "translate-y-0 opacity-100 sm:scale-100"
+                : "translate-y-full opacity-0 sm:translate-y-4 sm:scale-95"
+            }`}
+          >
+            <div className="flex items-center gap-3 border-b border-[#f0cfe3] px-6 py-5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7e3f1] text-[#b5368f]">
+                <Key size={22} />
+              </span>
+              <h3 className="text-2xl font-bold text-[#1f1218]">Clave de anulación</h3>
+              <button
+                type="button"
+                onClick={cerrarPanelClave}
+                disabled={guardandoClave}
+                aria-label="Cerrar"
+                className="ml-auto cursor-pointer rounded-full p-2 text-[#1f1218] hover:bg-[#f7e3f1] hover:text-[#b5368f] disabled:opacity-50"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
+              <p className="text-base font-medium text-[#9c2d7b]">
+                {estadoClave === null
+                  ? "Cargando..."
+                  : !estadoClave.existe
+                    ? "Aún no hay una clave. Mientras no la crees, nadie podrá anular ventas."
+                    : `Última actualización: ${fechaCorta(estadoClave.fecha_actualizacion)}${
+                        estadoClave.actualizada_por ? ` · por ${estadoClave.actualizada_por}` : ""
+                      }`}
+              </p>
+              <p className="text-base text-[#1f1218]">
+                Esta clave la usan la administradora y las recepcionistas para anular ventas. Al cambiarla, la anterior
+                deja de servir.
+              </p>
+
+              <div>
+                <label htmlFor="clave-nueva" className={etiqueta}>
+                  Clave nueva
+                </label>
+                <div className="relative">
+                  <input
+                    id="clave-nueva"
+                    type={verClaveNueva ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={claveNueva}
+                    maxLength={CLAVE_MAXIMO}
+                    onChange={(e) => {
+                      setClaveNueva(e.target.value);
+                      setErrorClave("");
+                    }}
+                    placeholder={`Mínimo ${CLAVE_MINIMO} caracteres`}
+                    className={`${campo} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVerClaveNueva((v) => !v)}
+                    aria-label={verClaveNueva ? "Ocultar clave" : "Mostrar clave"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#b5368f]"
+                  >
+                    {verClaveNueva ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="clave-repetida" className={etiqueta}>
+                  Repetir clave
+                </label>
+                <input
+                  id="clave-repetida"
+                  type={verClaveNueva ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={claveRepetida}
+                  maxLength={CLAVE_MAXIMO}
+                  onChange={(e) => {
+                    setClaveRepetida(e.target.value);
+                    setErrorClave("");
+                  }}
+                  placeholder="Escríbela otra vez"
+                  className={campo}
+                />
+              </div>
+
+              {errorClave && <p className="text-base font-medium text-[#b5368f]">{errorClave}</p>}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-[#f0cfe3] px-6 py-4">
+              <button
+                type="button"
+                onClick={cerrarPanelClave}
+                disabled={guardandoClave}
+                className="h-12 cursor-pointer rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={guardarClave}
+                disabled={guardandoClave || claveNueva.length < CLAVE_MINIMO || !claveRepetida}
+                className="h-12 cursor-pointer rounded-lg bg-[#b5368f] px-6 text-base font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {guardandoClave ? "Guardando..." : "Guardar clave"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ventana de anulación (administradora y recepcionista, con la clave).
           Siempre montada para poder animarla, igual que los otros paneles */}
       <div
         inert={!dialogo}
@@ -838,7 +1132,7 @@ export function ListaVentas({ rol }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={esAdmin ? "Anular venta" : "Solicitar anulación"}
+          aria-label="Anular venta"
           onClick={(e) => e.stopPropagation()}
           className={`flex max-h-[90vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl transition-all duration-300 ease-out sm:max-w-md sm:rounded-3xl ${
             dialogo
@@ -850,7 +1144,7 @@ export function ListaVentas({ rol }) {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7e3f1] text-[#b5368f]">
               <Ban size={22} />
             </span>
-            <h3 className="text-2xl font-bold text-[#1f1218]">{esAdmin ? "Anular venta" : "Solicitar anulación"}</h3>
+            <h3 className="text-2xl font-bold text-[#1f1218]">Anular venta</h3>
             <button
               type="button"
               onClick={cerrarAnulacion}
@@ -865,62 +1159,98 @@ export function ListaVentas({ rol }) {
           <div className="flex flex-col gap-4 overflow-y-auto px-6 py-5">
             <p className="text-base text-[#1f1218]">
               Venta con folio <span className="font-bold text-[#b5368f]">{anulando?.folio ?? "—"}</span>
-              {anulando && <> · {clp(anulando.monto_total)}</>}
+              {anulando && <> | {clp(anulando.monto_total)}</>}
             </p>
 
-            <p className="text-base text-[#9c2d7b]">
-              {esAdmin
-                ? "La venta quedará anulada y se devolverá el stock de los productos. Esta acción no se puede deshacer."
-                : "La propietaria revisará tu solicitud. La venta sigue confirmada hasta que ella la apruebe."}
-            </p>
+            {!confirmando ? (
+              <>
+                <p className="text-base text-[#9c2d7b]">
+                  La venta quedará anulada y se devolverá el stock de los productos. Esta acción no se puede deshacer.
+                </p>
 
-            <div>
-              <label htmlFor="motivo-anulacion" className={etiqueta}>
-                Motivo
-              </label>
-              <textarea
-                id="motivo-anulacion"
-                ref={motivoRef}
-                rows={3}
-                maxLength={MOTIVO_MAXIMO}
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ej: La clienta se arrepintió del servicio"
-                className="w-full cursor-text resize-none rounded-lg border border-[#e6b8d4] bg-white px-3 py-2 text-base text-[#1f1218] focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30"
-              />
-              <div className="flex justify-between gap-3 text-sm font-medium text-[#9c2d7b]">
-                <span>{!motivoValido && `Escribe al menos ${MOTIVO_MINIMO} letras.`}</span>
-                <span>
-                  {motivo.length}/{MOTIVO_MAXIMO}
-                </span>
-              </div>
-            </div>
+                <div>
+                  <label htmlFor="motivo-anulacion" className={etiqueta}>
+                    Motivo
+                  </label>
+                  <textarea
+                    id="motivo-anulacion"
+                    ref={motivoRef}
+                    rows={3}
+                    maxLength={MOTIVO_MAXIMO}
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value)}
+                    placeholder="Ej: La clienta se arrepintió del servicio"
+                    className="w-full cursor-text resize-none rounded-lg border border-[#e6b8d4] bg-white px-3 py-2 text-base text-[#1f1218] focus:border-[#b5368f] focus:outline-none focus:ring-2 focus:ring-[#b5368f]/30"
+                  />
+                  <div className="flex justify-between gap-3 text-sm font-medium text-[#9c2d7b]">
+                    <span>{!motivoValido && `Escribe al menos ${MOTIVO_MINIMO} letras.`}</span>
+                    <span>
+                      {motivo.length}/{MOTIVO_MAXIMO}
+                    </span>
+                  </div>
+                </div>
 
-            {errorMotivo && <p className="text-base font-medium text-[#b5368f]">{errorMotivo}</p>}
+                <div>
+                  <label htmlFor="clave-anulacion" className={etiqueta}>
+                    Clave de anulación
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="clave-anulacion"
+                      type={verClave ? "text" : "password"}
+                      autoComplete="off"
+                      value={clave}
+                      maxLength={CLAVE_MAXIMO}
+                      onChange={(e) => {
+                        setClave(e.target.value);
+                        setErrorMotivo("");
+                      }}
+                      placeholder="Escribe la clave"
+                      className={`${campo} pr-12`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVerClave((v) => !v)}
+                      aria-label={verClave ? "Ocultar clave" : "Mostrar clave"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#b5368f]"
+                    >
+                      {verClave ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                {errorMotivo && <p className="text-base font-medium text-[#b5368f]">{errorMotivo}</p>}
+              </>
+            ) : (
+              <p className="rounded-lg bg-amber-100 px-4 py-3 text-base font-semibold text-amber-800">
+                ¿Seguro que quieres anular la venta con folio {anulando?.folio ?? "—"}? Esta acción no se puede
+                deshacer.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-[#f0cfe3] px-6 py-4">
             <button
               type="button"
-              onClick={cerrarAnulacion}
-              disabled={enviandoAnulacion}
+              onClick={confirmando ? () => setConfirmando(false) : cerrarAnulacion}
+              disabled={enviandoAnulacion || verificando}
               className="h-12 cursor-pointer rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Volver
             </button>
             <button
               type="button"
-              onClick={confirmarAnulacion}
-              disabled={enviandoAnulacion || !motivoValido}
+              onClick={confirmando ? confirmarAnulacion : continuarAnulacion}
+              disabled={enviandoAnulacion || verificando || !motivoValido || !clave}
               className="h-12 cursor-pointer rounded-lg bg-[#b5368f] px-6 text-base font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {enviandoAnulacion
-                ? esAdmin
+              {confirmando
+                ? enviandoAnulacion
                   ? "Anulando..."
-                  : "Enviando..."
-                : esAdmin
-                  ? "Sí, anular venta"
-                  : "Enviar solicitud"}
+                  : "Sí, anular venta"
+                : verificando
+                  ? "Verificando..."
+                  : "Continuar"}
             </button>
           </div>
         </div>

@@ -11,19 +11,23 @@ from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 
-from .models import RegistroDeVenta, SolicitudAnulacion
+from .models import RegistroDeVenta, SolicitudAnulacion, ClaveAnulacion
 from .permissions import EsAdministrador, EsRecepcionista, MismoLocal
 from .serializers import (
+    CambiarClaveAnulacionSerializer,
     ResponderSolicitudSerializer,
     SolicitarAnulacionSerializer,
     SolicitudAnulacionSerializer,
     VentaSerializer,
+    AnularVentaSerializer
 )
 
 
 from catalogo.models import Producto, Servicio
+from usuarios.models import Usuario
 
 LIMITE_EXPORTAR = 20000
 
@@ -39,18 +43,44 @@ def _error(texto, codigo=400):
     return Response({"detail": texto}, status=codigo)
 
 
+def _clave_correcta(clave):
+    """True si la clave coincide con la clave de anulación guardada. Si todavía no hay ninguna, es False."""
+    registro = ClaveAnulacion.objects.first()
+    return registro is not None and registro.validar(clave)
+
+
+def _estado_clave():
+    """Dice si ya hay una clave de anulación y cuándo y quién la cambió. Nunca devuelve la clave."""
+    registro = ClaveAnulacion.objects.select_related("actualizada_por").first()
+    if registro is None:
+        return {"existe": False, "fecha_actualizacion": None, "actualizada_por": None}
+
+    quien = registro.actualizada_por
+    return {
+        "existe": True,
+        "fecha_actualizacion": registro.fecha_actualizacion,
+        "actualizada_por": (quien.get_full_name() or quien.email) if quien else None,
+    }
+
+
 class VentaViewSet(viewsets.ModelViewSet):
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
     http_method_names = ["get", "post", "head", "options"]
+    throttle_scope = None
 
     def get_permissions(self):
         if self.action == "anular":
-            return [IsAuthenticated(), EsAdministrador(), MismoLocal()]
+            return [IsAuthenticated(), EsRecepcionista(), MismoLocal()]
+        if self.action == "verificar_clave":
+            # No trabaja sobre una venta en particular, así que no lleva MismoLocal
+            return [IsAuthenticated(), EsRecepcionista()]
+        if self.action == "clave_anulacion":
+            return [IsAuthenticated(), EsAdministrador()]
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = RegistroDeVenta.objects.select_related("local", "trabajador").prefetch_related("detalles")
+        qs = RegistroDeVenta.objects.select_related("local").prefetch_related("detalles__trabajador")
         user = self.request.user
 
         desde = _fecha_o_none(self.request.query_params.get("desde"))
@@ -81,14 +111,18 @@ class VentaViewSet(viewsets.ModelViewSet):
         serializer.save(recepcionista=user, local=local)
 
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], throttle_classes=[ScopedRateThrottle], throttle_scope="clave_anulacion")
     def anular(self, request, pk=None):
-        """La administradora anula una venta confirmada. Exige un motivo y devuelve el stock."""
+        """Anula una venta confirmada. Exige el motivo y la clave de anulación, y devuelve el stock."""
         venta = self.get_object()
 
-        datos = SolicitarAnulacionSerializer(data=request.data)
+        datos = AnularVentaSerializer(data=request.data)
         datos.is_valid(raise_exception=True)
         motivo = datos.validated_data["motivo"]
+
+        # La clave se revisa antes de tocar la venta: si no sirve, no se bloquea nada ni se mueve el stock
+        if not _clave_correcta(datos.validated_data["clave"]):
+            return _error("Clave incorrecta.")
 
         try:
             with transaction.atomic():
@@ -105,7 +139,7 @@ class VentaViewSet(viewsets.ModelViewSet):
                     estado=SolicitudAnulacion.Estado.APROBADA,
                     resuelta_por=request.user,
                     fecha_resolucion=ahora,
-                    respuesta="La administradora anuló la venta directamente.",
+                    respuesta="La venta se anuló directamente con la clave de anulación.",
                 )
 
                 # Queda el registro de quién anuló, cuándo y por qué
@@ -116,13 +150,39 @@ class VentaViewSet(viewsets.ModelViewSet):
                     estado=SolicitudAnulacion.Estado.APROBADA,
                     resuelta_por=request.user,
                     fecha_resolucion=ahora,
-                    respuesta="Anulada directamente por la administradora.",
+                    respuesta="Anulada directamente con la clave de anulación.",
                 )
         except DjangoValidationError as e:
             return _error(" ".join(e.messages))
 
         venta.refresh_from_db()
         return Response(self.get_serializer(venta).data)
+
+    @action(detail=False, methods=["post"], url_path="verificar-clave", throttle_classes=[ScopedRateThrottle], throttle_scope="clave_anulacion")
+    def verificar_clave(self, request):
+        """Solo comprueba la clave de anulación, sin anular nada. El front la usa antes de pedir la confirmación."""
+        clave = request.data.get("clave")
+        if not isinstance(clave, str) or not clave or len(clave) > 128:
+            return _error("Clave incorrecta.")
+
+        if not _clave_correcta(clave):
+            return _error("Clave incorrecta.")
+
+        return Response({"detail": "Clave correcta."})
+
+    @action(detail=False, methods=["get", "post"], url_path="clave-anulacion")
+    def clave_anulacion(self, request):
+        """GET: si ya hay clave y cuándo se cambió. POST: crea o cambia la clave. Solo ADMIN."""
+        if request.method == "GET":
+            return Response(_estado_clave())
+
+        datos = CambiarClaveAnulacionSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+
+        # Hay una sola clave para todo el negocio: si todavía no existe, se crea
+        registro = ClaveAnulacion.objects.first() or ClaveAnulacion()
+        registro.establecer(datos.validated_data["clave"], request.user)
+        return Response(_estado_clave())
 
     @action(detail=True, methods=["post"], url_path="solicitar-anulacion")
     def solicitar_anulacion(self, request, pk=None):
@@ -193,6 +253,30 @@ class VentaViewSet(viewsets.ModelViewSet):
             "id", "nombre", "precio", "duracion", "tipo"
         )
         return Response(list(datos))
+
+    @action(detail=False, methods=["get"])
+    def trabajadoras(self, request):
+        """Trabajadoras activas que pueden realizar servicios, leídas desde la base de datos.
+
+        La recepcionista ve las de su local. La administradora ve las del local indicado
+        con ?local=<id> o, si no indica local, las de todos los locales.
+        """
+        user = request.user
+        qs = Usuario.objects.filter(rol=Usuario.Rol.TRABAJADOR, is_active=True)
+        if user.rol == "ADMIN":
+            local = request.query_params.get("local")
+            if local:
+                if not local.isdecimal():
+                    return _error("El local indicado no es válido.")
+                qs = qs.filter(local_id=int(local))
+        else:
+            qs = qs.filter(local_id=user.local_id)
+
+        datos = [
+            {"id": u.id, "nombre": u.get_full_name() or u.email, "local": u.local_id}
+            for u in qs.order_by("first_name", "last_name")
+        ]
+        return Response(datos)
 
     @action(detail=False, methods=["get"])
     def productos(self, request):

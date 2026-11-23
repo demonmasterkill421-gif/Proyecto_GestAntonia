@@ -1,3 +1,6 @@
+import logging
+
+from django.conf import settings
 from django.core.exceptions import ValidationError as ErrorDjango
 from django.http import HttpResponse
 from django.utils import timezone
@@ -11,7 +14,7 @@ from usuarios.models import Usuario
 from ventas.permissions import EsRecepcionista, MismoLocal
 
 from .exportarExcel import construir_excel
-from .models import RegistroDeAsistencia
+from .models import RegistroDeAsistencia, CodigoQR
 from .permissions import EsAdministrador
 from .serializers import (
     AsistenciaSerializer,
@@ -19,6 +22,8 @@ from .serializers import (
     MarcarSerializer,
     _nombre_de,
 )
+
+logger = logging.getLogger(__name__)
 
 TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -70,9 +75,10 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, EsRecepcionista, MismoLocal]
 
     def get_permissions(self):
-        # Corregir registros y descargar el Excel: solo la administradora
-        if self.action in ("corregir", "exportar"):
+        if self.action in ("corregir", "exportar", "qr", "eliminar"):
             return [IsAuthenticated(), EsAdministrador()]
+        if self.action in ("escanear", "mia"):
+            return [IsAuthenticated()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -87,7 +93,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             return qs
         return qs.filter(local=user.local)
 
-    # ---------- Día: una fila por trabajadora ----------
     @action(detail=False, methods=["get"])
     def dia(self, request):
         local_id = _local_pedido(request)
@@ -127,7 +132,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({"fecha": fecha, "es_hoy": fecha == hoy, "filas": filas})
 
-    # ---------- Resumen: días y horas por período ----------
     @action(detail=False, methods=["get"])
     def resumen(self, request):
         local_id = _local_pedido(request)
@@ -153,7 +157,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             {"desde": desde, "hasta": hasta, "filas": _filas_resumen(trabajadoras, registros)}
         )
 
-    # ---------- Exportar a Excel (solo ADMIN) ----------
     @action(detail=False, methods=["get"])
     def exportar(self, request):
         local_id = _local_pedido(request)
@@ -176,10 +179,8 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
                 trabajador__in=trabajadoras, fecha__range=(desde, hasta)
             ).select_related("trabajador", "local", "corregido_por")
         )
-        # Primero por fecha y, dentro del mismo día, por nombre
         registros.sort(key=lambda r: (r.fecha, _nombre_de(r.trabajador)))
 
-        # Nombre del local para el título del archivo
         modelo_local = Usuario._meta.get_field("local").related_model
         local = modelo_local.objects.filter(pk=local_id).first()
         local_nombre = local.nombre if local else f"Local {local_id}"
@@ -198,7 +199,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return respuesta
 
-    # ---------- Marcar entrada / salida (ADMIN y RECEP, solo hoy) ----------
     @action(detail=False, methods=["post"])
     def marcar(self, request):
         serializer = MarcarSerializer(data=request.data)
@@ -253,7 +253,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED if accion == "entrada" else status.HTTP_200_OK,
         )
 
-    # ---------- Corregir o crear un registro (solo ADMIN, lápiz) ----------
     @action(detail=False, methods=["post"])
     def corregir(self, request):
         serializer = CorregirSerializer(data=request.data)
@@ -290,3 +289,125 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             AsistenciaSerializer(registro).data,
             status=status.HTTP_201_CREATED if creado else status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["post"])
+    def eliminar(self, request, pk=None):
+        motivo = (request.data.get("motivo") or "").strip()
+        if len(motivo) < 3:
+            return Response(
+                {"detail": "Debes ingresar un motivo válido para eliminar la asistencia."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registro = self.get_object()
+        usuario_responsable = (
+            getattr(request.user, "correo", None)
+            or getattr(request.user, "email", None)
+            or str(request.user)
+        )
+        logger.info(
+            "Asistencia eliminada | id=%s | trabajador=%s | fecha=%s | por=%s | motivo=%s",
+            registro.id,
+            _nombre_de(registro.trabajador),
+            registro.fecha,
+            usuario_responsable,
+            motivo,
+        )
+        registro.delete()
+
+        return Response(
+            {"detail": "Registro de asistencia eliminado correctamente."},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["get"], url_path="mia")
+    def mia(self, request):
+        registros = RegistroDeAsistencia.objects.filter(
+            trabajador=request.user
+        ).order_by("-fecha")[:60]
+        return Response(AsistenciaSerializer(registros, many=True).data)
+
+    @action(detail=False, methods=["get", "post"], url_path="qr")
+    def qr(self, request):
+        CodigoQR.limpiar_expirados()
+        local_id = (
+            request.data.get("local")
+            if request.method == "POST"
+            else request.query_params.get("local")
+        )
+        if not local_id:
+            return Response(
+                {"detail": "Falta elegir un local."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        modelo_local = Usuario._meta.get_field("local").related_model
+        local = modelo_local.objects.filter(pk=local_id).first()
+        if not local:
+            return Response(
+                {"detail": "Local no encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if request.method == "GET":
+            qr_obj = CodigoQR.objects.filter(local=local).first()
+            if not qr_obj:
+                return Response({"existe": False})
+            return Response(
+                {
+                    "existe": True,
+                    "token": qr_obj.token,
+                    "url": f"{settings.FRONTEND_URL}/trabajador/asistencia?qr={qr_obj.token}",
+                    "vigente_hasta": qr_obj.vigente_hasta,
+                }
+            )
+
+        qr_obj = CodigoQR.generar(local, request.user)
+        return Response(
+            {
+                "existe": True,
+                "token": qr_obj.token,
+                "url": f"{settings.FRONTEND_URL}/trabajador/asistencia?qr={qr_obj.token}",
+                "vigente_hasta": qr_obj.vigente_hasta,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="escanear")
+    def escanear(self, request):
+        user = request.user
+
+        if user.rol not in ["TRAB", "RECEP"]:
+            return Response(
+                {"detail": "Solo trabajadoras y recepcionistas pueden usar el registro automático."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        token_qr = request.data.get("token") or request.query_params.get("token")
+        if not token_qr:
+            return Response(
+                {"detail": "No se proporcionó el código QR de la sucursal."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            registro = RegistroDeAsistencia.registrar_por_qr(user, token_qr)
+            mensaje_exito = (
+                "¡Salida registrada correctamente!"
+                if registro.hora_salida
+                else "¡Entrada registrada correctamente!"
+            )
+            return Response(
+                {"mensaje": mensaje_exito},
+                status=status.HTTP_200_OK,
+            )
+        except (ErrorDjango, ValueError) as error:
+            mensaje_error = (
+                error.messages[0]
+                if hasattr(error, "messages")
+                else str(error.message if hasattr(error, "message") else error)
+            )
+            return Response(
+                {"detail": mensaje_error},
+                status=status.HTTP_400_BAD_REQUEST,
+            )

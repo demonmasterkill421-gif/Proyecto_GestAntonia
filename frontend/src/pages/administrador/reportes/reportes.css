@@ -1,618 +1,721 @@
-/* GestAntonia - Reportes (módulo del equipo 1)
-   Estilos limitados a .ga-reports para no afectar otros módulos ni Tailwind.
-   Origen: última versión React del repositorio Dashboard-Antonia. */
+
 .ga-reports {
-  --brand: #ac3488;
-  --brand-hover: #982c79;
-  --brand-soft: #f5d7e9;
-  --line: #e8e5e8;
-  --text-sub: #757075;
-  color: #232025;
-  font-family: Arial, Helvetica, sans-serif;
+  --ga-primary: #b92b8b;
+  --ga-secondary: #cc2c9a;
+  --ga-line: #eec4df;
+  --ga-ink: #251c29;
+  --ga-muted: #645b70;
+  --ga-green: #098b45;
+  box-sizing: border-box;
   min-width: 0;
+  min-height: calc(100vh - 80px);
+  margin: -32px -32px -32px -40px;
+  color: var(--ga-ink);
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(ellipse 68% 33% at 90% 2%, rgba(244, 171, 218, .24) 0%, transparent 78%),
+    radial-gradient(ellipse 70% 34% at 10% 102%, rgba(250, 204, 231, .20) 0%, transparent 83%),
+    linear-gradient(158deg, #fff9fd 0%, #fff3fb 45%, #fceaf5 100%);
 }
 .ga-reports *, .ga-reports *::before, .ga-reports *::after { box-sizing: border-box; }
-.ga-reports button, .ga-reports input { font-family: inherit; }
+.ga-reports button, .ga-reports input { font: inherit; }
 .ga-reports button { cursor: pointer; }
-.ga-reports .table-responsive { width: 100%; overflow-x: auto; }
-.ga-reports .report-branch-readonly {
-  display: flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 8px 12px;
-  color: #6a3257;
-  border: 1px solid #e8dce5;
-  background: #fbf4f9;
-  border-radius: 6px;
-  font-size: 12px;
+.ga-reports button:disabled { opacity: .48; cursor: not-allowed; }
+.ga-reports button:focus-visible, .ga-reports input:focus-visible {
+  outline: 2px solid #bb318a;
+  outline-offset: 3px;
 }
-.ga-reports .report-toast {
-  position: fixed;
-  right: 20px;
-  bottom: 18px;
-  z-index: 90;
-  display: flex;
-  max-width: min(460px, 94vw);
-  gap: 12px;
-  align-items: center;
-  padding: 12px 16px;
-  background: #3a2433;
-  color: white;
-  border-radius: 8px;
-  box-shadow: 0 6px 25px #0002;
-  font-size: 13px;
-}
-.ga-reports .report-toast button { color: white; font-size: 20px; }
-
 .ga-reports .reports-page {
-  padding: 27px 28px 44px;
-  max-width: 2000px;
+  width: 100%; max-width: 2000px; min-width: 0;
   margin: 0 auto;
+  padding: 25px 38px 22px;
 }
-
-.ga-reports .reports-intro {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-}
+.ga-reports .reports-intro { margin-bottom: 22px; }
 
 .ga-reports .reports-intro h1 {
-  font-size: 27px;
-  margin: 1px 0 5px;
-  font-weight: 750;
-  letter-spacing: -.5px;
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.35px;
+  color: #b12885;
 }
 
 .ga-reports .reports-intro p {
-  color: #777177;
-  font-size: 13px;
-  margin: 0;
+  margin: 4px 0 0;
+  color: #5c536a;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 400;
 }
 
-.ga-reports .demo-note {
-  display: inline-block;
-  margin-top: 6px;
-  color: #a37a93;
-  font-size: 10px;
-}
-
-.ga-reports .export-button {
-  padding: 13px 16px;
-  display: inline-flex;
-  gap: 9px;
-  align-items: center;
-  background: #fff;
-  border: 1px solid #e8e4e8;
-  border-radius: 9px;
-  color: #171617;
-  font-weight: 600;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.ga-reports .export-button:hover {
-  background: #fff6fb;
-  border-color: #d8a8c8;
-}
-
-.ga-reports .export-button:disabled {
-  opacity: .4;
-  cursor: wait;
-}
+/* Rango de fechas / sucursal / acciones */
 
 .ga-reports .filters-card {
   display: flex;
-  align-items: end;
-  min-height: 83px;
-  gap: 26px;
-  padding: 13px 18px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+
+  column-gap: 21px;
+  row-gap: 14px;
+
+  min-height: 96px;
+  margin: 0 0 19px;
+  padding: 16px 20px 18px;
+
+  border: 1px solid #f0c6df;
+  border-radius: 13px;
+
+  background: linear-gradient(
+    107deg,
+    rgba(255, 250, 253, 0.97),
+    rgba(250, 230, 243, 0.97)
+  );
+
+  box-shadow: 0 5px 17px rgba(156, 49, 117, 0.06);
 }
 
-.ga-reports .filters-card label:not(.date-entry) {
+.ga-reports .filters-card .field-date,
+.ga-reports .filters-card .field-branch { min-width: 0; }
+.ga-reports .filters-card .field-date > label,
+.ga-reports .filters-card .field-branch > label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
   margin-bottom: 7px;
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 700;
+  color: #27202b;
 }
-
 .ga-reports .date-fields {
   display: flex;
   align-items: center;
-  gap: 4px;
-  border: 1px solid #e4e3e6;
-  border-radius: 6px;
-  height: 34px;
+  width: 292px;
+  height: 37px;
+  gap: 8px;
+  padding: 0 10px;
   background: white;
-  padding: 0 8px;
+  border: 1px solid #efcadd;
+  border-radius: 8px;
 }
-
-.ga-reports .date-entry {
-  margin: 0;
-  display: block;
-}
-
+.ga-reports .date-entry { display: flex; align-items: center; min-width: 0; flex: 1 1 0; }
 .ga-reports .date-fields input {
-  width: 128px;
-  border: 0;
-  background: none;
-  outline: none;
-  font-size: 11px;
-  padding: 0;
-  color: #333;
+  display: block;
+  width: 100%; min-width: 0;
+  padding: 0; margin: 0;
+  background: transparent; border: 0; outline: none;
+  color: #261c29; font-size: 12px; font-weight: 500;
+  color-scheme: light;
 }
-
-.ga-reports .dates-separator {
-  font-size: 10px;
-  color: #706c70;
+.ga-reports .date-fields input::-webkit-calendar-picker-indicator { cursor: pointer; }
+.ga-reports .dates-separator { color: #625361; font-size: 14px; }
+.ga-reports .field-branch { width: 258px; }
+.ga-reports .report-branch-readonly {
+  display: flex; align-items: center;
+  width: 100%; height: 37px;
+  overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid #edc3da;
+  border-radius: 8px;
+  background: #fbeaf5;
+  color: #a9257e;
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-
-.ga-reports .field-branch select {
-  height: 34px;
-  width: 242px;
-  border: 1px solid #e4e3e6;
-  border-radius: 6px;
-  font-size: 12px;
-  background: #fff;
-  color: #3f3b3e;
-  padding: 0 9px;
-}
-
 .ga-reports .apply-button {
-  height: 42px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--brand);
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 38px;
+  min-width: 134px;
+  padding: 0 22px;
+  border: 0; border-radius: 8px;
+  background: linear-gradient(110deg, #ad3188 0%, #c42895 100%);
   color: #fff;
-  font-weight: 600;
-  font-size: 12px;
-  padding: 0 24px;
+  font-size: 13px; font-weight: 700;
+  box-shadow: 0 4px 12px rgba(163, 39, 111, .10);
+  transition: filter .18s, transform .18s;
 }
-
-.ga-reports .apply-button:hover {
-  background: var(--brand-hover);
-}
-
-.ga-reports .applied-period {
+.ga-reports .apply-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.ga-reports .export-button {
+  display: inline-flex; justify-content: center; align-items: center;
+  gap: 9px;
+  height: 40px; min-width: 164px;
+  padding: 0 15px;
   margin-left: auto;
-  color: #aa92a3;
-  font-size: 11px;
-  display: none;
+  border: 1px solid #ca3f9d; border-radius: 8px;
+  background: rgba(255,255,255,.9);
+  color: #ac2380;
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap;
+  transition: background .18s, box-shadow .18s;
 }
+.ga-reports .export-button:hover { background: white; box-shadow: 0 3px 10px #a8368814; }
+.ga-reports .applied-period { display: none; }
+.ga-reports .sr-only { position: absolute!important; width: 1px!important; height: 1px!important; padding: 0!important; margin: -1px!important; overflow: hidden!important; clip: rect(0,0,0,0)!important; white-space: nowrap!important; border: 0!important; }
+
+/* Indicadores: 4 tarjetas, iconos reales Lucide */
+
+/* =========================================
+   TARJETAS DE INDICADORES - GESTANTONIA
+   ========================================= */
 
 .ga-reports .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-  margin-bottom: 28px;
+  gap: 17px;
+  margin: 0 0 22px;
 }
 
 .ga-reports .stat-card {
-  min-height: 117px;
-  border: 1px solid #e7e3e7;
-  border-radius: 10px;
-  background: #fff;
-  padding: 17px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  min-height: 116px;
+  padding: 17px 19px;
+
+  border: 1px solid #edc5df;
+  border-radius: 14px;
+
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #fffafd 100%
+  );
+
+  box-shadow: 0 5px 15px rgba(166, 47, 118, 0.08);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.ga-reports .stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 9px 22px rgba(166, 47, 118, 0.12);
+}
+
+.ga-reports .stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 56px;
+
+  width: 56px;
+  height: 56px;
+
+  border-radius: 15px;
+
+  background: linear-gradient(
+    145deg,
+    #fce9f5,
+    #f7ddec
+  );
+
+  color: #b92b8b;
+
+  box-shadow: 0 3px 10px rgba(166, 47, 118, 0.06);
+}
+
+.ga-reports .stat-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.1;
+}
+
+.ga-reports .stat-copy {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0;
 }
 
 .ga-reports .stat-label {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 500;
+  margin: 0 0 5px;
+
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 700;
+
+  color: #671c4b;
 }
 
 .ga-reports .stat-value {
   display: block;
-  color: #201c20;
-  font-size: clamp(21px, 1.7vw, 28px);
+  margin: 0;
+
+  font-size: clamp(24px, 1.85vw, 32px);
   line-height: 1.05;
   font-weight: 800;
-  letter-spacing: -.4px;
+  letter-spacing: -0.5px;
+
+  color: #211923;
   white-space: nowrap;
 }
 
 .ga-reports .stat-note {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
+
+  font-size: 12px;
+  line-height: 1.4;
   font-weight: 500;
-  font-size: 11px;
-  color: #333;
+
+  color: #302b36;
 }
 
 .ga-reports .stat-note.positive {
-  color: #2c9f55;
+  color: #098b45;
 }
 
 .ga-reports .stat-note.accent {
-  color: #b3348a;
+  color: #c32b90;
 }
+
+
+/* Gráficos: altura explícita (no depende de que Tailwind detecte clases del ZIP). */
+
+/* =========================================
+   GRÁFICOS - DASHBOARD GESTANTONIA
+   ========================================= */
 
 .ga-reports .charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 25px;
-  margin-bottom: 32px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 20px;
+  margin: 0 0 22px;
 }
 
+/* Contenedores principales */
 .ga-reports .report-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  min-height: 329px;
-  border: 1px solid #e7e3e7;
-  border-radius: 10px;
-  background: #fff;
-  padding: 19px 20px;
+  height: 295px;
+  padding: 20px 21px;
+
+  border: 1px solid #edc5df;
+  border-radius: 15px;
+  background: #ffffff;
+
+  box-shadow: 0 5px 16px rgba(151, 37, 113, 0.07);
+
+  transition: box-shadow 0.2s ease;
+}
+
+.ga-reports .report-panel:hover {
+  box-shadow: 0 8px 22px rgba(151, 37, 113, 0.10);
+}
+
+/* Encabezado de los gráficos */
+.ga-reports .chart-heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+
+.ga-reports .chart-heading-icon,
+.ga-reports .workers-heading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 42px;
+  height: 42px;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    140deg,
+    #c52b95,
+    #ae2383
+  );
+
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(168, 40, 120, 0.16);
+}
+
+.ga-reports .chart-heading-icon svg,
+.ga-reports .workers-heading-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2;
+}
+
+.ga-reports .chart-heading-copy {
+  min-width: 0;
 }
 
 .ga-reports .report-panel h2 {
-  font-size: 17px;
-  font-weight: 700;
-  margin: 0 0 5px;
+  margin: 0;
+
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.3px;
+
+  color: #261c2a;
 }
 
 .ga-reports .panel-description {
-  font-size: 12px;
-  color: #777277;
-  margin: 0;
+  margin: 4px 0 0;
+
+  font-size: 13px;
+  line-height: 1.4;
+  color: #696073;
 }
 
+/* =========================================
+   GRÁFICO DE GANANCIAS POR DÍA
+   ========================================= */
+
 .ga-reports .bar-chart {
-  height: 240px;
   display: flex;
-  align-items: end;
-  gap: 14px;
-  padding: 10px 18px 0;
+  align-items: flex-end;
+
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  height: 198px;
+
+  margin-top: 15px;
+  padding: 0 12px;
+
+  overflow: hidden;
 }
 
 .ga-reports .bar-slot {
-  min-width: 0;
-  flex: 1;
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+
+  min-width: 0;
   height: 100%;
+  gap: 7px;
 }
 
 .ga-reports .bar-track {
   display: flex;
-  flex: 1;
-  align-items: end;
-  width: min(100%, 35px);
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .ga-reports .bar-total {
-  width: 100%;
-  min-height: 7px;
   display: flex;
   flex-direction: column;
+
+  width: min(100%, 34px);
+  min-height: 7px;
+
   overflow: hidden;
-  border-radius: 5px 5px 2px 2px;
+  border-radius: 5px 5px 0 0;
+
+  transition: height 0.25s ease;
 }
 
 .ga-reports .bar-highlight {
-  background: #af3489;
   height: 57%;
-  min-height: 6px;
+  min-height: 4px;
+  flex-shrink: 0;
+
+  background: linear-gradient(
+    180deg,
+    #c52b95,
+    #ae2783
+  );
 }
 
 .ga-reports .bar-light {
-  background: #f8dfee;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  background: #f5d2e7;
 }
 
 .ga-reports .bar-tick {
-  color: #878084;
   font-size: 11px;
-  line-height: 17px;
+  line-height: 15px;
+  font-weight: 500;
+  color: #736b7c;
 }
 
+/* =========================================
+   GRÁFICO DE SERVICIOS REALIZADOS
+   ========================================= */
+
 .ga-reports .services-list {
-  margin-top: 36px;
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
-  gap: 24px;
+  justify-content: center;
+
+  min-height: 0;
+  gap: 20px;
+
+  margin-top: 12px;
+  padding-bottom: 12px;
 }
 
 .ga-reports .service-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+
+  gap: 15px;
   min-width: 0;
 }
 
 .ga-reports .service-title {
-  width: 175px;
-  flex-shrink: 0;
-  color: #232023;
-  font-weight: 600;
-  font-size: 11px;
+  flex: 0 0 160px;
+  min-width: 0;
+
+  font-size: 12px;
+  font-weight: 650;
+  color: #261e28;
 }
 
 .ga-reports .service-track {
-  height: 13px;
-  flex: 1;
-  background: #f9e8f2;
-  border-radius: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 14px;
+
   overflow: hidden;
+  border-radius: 999px;
+  background: #fce6f1;
 }
 
 .ga-reports .service-track span {
-  height: 100%;
   display: block;
-  background: #ad3489;
-  border-radius: 10px;
+  height: 100%;
+
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #cb3399,
+    #ad2182
+  );
+
+  transition: width 0.25s ease;
 }
 
 .ga-reports .service-percent {
-  min-width: 34px;
+  flex-shrink: 0;
+  min-width: 40px;
+
   text-align: right;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #29222e;
 }
 
+/* Estado sin datos */
 .ga-reports .panel-empty {
   display: flex;
-  justify-content: center;
+  flex: 1 1 auto;
   align-items: center;
-  height: 220px;
+  justify-content: center;
+
+  min-height: 110px;
+
+  color: #8c7888;
   font-size: 13px;
-  color: #9c8c96;
+  text-align: center;
 }
 
-.ga-reports .workers-section h2 {
-  font-weight: 750;
-  font-size: 19px;
-  margin: 0 0 15px;
+/* Tabla de trabajadores */
+
+/* =========================================
+   REPORTE DE TRABAJADORES - GESTANTONIA
+   ========================================= */
+
+.ga-reports .workers-section {
+  min-width: 0;
+  padding: 16px 15px 17px;
+  border: 1px solid #edc5df;
+  border-radius: 15px;
+  background: #ffffff;
+  box-shadow: 0 5px 18px rgba(151, 37, 113, 0.07);
 }
+
+/* Encabezado de la sección */
+
+.ga-reports .workers-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 3px 15px;
+}
+
+.ga-reports .workers-heading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #c52b95, #ae2383);
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(168, 40, 120, 0.16);
+}
+
+.ga-reports .workers-heading-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2;
+}
+
+.ga-reports .workers-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.3px;
+  color: #261b29;
+}
+
+/* Contenedor de la tabla */
 
 .ga-reports .workers-box {
-  border: 1px solid #e6e3e7;
-  border-radius: 10px;
-  background: #fff;
-  min-height: 310px;
   overflow: hidden;
+  border: 1px solid #edc5df;
+  border-radius: 10px;
+  background: #ffffff;
 }
+
+.ga-reports .table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Tabla principal */
 
 .ga-reports .workers-table {
   width: 100%;
+  min-width: 820px;
   border-collapse: collapse;
-  font-size: 12px;
-}
-
-.ga-reports .workers-table th, .ga-reports .workers-table td {
-  padding: 16px 17px;
   text-align: left;
+  font-size: 13px;
+  color: #241b27;
+}
+
+/* Encabezados de columnas */
+
+.ga-reports .workers-table thead {
+  background: linear-gradient(
+    90deg,
+    #fff6fb,
+    #fffafd
+  );
+  color: #b02a85;
+}
+
+.ga-reports .workers-table th {
+  padding: 14px 16px;
+  border-bottom: 1px solid #ecc9dc;
+  font-size: 13px;
+  font-weight: 750;
   white-space: nowrap;
+  text-align: left;
+  color: #b02a85;
 }
 
-.ga-reports .workers-table thead th {
-  font-size: 11px;
-  font-weight: 600;
-  color: #525057;
-  border-bottom: 1px solid #e8e5e8;
+/* Filas y datos */
+
+.ga-reports .workers-table td {
+  padding: 16px 16px;
+  border-bottom: 1px solid #f0dbe8;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
-.ga-reports .workers-table tbody td {
-  border-bottom: 1px solid #eae8ea;
+.ga-reports .workers-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.ga-reports .workers-table tbody tr:hover {
+  background: #fff5fa;
 }
 
 .ga-reports .workers-table tbody tr:last-child td {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
+/* Nombre del trabajador */
+
 .ga-reports .worker-name {
+  font-weight: 750;
+  color: #251c29;
+}
+
+/* Estado del trabajador */
+
+.ga-reports .worker-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 6px 15px;
+  border-radius: 999px;
+  background: #def7e5;
+  color: #087a37;
+  font-size: 12px;
+  line-height: 1.2;
   font-weight: 700;
 }
 
-.ga-reports .worker-status {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 13px;
-  color: #28934d;
-  background: #effbf2;
-  border-radius: 25px;
-}
+/* Mensaje cuando no hay trabajadores */
 
 .ga-reports .empty-row {
   text-align: center !important;
-  color: #9d8896;
-  padding: 35px !important;
+  padding: 32px !important;
+  color: #907789;
 }
 
-.ga-reports .loading-report {
-  color: #876b7d;
-  font-size: 13px;
-  margin-top: 30px;
+.ga-reports .loading-report { margin: 15px 0; padding: 17px; border: 1px solid var(--ga-line); border-radius: 12px; background: #fff; font-size: 13px; color: #907687; }
+.ga-reports .loading-report.report-error { color: #b71e41; border-color: #edb3bf; }
+.ga-reports .report-toast { position: fixed; right: 20px; bottom: 20px; z-index: 90; display: flex; align-items: center; gap: 12px; max-width: min(460px,92vw); padding: 12px 16px; color:#fff; background: #442538; border-radius: 11px; box-shadow: 0 8px 25px #32101e36; font-size: 13px; }
+.ga-reports .report-toast button { border: 0; background: none; color: #fff; font-size: 20px; line-height: 1; }
+
+@media (max-width: 1260px) {
+  .ga-reports .reports-page { padding: 24px 26px; }
+  .ga-reports .stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ga-reports .charts-grid { gap: 15px; }
+  .ga-reports .service-title { flex-basis: 120px; }
+  .ga-reports .stat-value { font-size: 27px; }
 }
-
-.ga-reports .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+@media (max-width: 940px) {
+  .ga-reports .charts-grid { grid-template-columns: 1fr; }
+  .ga-reports .service-title { flex-basis: 160px; }
+  .ga-reports .report-panel { height: 255px; }
 }
-
-@media (max-width: 1360px) {
-  .ga-reports .reports-page {
-    padding: 23px 25px 40px;
-  }
-
-  .ga-reports .reports-intro h1 {
-    font-size: 23px;
-  }
-
-  .ga-reports .stats-grid {
-    gap: 14px;
-    margin-bottom: 22px;
-  }
-
-  .ga-reports .stat-card {
-    min-height: 100px;
-    padding: 14px 13px;
-  }
-
-  .ga-reports .stat-value {
-    font-size: 21px;
-  }
-
-  .ga-reports .stat-label {
-    font-size: 11px;
-  }
-
-  .ga-reports .report-panel {
-    min-height: 290px;
-  }
-
-  .ga-reports .bar-chart {
-    height: 207px;
-    gap: 8px;
-  }
-
-  .ga-reports .service-title {
-    width: 130px;
-    font-size: 10px;
-  }
-
-  .ga-reports .services-list {
-    gap: 19px;
-  }
-
-  .ga-reports .workers-box {
-    min-height: 240px;
-  }
-
-  .ga-reports .workers-table th, .ga-reports .workers-table td {
-    padding: 13px 11px;
-    font-size: 11px;
-  }
+@media (max-width: 767px) {
+  .ga-reports { margin: -32px -32px; }
+  .ga-reports .reports-page { padding: 20px 18px; }
+  .ga-reports .filters-card { gap: 13px; }
+  .ga-reports .filters-card .field-date, .ga-reports .field-branch { flex: 1 1 100%; width: 100%; }
+  .ga-reports .date-fields { width: 100%; }
+  .ga-reports .export-button { margin-left: auto; }
 }
-
-@media (max-width: 1020px) {
-  .ga-reports .stats-grid {
-    grid-template-columns: repeat(2, minmax(0,1fr));
-  }
-
-  .ga-reports .charts-grid {
-    grid-template-columns: 1fr;
-    gap: 15px;
-  }
-
-  .ga-reports .reports-page {
-    padding: 20px;
-  }
-
-  .ga-reports .service-title {
-    width: 160px;
-  }
-
-  .ga-reports .filters-card {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
+@media (max-width: 580px) {
+  .ga-reports { margin: -16px; min-height: calc(100vh - 64px); }
+  .ga-reports .reports-intro h1 { font-size: 30px; }
+  .ga-reports .stats-grid { grid-template-columns: 1fr; gap: 12px; }
+  .ga-reports .stat-card { min-height: 95px; }
+  .ga-reports .chart-heading { gap: 10px; }
+  .ga-reports .chart-heading h2, .ga-reports .workers-heading h2 { font-size: 18px; }
+  .ga-reports .service-title { flex-basis: 118px; }
+  .ga-reports .bar-chart { gap: 5px; padding: 0 3px; }
+  .ga-reports .bar-tick { font-size: 10px; }
+  .ga-reports .export-button { flex: 1 1 100%; margin-left: 0; }
 }
-
-@media (max-width: 760px) {
-  .ga-reports .reports-page {
-    padding: 18px 13px 30px;
-  }
-
-  .ga-reports .reports-intro h1 {
-    font-size: 23px;
-  }
-
-  .ga-reports .reports-intro p {
-    font-size: 11px;
-  }
-
-  .ga-reports .export-button {
-    padding: 10px;
-  }
-
-  .ga-reports .export-button span {
-    display: none;
-  }
-
-  .ga-reports .filters-card {
-    align-items: stretch;
-  }
-
-  .ga-reports .field-date, .ga-reports .field-branch {
-    width: 100%;
-  }
-
-  .ga-reports .date-fields, .ga-reports .field-branch select {
-    width: 100%;
-  }
-
-  .ga-reports .date-entry {
-    flex: 1;
-  }
-
-  .ga-reports .date-fields input {
-    width: 100%;
-  }
-
-  .ga-reports .apply-button {
-    width: 100%;
-  }
-
-  .ga-reports .stats-grid {
-    gap: 9px;
-  }
-
-  .ga-reports .stat-card {
-    min-height: 105px;
-    padding: 12px 10px;
-  }
-
-  .ga-reports .stat-label {
-    font-size: 10px;
-  }
-
-  .ga-reports .stat-value {
-    font-size: clamp(17px, 5vw, 23px);
-  }
-
-  .ga-reports .stat-note {
-    font-size: 9px;
-  }
-
-  .ga-reports .report-panel {
-    padding: 17px 12px;
-    min-height: 255px;
-  }
-
-  .ga-reports .bar-chart {
-    height: 170px;
-    padding: 10px 0 0;
-    gap: 8px;
-  }
-
-  .ga-reports .service-title {
-    width: 110px;
-    font-size: 9px;
-  }
-
-  .ga-reports .service-item {
-    gap: 8px;
-  }
-
-  .ga-reports .service-percent {
-    font-size: 10px;
-    min-width: 26px;
-  }
-
-  .ga-reports .services-list {
-    margin-top: 26px;
-    gap: 18px;
-  }
-
-  .ga-reports .workers-section h2 {
-    font-size: 16px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .ga-reports .stat-card, .ga-reports .apply-button,
+  .ga-reports .service-track span, .ga-reports .bar-total { transition: none; }
 }

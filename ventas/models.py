@@ -1,12 +1,5 @@
-"""
-Bloque «RegistroDeVenta» del diagrama de clases (CU-01 Registrar atención · RF-R01 a RF-R05).
+#Clases de RegistroDeVenta y DetalleDeVenta
 
-RegistroDeVenta (idVenta, fecha, descripcion, descuento, items[], montoBase, montoTotal) se relaciona con:
-  - Local (1..1): local donde se realiza la venta.
-  - Recepcionista (1..1, «Registra»): quien la ingresa al sistema.
-  - Trabajador (0..1, «pertenece»): quien realiza el servicio; se usa para calcular su comisión.
-  - Item (1..*, «Contiene»): a través de DetalleVenta, que guarda cantidad y precio del momento.
-"""
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
@@ -15,43 +8,78 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Max
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
 
 
+
+def _redondear(valor): #Función que convierte un valor FLOAT a DECIMAL y lo redondea.
+    return int(Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+#Límites del servicio "Otro" (precio y nombre escritos a mano por la recepcionista)
+PRECIO_MANUAL_MAXIMO = 100000
+NOMBRE_MANUAL_MAXIMO = 100
+
+
+
+#Modelo de RegistroDeVenta
 class RegistroDeVenta(models.Model):
+
+    #Clase Método de pago___________________________________________
     class MetodoPago(models.TextChoices):
         EFECTIVO = "EFECTIVO", "Efectivo"
         DEBITO = "DEBITO", "Débito"
         CREDITO = "CREDITO", "Crédito"
         TRANSFERENCIA = "TRANSFER", "Transferencia"
 
+    #Estado de la venta_______________________________________
     class Estado(models.TextChoices):
         BORRADOR = "BORRADOR", "En registro"
         CONFIRMADA = "CONFIRMADA", "Confirmada"
         ANULADA = "ANULADA", "Anulada"
 
+
+    #Local asociado___________________________________________
     local = models.ForeignKey("locales.Local", on_delete=models.PROTECT, related_name="ventas")
+
+
+    #Recepcionista asociado___________________________________
     recepcionista = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="ventas_registradas",
         limit_choices_to={"rol__in": ["RECEP", "ADMIN"]},
     )
-    trabajador = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="atenciones", limit_choices_to={"rol": "TRAB"},
-        help_text="Trabajadora encargada del servicio.",
-    )
+
+
+
+    #Fecha actual___________________________________________
     fecha = models.DateTimeField(default=timezone.now)
+
+    #Descripción Opcional___________________________________________
     descripcion = models.TextField("descripción", blank=True)
-    metodo_pago = models.CharField("método de pago", max_length=8, choices=MetodoPago.choices,
-                                   default=MetodoPago.EFECTIVO)
+
+    #Método de pago___________________________________________
+    metodo_pago = models.CharField("método de pago", max_length=8, choices=MetodoPago.choices, default=MetodoPago.EFECTIVO)
+
+    #Descuento aplicado___________________________________________
     descuento = models.DecimalField(
         "descuento (%)", max_digits=5, decimal_places=2, default=0,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
+
+    #Monto base___________________________________________
     monto_base = models.PositiveIntegerField("monto base (CLP)", default=0)
+
+    #Monto total___________________________________________
     monto_total = models.PositiveIntegerField("monto total (CLP)", default=0)
+
+    #Estado de la venta___________________________________________
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.BORRADOR)
-    folio = models.PositiveIntegerField(null=True, blank=True, editable=False,
-                                        help_text="N° de boleta correlativo por local (RF-R04).")
+
+
+
+    #N° de Folio___________________________________________
+    folio = models.PositiveIntegerField(null=True, blank=True, editable=False)
+
+    #Lista de Items___________________________________________
     items = models.ManyToManyField("catalogo.Item", through="DetalleVenta", related_name="ventas")
 
     class Meta:
@@ -66,19 +94,50 @@ class RegistroDeVenta(models.Model):
         folio = f"Boleta {self.folio}" if self.folio else f"Venta #{self.pk}"
         return f"{folio} · {self.local} · ${self.monto_total:,}".replace(",", ".")
 
-    # ------------------------------------------------------------------ métodos del diagrama
+
+
+
+    #MÉTODOS_______________________________________________________________________________
+    
+
+    #Editar si la venta esté en estado BORRADOR___________________________________________
     def _validar_editable(self):
         if self.estado != self.Estado.BORRADOR:
             raise ValidationError("Solo se puede modificar una venta que aún no ha sido confirmada.")
 
-    def agregar_item(self, item, cantidad=1, trabajador=None):
-        """agregarItem(idItem): agrega un servicio, producto o insumo (o suma cantidad si ya estaba)."""
-        self._validar_editable()
+
+
+    #Agregar un Item a la lista(Servicio, producto o insumo)___________________________________________
+    def agregar_item(self, item, cantidad=1, trabajador=None, precio_manual=None, nombre_manual=""): #Se obtiene del detalle de la venta
+        self._validar_editable() 
         if cantidad < 1:
             raise ValidationError("La cantidad debe ser al menos 1.")
+
+        # Servicio "Otro": el precio y el nombre los escribió la recepcionista.
+        # Cada uno queda en su propia línea; si se juntaran con otro igual, se perdería su precio.
+        if precio_manual is not None:
+            nombre_manual = (nombre_manual or "").strip()
+            if not nombre_manual:
+                raise ValidationError("Escribe el nombre del servicio.")
+            if len(nombre_manual) > NOMBRE_MANUAL_MAXIMO:
+                raise ValidationError(f"El nombre del servicio no puede superar los {NOMBRE_MANUAL_MAXIMO} caracteres.")
+            if not 1 <= precio_manual <= PRECIO_MANUAL_MAXIMO:
+                raise ValidationError(f"El precio debe estar entre $1 y ${PRECIO_MANUAL_MAXIMO:,}.".replace(",", "."))
+            detalle = self.detalles.create(
+                item=item, cantidad=cantidad, trabajador=trabajador,
+                precio_unitario=precio_manual, nombre_manual=nombre_manual, es_precio_manual=True,
+            )
+            self.recalcular()
+            return detalle
+
+        # Los insumos se descuentan del stock pero NO se cobran: su precio de venta es 0.
+        precio = item.precio
+        if item.es_producto and item.producto.tipo == "INSUMO":
+            precio = 0
+
         detalle, creado = self.detalles.get_or_create(
             item=item, trabajador=trabajador,
-            defaults={"cantidad": cantidad, "precio_unitario": item.precio},
+            defaults={"cantidad": cantidad, "precio_unitario": precio},
         )
         if not creado:
             detalle.cantidad += cantidad
@@ -93,14 +152,6 @@ class RegistroDeVenta(models.Model):
         self.recalcular()
         return eliminados > 0
 
-    def asociar_trabajador(self, trabajador):
-        """asociarTrabajador(idTrabajador)."""
-        self._validar_editable()
-        if trabajador.rol != "TRAB":
-            raise ValidationError("Solo se puede asociar un usuario con rol Trabajador.")
-        self.trabajador = trabajador
-        self.save(update_fields=["trabajador"])
-
     def aplicar_descuento(self, descuento):
         """aplicarDescuento(descuento: float) => float · RF-R05. Devuelve el nuevo monto total."""
         self._validar_editable()
@@ -111,11 +162,15 @@ class RegistroDeVenta(models.Model):
         self.recalcular()
         return self.monto_total
 
+    @property
+    def factor_descuento(self):
+        """Proporción que se cobra después del descuento (ej.: 15% de descuento => 0.85)."""
+        return (Decimal(100) - Decimal(self.descuento)) / Decimal(100)
+
     def recalcular(self):
         """montoBase = suma de los detalles; montoTotal = montoBase menos el descuento."""
         self.monto_base = sum(d.subtotal for d in self.detalles.all())
-        factor = (Decimal(100) - Decimal(self.descuento)) / Decimal(100)
-        self.monto_total = int((Decimal(self.monto_base) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        self.monto_total = _redondear(Decimal(self.monto_base) * self.factor_descuento)
         self.save(update_fields=["monto_base", "monto_total", "descuento"])
 
     @transaction.atomic
@@ -124,7 +179,7 @@ class RegistroDeVenta(models.Model):
         venta = RegistroDeVenta.objects.select_for_update().get(pk=self.pk)
         venta._validar_editable()
         detalles = list(venta.detalles.select_related("item__producto"))
-        if not detalles:    
+        if not detalles:
             raise ValidationError("La venta no tiene servicios ni productos.")
         for d in detalles:
             if d.item.es_producto:
@@ -149,42 +204,110 @@ class RegistroDeVenta(models.Model):
         self.estado = self.Estado.ANULADA
         self.save(update_fields=["estado"])
 
+    # ------------------------------------------------------------------ comisiones
     @property
-    def comision_trabajador(self):
-        """Comisión de la trabajadora según su porcentaje (base para el reporte CU-03)."""
-        if not self.trabajador or self.estado != self.Estado.CONFIRMADA:
-            return 0
-        pct = Decimal(self.trabajador.porcentaje_comision) / Decimal(100)
-        return int((Decimal(self.monto_total) * pct).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    def comisiones(self):
+        """
+        Comisión de cada trabajadora que participó en esta venta.
+        Devuelve un diccionario {trabajadora: monto_CLP}. Solo cuenta ventas confirmadas.
+        """
+        if self.estado != self.Estado.CONFIRMADA:
+            return {}
+        resultado = {}
+        for d in self.detalles.select_related("trabajador"):
+            if d.trabajador:
+                resultado[d.trabajador] = resultado.get(d.trabajador, 0) + d.comision
+        return resultado
 
 
+
+
+
+
+
+
+
+
+#Clase Detalle de Venta___________________________________________
 class DetalleVenta(models.Model):
-    """Cada ítem contenido en una venta, con la cantidad y el precio al momento de vender."""
+    #Por cada item, hay un detalle de venta
+
+    #Venta (FK)_______________________________________________________________________________________
     venta = models.ForeignKey(RegistroDeVenta, on_delete=models.CASCADE, related_name="detalles")
+
+    #Un solo item___________________________________________
     item = models.ForeignKey("catalogo.Item", on_delete=models.PROTECT, related_name="detalles_venta")
+
+    #Cantidad del item___________________________________________
     cantidad = models.PositiveSmallIntegerField(default=1)
+
+    #Precio del Item___________________________________________
     precio_unitario = models.PositiveIntegerField("precio unitario (CLP)")
 
+    #Servicio "Otro": nombre escrito por la recepcionista y marca de que el precio se puso a mano___________________________________________
+    nombre_manual = models.CharField("nombre manual", max_length=100, blank=True, default="")
+    es_precio_manual = models.BooleanField("precio manual", default=False)
+
+
+    #Trabajadora Asociada___________________________________________
     trabajador = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="servicios_realizados", limit_choices_to={"rol": "TRAB"},
-        help_text="Trabajadora que realizó este servicio (base de su comisión).",
+        help_text="Trabajadora asignada a este servicio (base de su comisión).",
     )
+
+
 
     class Meta:
         verbose_name = "detalle de venta"
         verbose_name_plural = "detalles de venta"
 
     def __str__(self):
-        return f"{self.item.nombre} x{self.cantidad}"
+        return f"{self.nombre_manual or self.item.nombre} x{self.cantidad}"
+
+
+    #@property sirve para convertir un método en un atributo llamado bajo su propia función
+    # por ejemplo, sin: detalle.subtotal(), con: detalle.subtotal
+
+
+
+
+    #Trabajadora Asociada___________________________________________
+    @property
+    def subtotal(self): #Calcula cuantas unidades se vendieron por el precio de cada uno.
+        return self.cantidad * self.precio_unitario
 
     @property
-    def subtotal(self):
-        return self.cantidad * self.precio_unitario
+    def subtotal_con_descuento(self):
+        """Subtotal de la línea con el descuento de la venta aplicado proporcionalmente."""
+        return _redondear(Decimal(self.subtotal) * self.venta.factor_descuento)
+
+    @property
+    def comision(self):
+        """Comisión de la trabajadora asignada a esta línea: subtotal con descuento × su porcentaje."""
+        if not self.trabajador:
+            return 0
+        pct = Decimal(self.trabajador.porcentaje_comision) / Decimal(100)
+        return _redondear(Decimal(self.subtotal_con_descuento) * pct)
+
+    @classmethod
+    def comision_de(cls, trabajadora, desde=None, hasta=None):
+        """
+        Comisión total de una trabajadora en un período (base para el reporte CU-03).
+        Suma las líneas que ella realizó en ventas confirmadas, entre 'desde' y 'hasta' (fechas opcionales).
+        """
+        lineas = cls.objects.filter(
+            trabajador=trabajadora,
+            venta__estado=RegistroDeVenta.Estado.CONFIRMADA,
+        ).select_related("venta", "trabajador")
+        if desde:
+            lineas = lineas.filter(venta__fecha__date__gte=desde)
+        if hasta:
+            lineas = lineas.filter(venta__fecha__date__lte=hasta)
+        return sum(d.comision for d in lineas)
 
 
 class SolicitudAnulacion(models.Model):
-    """Pedido de anulación de una venta. La recepcionista la solicita y el administrador la aprueba."""
 
     class Estado(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
@@ -222,3 +345,25 @@ class SolicitudAnulacion(models.Model):
 
     def __str__(self):
         return f"Solicitud de anulación · venta #{self.venta_id} · {self.get_estado_display()}"
+
+
+
+
+class ClaveAnulacion(models.Model):
+
+    passw_hash = models.CharField(max_length=128)
+    actualizada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="clave_anulacion_actualizadas", null=True, blank=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def establecer(self, passw, user=None):
+        self.passw_hash = make_password(passw)
+        self.actualizada_por = user
+        self.save()
+
+    def save(self, *args, **kwargs):
+        # Solo puede haber una clave en todo el sistema: siempre se guarda en la misma fila
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def validar(self, passw):
+        return check_password(passw, self.passw_hash)

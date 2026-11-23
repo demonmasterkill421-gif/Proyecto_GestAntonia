@@ -62,7 +62,7 @@ Instalar dependencias y crear las tablas (con el entorno virtual activo):
   con ese cambio. Conviene que una sola persona a la vez modifique los modelos.
 - settings.py define AUTH_USER_MODEL = "usuarios.Usuario". Debe estar antes del primer migrate; si alguien
   migró sin él, hay que borrar la base, crearla de nuevo y volver a ejecutar migrate.
-- python manage.py test debe terminar con: Ran 94 tests ... OK
+- python manage.py test debe terminar con OK (cada módulo agrega sus propias pruebas).
 - cargar_demo_reservas ejecuta primero cargar_datos_demo y agrega clientes y reservas de prueba (ver sección 7).
   Se puede repetir sin duplicar datos.
 
@@ -95,7 +95,9 @@ Funcionamiento:
 - La asistencia se marca escaneando el QR del local: el primer escaneo del día es la entrada y el
   segundo la salida. La administradora puede corregir un marcaje indicando el motivo.
 
-Usuarios de prueba (creados por cargar_datos_demo, clave Antonia2026! para todos; solo para desarrollo):
+Usuarios de prueba (creados por cargar_datos_demo; el comando muestra la clave al terminar). Son solo para
+desarrollo: en cualquier servidor publicado en internet hay que cambiarles la clave apenas se cargan (sección 8)
+y borrarlos antes de entregar el sistema a la clienta.
 
 - admin@gestantonia.cl - Administradora
 - paola@gestantonia.cl - Recepcionista, Local Mall Plaza Calama
@@ -193,14 +195,74 @@ Pantallas (Django, para recepcionista y administradora):
 Tablas nuevas (app reservas): reservas_cliente y reservas_reserva. Migraciones 0001 y 0002; solo hay
 que ejecutar python manage.py migrate.
 
-Cuentas extra que crea cargar_demo_reservas (misma clave Antonia2026!):
+Cuentas extra que crea cargar_demo_reservas (misma clave de prueba que las anteriores):
 
 - rocio@gestantonia.cl - Recepcionista, Local Centro 1
 - camila@gestantonia.cl - Trabajadora, cosmetóloga
 
-Pruebas: python manage.py test reservas -v 2 (69 pruebas del módulo).
+API REST para React (tarea 2.17). Prefijo /api/reservas/, con el token JWT de /api/login/
+(encabezado Authorization: Bearer <token>). Recepcionista: solo su local. Administradora: todos, con ?local=<id>.
 
-Versión publicada para revisión: https://gestantonia-reservas.vercel.app
-settings.py lee DATABASE_URL y las opciones de HTTPS desde variables de entorno. Si no existen (como en
-los computadores de cada uno), todo funciona igual que antes con el .env local.
+- GET  agenda/?fecha=AAAA-MM-DD : bloques de 30 min por especialista (LIBRE u OCUPADO con la reserva).
+- GET y POST reservas/ : lista (?fecha=, ?especialista=, ?estado=, ?cliente=) y nueva. Si hay tope responde
+  400 con "inicio" y "sugerencias" (horarios libres cercanos).
+- GET reservas/<id>/ ; POST reservas/<id>/reprogramar/ {"inicio"} ; POST reservas/<id>/cancelar/ {"motivo"}.
+- GET clientes/?telefono=... (búsqueda) ; POST clientes/ {"nombre", "telefono", "consentimiento": true}.
+- GET servicios/ : servicios vigentes con su duración.
+- GET locales/ : locales con id y nombre (para los selectores de React).
+- especialistas/ : CRUD de la administradora (POST, PATCH, <id>/desactivar/, <id>/activar/); la
+  recepcionista solo puede leer las activas de su local.
 
+Pruebas: python manage.py test reservas -v 2 (106 pruebas del módulo: 69 de pantallas y 37 de la API).
+
+Despliegue_____________________________________________________________
+
+8. Despliegue en servidor (AWS Academy, Hostinger u otro VPS)
+
+El proyecto se publica en un servidor Ubuntu 24.04 con deploy/deploy_gestantonia.sh. El script instala
+PostgreSQL, Gunicorn, Nginx, Node.js y el build de React, escribe el .env del servidor con claves aleatorias y
+pide un certificado HTTPS gratuito. La dirección queda como https://<ip-con-guiones>.sslip.io, salvo que se
+indique un dominio propio.
+
+Instalación (una sola vez, conectado al servidor por SSH):
+
+    curl -fsSLO https://raw.githubusercontent.com/demonmasterkill421-gif/Proyecto_GestAntonia/main/deploy/deploy_gestantonia.sh
+    sudo CERTBOT_EMAIL=correo@inacap.cl bash deploy_gestantonia.sh
+
+Opciones (se escriben antes de bash):
+
+- CARGAR_DEMO=si : carga los locales, cuentas, catálogo e inventario de prueba.
+- BRANCH=nombre-rama : despliega otra rama en vez de main.
+- DOMINIO=midominio.cl : usa un dominio propio que ya apunte a la IP del servidor.
+
+Después de instalar:
+
+    M="sudo -u gestantonia /opt/gestantonia/venv/bin/python /opt/gestantonia/app/manage.py"
+    $M createsuperuser
+    $M cargar_datos_demo
+    $M changepassword admin@gestantonia.cl
+
+- createsuperuser crea la cuenta técnica del equipo (no la de la clienta).
+- Si se cargan los datos de prueba, hay que cambiar con changepassword la clave de cada cuenta de prueba
+  (admin@, paola@, fernanda@ y liz@gestantonia.cl), porque la clave original está en este repositorio público.
+
+Actualizar el servidor con lo último de main (después de aceptar el pull request):
+
+    sudo bash deploy_gestantonia.sh
+
+Descarga main, aplica las migraciones y recompila React. No borra la base de datos ni cambia las claves del .env.
+Si el pull request modificó el propio script, primero hay que volver a descargarlo con el comando curl de arriba.
+
+Reglas del servidor:
+
+- Puertos abiertos: 22 (SSH, solo desde la IP de quien administra), 80 y 443. El 5432 de PostgreSQL nunca se
+  abre a internet: DBeaver se conecta por un túnel SSH (pestaña SSH de la conexión).
+- La contraseña de la base de datos está en /opt/gestantonia/app/.env (sudo grep DB_PASSWORD ...).
+- Respaldo antes de cada presentación: sudo -u postgres pg_dump -Fc gestantonia > ~/respaldo_$(date +%F).dump
+- Nunca subir a GitHub el .env, la llave .pem del servidor ni respaldos con datos reales.
+
+Despliegue en Vercel: ya no se usa. Si vuelven a aparecer vercel.json o .vercelignore, se pueden borrar.
+
+Unir ramas: siempre con pull request hacia main desde una rama creada a partir de main actualizado
+(git switch main, git pull, git switch -c nombre-rama). No usar --allow-unrelated-histories: si GitHub dice que
+las ramas no tienen historia en común, la rama se creó desde una copia aparte del proyecto.

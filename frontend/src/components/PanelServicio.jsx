@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Pencil, Plus, Sparkles } from "lucide-react";
-import { ESPECIALISTAS } from "../data/catalogo";
 import { useDatos } from "../hooks/useDatos";
-import { obtenerServiciosVenta } from "../api/ventas.api";
+import { obtenerServiciosVenta, obtenerTrabajadorasVenta } from "../api/ventas.api";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -10,8 +9,9 @@ const clp = (n) =>
 const MONTO_MAXIMO = 100000;
 const NOMBRE_MAXIMO = 100;
 
-// Servicio libre (nombre y monto a mano). Aún no existe en la base de datos.
-const OTRO = { id: "otro", nombre: "Otro", precio: 0, precioVariable: true };
+// El servicio «Otro» (nombre y monto a mano) es un servicio real de la base de datos, de tipo OTRO.
+// Los límites de monto y nombre son los mismos que exige el servidor.
+const TIPO_OTRO = "OTRO";
 
 export function PanelServicio({ servicios, setServicios }) {
   const { datos: serviciosApi, cargando, error } = useDatos(obtenerServiciosVenta, { cadaMs: 60000 });
@@ -24,10 +24,16 @@ export function PanelServicio({ servicios, setServicios }) {
   const [especialista, setEspecialista] = useState("");
   const [errores, setErrores] = useState({});
 
-  const presentes = ESPECIALISTAS.filter((e) => e.presente);
-  const catalogo = [...serviciosApi, OTRO];
+  // Las especialistas se leen desde la base de datos (antes era una lista fija con IDs del entorno local)
+  const { datos: presentes, cargando: cargandoTrabajadoras, error: errorTrabajadoras } =
+    useDatos(obtenerTrabajadorasVenta, { cadaMs: 60000 });
+  // «Otro» va al final de la lista
+  const catalogo = [
+    ...serviciosApi.filter((s) => s.tipo !== TIPO_OTRO),
+    ...serviciosApi.filter((s) => s.tipo === TIPO_OTRO),
+  ];
   const servicioElegido = catalogo.find((s) => String(s.id) === String(elegido));
-  const esOtro = servicioElegido?.precioVariable;
+  const esOtro = servicioElegido?.tipo === TIPO_OTRO;
 
   const limpiar = () => {
     setEditandoUid(null);
@@ -70,8 +76,13 @@ export function PanelServicio({ servicios, setServicios }) {
     if (Object.keys(nuevos).length > 0) return;
 
     const persona = presentes.find((e) => String(e.id) === String(especialista));
+    if (!persona) {
+      setErrores({ especialista: "Selecciona una especialista de la lista" });
+      return;
+    }
     const nuevo = {
       ...servicioElegido,
+      precioVariable: esOtro, // el precio y el nombre los escribió la recepcionista
       nombre: esOtro ? nombreOtro.trim() : servicioElegido.nombre,
       precio: esOtro ? Number(montoOtro) : Number(servicioElegido.precio),
       especialistas: [{ id: persona.id, nombre: persona.nombre, porcentaje: 100 }],
@@ -175,7 +186,7 @@ export function PanelServicio({ servicios, setServicios }) {
                 </option>
                 {catalogo.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.precioVariable ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
+                    {s.tipo === TIPO_OTRO ? s.nombre : `${s.nombre} - ${clp(s.precio)}`}
                   </option>
                 ))}
               </select>
@@ -218,7 +229,13 @@ export function PanelServicio({ servicios, setServicios }) {
                 onChange={(e) => setEspecialista(e.target.value)}
                 className={`${campo(errores.especialista)} cursor-pointer`}
               >
-                <option value="">Selecciona una especialista</option>
+                <option value="">
+                  {cargandoTrabajadoras
+                    ? "Cargando especialistas..."
+                    : presentes.length === 0
+                      ? "No hay especialistas registradas en este local"
+                      : "Selecciona una especialista"}
+                </option>
                 {presentes.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.nombre}
@@ -226,6 +243,7 @@ export function PanelServicio({ servicios, setServicios }) {
                 ))}
               </select>
               {errores.especialista && <p className="mt-1 text-base text-red-600">{errores.especialista}</p>}
+              {errorTrabajadoras && <p className="mt-1 text-base text-red-600">No se pudo cargar la lista de especialistas.</p>}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

@@ -24,6 +24,10 @@ export const marcarAsistencia = (datos) =>
 export const corregirAsistencia = (datos) =>
   api.post("/api/asistencias/corregir/", datos);
 
+// Eliminar un registro de asistencia con motivo obligatorio (solo ADMIN)
+export const eliminarAsistencia = (id, motivo) =>
+  api.post(`/api/asistencias/${id}/eliminar/`, { motivo });
+
 // Descargar el Excel del período (solo ADMIN)
 // params: { desde: "2026-11-01", hasta: "2026-11-15", local: 1 }
 // Devuelve el archivo (blob), igual que exportarVentas
@@ -34,3 +38,19 @@ export const exportarAsistencias = async (params) => {
   });
   return data;
 };
+
+// Petición automática para marcar entrada/salida desde el QR con token de seguridad
+export const escanearAsistenciaAutomatica = (token) =>
+  api.post("/api/asistencias/escanear/", { token });
+
+// Consultar el QR activo de un local (solo ADMIN)
+export const obtenerQR = (local) =>
+  api.get("/api/asistencias/qr/", { params: { local } });
+
+// Generar o reemplazar el QR activo de un local (solo ADMIN)
+export const generarQR = (local) =>
+  api.post("/api/asistencias/qr/", { local });
+
+// Registros propios de la trabajadora con sesión iniciada (M6)
+export const obtenerMiAsistencia = () =>
+  api.get("/api/asistencias/mia/");

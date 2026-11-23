@@ -38,7 +38,7 @@ def agenda_del_dia(request):
     # 3. Buscar todas las reservas del día en este local (que no estén canceladas)
     reservas_del_dia = list(
         Reserva.objects.filter(local=local, inicio__date=fecha)
-        .exclude(estado=Reserva.Estado.CANCELADA)
+        .exclude(estado__in=Reserva.LIBERAN_HORARIO)
         .select_related("cliente", "especialista", "servicio")
     )
 
