@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 // Minutos sin actividad antes de cerrar la sesión.
 // 0.2 = 12 segundos
-const MINUTOS_INACTIVIDAD = 30;
+const MINUTOS_INACTIVIDAD = 15; // 3.10: sesión de 15 minutos sin actividad
 const LIMITE_MS = MINUTOS_INACTIVIDAD * 60 * 1000;
 
 // Acciones del usuario que cuentan como "actividad"

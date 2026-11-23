@@ -200,7 +200,20 @@ Cuentas extra que crea cargar_demo_reservas (misma clave de prueba que las anter
 - rocio@gestantonia.cl - Recepcionista, Local Centro 1
 - camila@gestantonia.cl - Trabajadora, cosmetóloga
 
-Pruebas: python manage.py test reservas -v 2 (69 pruebas del módulo).
+API REST para React (tarea 2.17). Prefijo /api/reservas/, con el token JWT de /api/login/
+(encabezado Authorization: Bearer <token>). Recepcionista: solo su local. Administradora: todos, con ?local=<id>.
+
+- GET  agenda/?fecha=AAAA-MM-DD : bloques de 30 min por especialista (LIBRE u OCUPADO con la reserva).
+- GET y POST reservas/ : lista (?fecha=, ?especialista=, ?estado=, ?cliente=) y nueva. Si hay tope responde
+  400 con "inicio" y "sugerencias" (horarios libres cercanos).
+- GET reservas/<id>/ ; POST reservas/<id>/reprogramar/ {"inicio"} ; POST reservas/<id>/cancelar/ {"motivo"}.
+- GET clientes/?telefono=... (búsqueda) ; POST clientes/ {"nombre", "telefono", "consentimiento": true}.
+- GET servicios/ : servicios vigentes con su duración.
+- GET locales/ : locales con id y nombre (para los selectores de React).
+- especialistas/ : CRUD de la administradora (POST, PATCH, <id>/desactivar/, <id>/activar/); la
+  recepcionista solo puede leer las activas de su local.
+
+Pruebas: python manage.py test reservas -v 2 (106 pruebas del módulo: 69 de pantallas y 37 de la API).
 
 Despliegue_____________________________________________________________
 

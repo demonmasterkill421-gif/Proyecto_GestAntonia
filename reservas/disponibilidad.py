@@ -23,7 +23,7 @@ def horarios_libres_cercanos(especialista, servicio, inicio, cantidad=3):
     ahora = timezone.now()
     ocupadas = list(
         Reserva.objects.filter(especialista=especialista, inicio__date=dia)
-        .exclude(estado=Reserva.Estado.CANCELADA)
+        .exclude(estado__in=Reserva.LIBERAN_HORARIO)
         .values_list("inicio", "fin")
     )
 

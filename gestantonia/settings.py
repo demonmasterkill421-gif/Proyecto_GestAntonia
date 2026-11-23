@@ -133,9 +133,13 @@ else:
 # ---------------------------------------------------------------------------
 AUTH_USER_MODEL = "usuarios.Usuario"          # debe existir ANTES del primer migrate
 
+# Bloqueo tras 5 intentos fallidos (ver usuarios/bloqueo.py). Protege el login web, el admin y la API.
+AUTHENTICATION_BACKENDS = ["usuarios.bloqueo.BackendConBloqueo"]
+
+# La caché que usa el bloqueo es la misma CACHES de arriba (archivos compartidos por los procesos de Gunicorn).
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -144,8 +148,10 @@ LOGIN_URL = "usuarios:login"
 LOGIN_REDIRECT_URL = "usuarios:inicio"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
-# Cierre de sesión automático por inactividad (EA_002): 30 minutos sin actividad.
-SESSION_COOKIE_AGE = 30 * 60
+# Cierre de sesión automático por inactividad: 15 minutos sin actividad (antes 30).
+SESSION_COOKIE_AGE = 15 * 60
+# hace que ese reloj de 15 minutos se reinicie cada vez que el usuario hace clic en algo; 
+# solo se cierra si pasa 15 minutos inactivo.
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 

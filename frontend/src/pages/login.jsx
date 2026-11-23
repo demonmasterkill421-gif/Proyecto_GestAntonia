@@ -116,8 +116,10 @@ export function Login() {
       if (err.response?.status === 401) {
         setError("Correo o contraseña incorrectos.");
       } else if (err.response?.status === 429) {
-        // Limitación de intentos forzados. 5 por minuto
-        setError("Demasiados intentos. Espera un minuto y vuelve a intentarlo.");
+        // Dos límites responden 429: 5 intentos por minuto desde la misma IP (A4)
+        // o la cuenta bloqueada 15 minutos por 5 claves incorrectas (3.10)
+        const detalle = err.response.data?.detail ?? "";
+        setError(detalle.includes("bloqueada") ? detalle : "Demasiados intentos. Espera un minuto y vuelve a intentarlo.");
       } else {
         setError("No pudimos conectar con el servidor. Intenta de nuevo.");
       }
