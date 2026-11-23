@@ -28,12 +28,12 @@ export const corregirAsistencia = (datos) =>
 export const eliminarAsistencia = (id, motivo) =>
   api.post(`/api/asistencias/${id}/eliminar/`, { motivo });
 
-// Descargar el Excel del período (solo ADMIN)
-// params: { desde: "2026-11-01", hasta: "2026-11-15", local: 1 }
+// Descargar el Excel o el PDF del período (solo ADMIN)
+// params: { desde: "2026-11-01", hasta: "2026-11-15", local: 1 } · formato: "excel" o "pdf"
 // Devuelve el archivo (blob), igual que exportarVentas
-export const exportarAsistencias = async (params) => {
+export const exportarAsistencias = async (params, formato = "excel") => {
   const { data } = await api.get("/api/asistencias/exportar/", {
-    params,
+    params: formato === "pdf" ? { ...params, formato: "pdf" } : params,
     responseType: "blob",
   });
   return data;

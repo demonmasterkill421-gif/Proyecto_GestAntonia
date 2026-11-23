@@ -49,3 +49,37 @@ class AsistenciaQRTests(TestCase):
                      hora_salida=reg.hora_entrada + timedelta(hours=9))
         self.assertEqual(reg.estado, RegistroDeAsistencia.Estado.CORREGIDA)
         self.assertEqual(reg.corregido_por, self.admin)
+
+
+class ExportarAsistenciaPdfTests(TestCase):
+    """La asistencia del período también se descarga en PDF (?formato=pdf)."""
+
+    def setUp(self):
+        from datetime import datetime, time
+        from django.utils import timezone as tz
+        from locales.models import Local
+        from usuarios.models import Usuario
+        self.local = Local.objects.create(nombre="Local Centro", ubicacion="Calama")
+        self.admin = Usuario.objects.create_user(username="a@x.cl", email="a@x.cl", password="ClaveSegura2026!",
+                                                 rol=Usuario.Rol.ADMINISTRADOR)
+        trab = Usuario.objects.create_user(username="t@x.cl", email="t@x.cl", password="ClaveSegura2026!",
+                                           first_name="Camila", rol=Usuario.Rol.TRABAJADOR, local=self.local)
+        hoy = tz.localdate()
+        RegistroDeAsistencia.objects.create(
+            trabajador=trab, local=self.local, fecha=hoy,
+            hora_entrada=tz.make_aware(datetime.combine(hoy, time(9, 0))),
+            hora_salida=tz.make_aware(datetime.combine(hoy, time(18, 30))),
+            estado=RegistroDeAsistencia.Estado.COMPLETA)
+        self.params = {"local": self.local.pk, "desde": hoy.isoformat(), "hasta": hoy.isoformat()}
+
+    def test_pdf_y_excel(self):
+        from rest_framework.test import APIClient
+        api = APIClient()
+        api.force_authenticate(self.admin)
+        r = api.get("/api/asistencias/exportar/", {**self.params, "formato": "pdf"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        self.assertIn(".pdf", r["Content-Disposition"])
+        r = api.get("/api/asistencias/exportar/", self.params)
+        self.assertIn("spreadsheetml", r["Content-Type"])
