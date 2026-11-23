@@ -4,7 +4,7 @@ import { QrCode, RefreshCw, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Sidebar } from "../../../components/Sidebar";
 import { ListaAsistencia } from "../../../components/ListaAsistencia";
 import { useTitulo } from "../../../hooks/useTitulo";
-import { useSucursalId, SUCURSALES } from "../../../hooks/useSucursal";
+import { useSucursalId, useSucursales } from "../../../hooks/useSucursal";
 import { obtenerQR, generarQR } from "../../../api/asistencia.api";
 
 function formatearVigencia(fechaIso) {
@@ -19,6 +19,7 @@ function formatearVigencia(fechaIso) {
 }
 
 export function AsistenciaAdmin() {
+  const SUCURSALES = useSucursales(); // locales de la base de datos
   useTitulo("Asistencia");
   const sucursalId = useSucursalId();
   const nombreSucursal =

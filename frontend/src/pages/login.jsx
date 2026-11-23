@@ -4,6 +4,7 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import logo from "../assets/logo.png";
 
 import { iniciarSesion } from "../api/usuario.api";
+import { estadoInstalacion } from "../api/gestionUsuarios.api";
 import { useAuth } from "../auth/AuthContext";
 import { INICIO_POR_ROL } from "../config/roles";
 import { useTitulo } from "../hooks/useTitulo";
@@ -71,6 +72,13 @@ export function Login() {
   useEffect(() => {
     if (!auth.cargando) auth.cerrarSesion();
   }, [auth.cargando]);
+
+  // Entrega oficial: si la base aún no tiene usuarios, primero se crea la cuenta de la administradora
+  useEffect(() => {
+    estadoInstalacion()
+      .then(({ data }) => data.pendiente && navigate("/instalacion", { replace: true }))
+      .catch(() => {}); // sin conexión: se queda en el inicio de sesión normal
+  }, [navigate]);
 
   // La animación de entrada parte apenas se dibuja la pantalla
   useEffect(() => {

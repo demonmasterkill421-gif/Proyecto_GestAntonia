@@ -30,7 +30,9 @@ import {
   descargarBoleta,
 } from "../api/ventas.api";
 import { guardarBoleta, imprimirBoleta, prepararCarpetaBoletas } from "../utils/boletas";
-import { SUCURSALES, useSucursalId } from "../hooks/useSucursal";
+import { guardarArchivo, prepararCarpeta } from "../utils/carpetas";
+import { CarpetaDestino } from "./CarpetaDestino";
+import { useSucursales, useSucursalId } from "../hooks/useSucursal";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -142,6 +144,7 @@ function Opciones({ valor, onChange, opciones, deslizable = false }) {
 // rol: "ADMIN" (ve todos los locales, anula y exporta) o "RECEP" (solo su local y solicita anulación).
 // El filtrado por local de la recepcionista lo hace el backend; aquí solo se oculta el filtro.
 export function ListaVentas({ rol }) {
+  const SUCURSALES = useSucursales(); // locales de la base de datos
   const esAdmin = rol === "ADMIN";
 
   const sucursalId = useSucursalId();
@@ -265,6 +268,15 @@ export function ListaVentas({ rol }) {
   };
   const cambiarBorrador = (nombre) => (valor) => setBorrador({ ...borrador, [nombre]: valor });
 
+  // ¿Ya existe la clave de anulación? (null mientras se consulta). Si no existe, el botón dice "Crear"
+  const [hayClave, setHayClave] = useState(null);
+  useEffect(() => {
+    if (!esAdmin) return;
+    obtenerEstadoClave()
+      .then((estado) => setHayClave(estado.existe))
+      .catch(() => setHayClave(null));
+  }, [esAdmin]);
+
   // Clave de anulación: abrir el panel (pide el estado al servidor), cerrarlo y guardar
   const abrirPanelClave = () => {
     setClaveNueva("");
@@ -274,7 +286,10 @@ export function ListaVentas({ rol }) {
     setEstadoClave(null);
     setPanelClave(true);
     obtenerEstadoClave()
-      .then(setEstadoClave)
+      .then((estado) => {
+        setEstadoClave(estado);
+        setHayClave(estado.existe);
+      })
       .catch((err) => setErrorClave(mensajeError(err)));
   };
   const cerrarPanelClave = () => {
@@ -295,9 +310,11 @@ export function ListaVentas({ rol }) {
     setGuardandoClave(true);
     setErrorClave("");
     try {
+      const nueva = !estadoClave?.existe;
       const estado = await cambiarClaveAnulacion(claveNueva, claveRepetida);
       setEstadoClave(estado);
-      toast.success("Clave de anulación guardada.");
+      setHayClave(true);
+      toast.success(nueva ? "Clave de anulación creada." : "Clave de anulación cambiada.");
       document.activeElement?.blur();
       setPanelClave(false);
     } catch (err) {
@@ -430,15 +447,12 @@ export function ListaVentas({ rol }) {
     setErrorDescarga("");
     setExportando(true);
     try {
+      // Carpeta "Reportes Ventas" (si ya se eligió); se pide antes de esperar al servidor
+      const carpeta = await prepararCarpeta("ventas", { elegirSiFalta: false });
       const archivo = await exportarVentas(filtradas.map((v) => v.id));
-      const url = URL.createObjectURL(archivo);
-      const enlace = document.createElement("a");
-      enlace.href = url;
-      enlace.download = `ventas_${hoy()}.xlsx`;
-      document.body.appendChild(enlace);
-      enlace.click();
-      enlace.remove();
-      URL.revokeObjectURL(url);
+      const nombre = `ventas_${hoy()}.xlsx`;
+      const donde = await guardarArchivo(archivo, nombre, carpeta);
+      toast.success(donde === "carpeta" ? `Guardado en «Reportes Ventas»: ${nombre}` : `Descargado: ${nombre}`);
       cerrarDescarga();
     } catch {
       setErrorDescarga("No se pudo descargar. Intenta de nuevo.");
@@ -453,8 +467,9 @@ export function ListaVentas({ rol }) {
     setErrorDescarga("");
     setExportandoPdf(true);
     try {
+      const carpeta = await prepararCarpeta("ventas", { elegirSiFalta: false });
       const { generarPdfVentas } = await import("../utils/ventasPdf");
-      await generarPdfVentas({
+      const { blob, nombre } = await generarPdfVentas({
         ventas: filtradas,
         esAdmin,
         nombreLocal,
@@ -467,6 +482,8 @@ export function ListaVentas({ rol }) {
         total,
         logo,
       });
+      const donde = await guardarArchivo(blob, nombre, carpeta);
+      toast.success(donde === "carpeta" ? `Guardado en «Reportes Ventas»: ${nombre}` : `Descargado: ${nombre}`);
       cerrarDescarga();
     } catch (err) {
       console.error(err);
@@ -607,12 +624,16 @@ export function ListaVentas({ rol }) {
             type="button"
             onClick={abrirPanelClave}
             aria-haspopup="dialog"
-            aria-label="Cambiar clave de anulación"
-            title="Cambiar clave de anulación"
-            className="flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#b5368f] bg-white px-3 text-base font-semibold text-[#b5368f] hover:bg-[#fbeef6] sm:px-5"
+            aria-label={hayClave === false ? "Crear clave de anulación" : "Cambiar clave de anulación"}
+            title={hayClave === false ? "Crear clave de anulación" : "Cambiar clave de anulación"}
+            className={`flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#b5368f] px-3 text-base font-semibold sm:px-5 ${
+              hayClave === false
+                ? "bg-[#b5368f] text-white hover:bg-[#9c2d7b]"
+                : "bg-white text-[#b5368f] hover:bg-[#fbeef6]"
+            }`}
           >
             <Key size={20} />
-            <span className="hidden sm:inline">Cambiar clave de anulación</span>
+            <span className="hidden sm:inline">{hayClave === false ? "Crear clave de anulación" : "Cambiar clave de anulación"}</span>
           </button>
         )}
         {/* Solo la administradora descarga. En celular solo se ve el ícono */}
@@ -633,6 +654,17 @@ export function ListaVentas({ rol }) {
       </div>
 
       {error && <p className="px-4 pb-3 text-base font-medium text-[#b5368f] sm:px-6">{error}</p>}
+
+      {esAdmin && hayClave === false && (
+        <div role="status" className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900 sm:mx-6">
+          <Key size={20} className="shrink-0" />
+          <span className="min-w-0 flex-1">Aún no hay clave de anulación: mientras no la crees, nadie podrá anular ventas.</span>
+          <button type="button" onClick={abrirPanelClave}
+            className="h-10 cursor-pointer rounded-lg bg-[#b5368f] px-4 font-semibold text-white hover:bg-[#9c2d7b]">
+            Crear clave
+          </button>
+        </div>
+      )}
 
       {/* Buscador + botón de filtros */}
       <div className="flex gap-3 px-4 pb-3 sm:px-6">
@@ -1037,6 +1069,7 @@ export function ListaVentas({ rol }) {
               </button>
 
               {errorDescarga && <p className="text-base font-medium text-[#b5368f]">{errorDescarga}</p>}
+              <CarpetaDestino tipo="ventas" />
             </div>
           </div>
         </div>
@@ -1067,7 +1100,9 @@ export function ListaVentas({ rol }) {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f7e3f1] text-[#b5368f]">
                 <Key size={22} />
               </span>
-              <h3 className="text-2xl font-bold text-[#1f1218]">Clave de anulación</h3>
+              <h3 className="text-2xl font-bold text-[#1f1218]">
+                {estadoClave && !estadoClave.existe ? "Crear clave de anulación" : "Clave de anulación"}
+              </h3>
               <button
                 type="button"
                 onClick={cerrarPanelClave}
@@ -1084,7 +1119,7 @@ export function ListaVentas({ rol }) {
                 {estadoClave === null
                   ? "Cargando..."
                   : !estadoClave.existe
-                    ? "Aún no hay una clave. Mientras no la crees, nadie podrá anular ventas."
+                    ? "Aún no hay una clave. Créala aquí: mientras no exista, nadie podrá anular ventas."
                     : `Última actualización: ${fechaCorta(estadoClave.fecha_actualizacion)}${
                         estadoClave.actualizada_por ? ` · por ${estadoClave.actualizada_por}` : ""
                       }`}
@@ -1160,7 +1195,7 @@ export function ListaVentas({ rol }) {
                 disabled={guardandoClave || claveNueva.length < CLAVE_MINIMO || !claveRepetida}
                 className="h-12 cursor-pointer rounded-lg bg-[#b5368f] px-6 text-base font-semibold text-white shadow-md shadow-[#b5368f]/30 hover:bg-[#9c2d7b] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {guardandoClave ? "Guardando..." : "Guardar clave"}
+                {guardandoClave ? "Guardando..." : estadoClave && !estadoClave.existe ? "Crear clave" : "Guardar clave"}
               </button>
             </div>
           </div>

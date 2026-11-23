@@ -9,6 +9,7 @@ import { SeccionPlegable } from "../../../components/SeccionPlegable";
 import { useTitulo } from "../../../hooks/useTitulo";
 import { descargarBoleta, registrarVenta } from "../../../api/ventas.api";
 import { carpetaActual, guardarBoleta, imprimirBoleta, prepararCarpetaBoletas, soportaCarpeta } from "../../../utils/boletas";
+import { CarpetaDestino } from "../../../components/CarpetaDestino";
 
 const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -48,7 +49,6 @@ export function RegistrarVenta() {
   // Venta recién registrada: { folio, total, boleta: Blob | null, guardada: "carpeta" | "descarga" | null }
   const [registrada, setRegistrada] = useState(null);
   const [carpeta, setCarpeta] = useState(null); // nombre de la carpeta de boletas, para mostrarlo
-  useEffect(() => { carpetaActual().then(setCarpeta); }, []);
   const botonVolver = useRef(null);
 
 
@@ -182,17 +182,6 @@ export function RegistrarVenta() {
     setEnviando(false);
   };
 
-  // Primero se explica qué hacer y recién al presionar "Abrir ventana" se abre la de Windows
-  const [ayudaCarpeta, setAyudaCarpeta] = useState(false);
-  const cambiarCarpeta = async () => {
-    setAyudaCarpeta(false);
-    const elegida = await prepararCarpetaBoletas({ cambiar: true });
-    if (elegida) {
-      const nombre = await carpetaActual();
-      setCarpeta(nombre);
-      toast.success(`Las boletas se guardarán en «${nombre}»`);
-    }
-  };
 
 
 
@@ -453,15 +442,7 @@ export function RegistrarVenta() {
                 Confirmar venta
               </button>
             </div>
-            {soportaCarpeta() && (
-              <p className="mt-4 flex flex-wrap items-center gap-x-2 text-sm text-gray-600">
-                <FolderOpen size={16} className="shrink-0 text-[#b5368f]" />
-                {carpeta ? <>Boletas en «{carpeta}»</> : <>Elige una carpeta y las boletas se guardarán solas (si no, se descargan)</>}
-                <button type="button" onClick={() => setAyudaCarpeta(true)} className="cursor-pointer font-semibold text-[#b5368f] underline">
-                  {carpeta ? "Cambiar" : "Elegir carpeta"}
-                </button>
-              </p>
-            )}
+            <CarpetaDestino tipo="boletas" onCambio={setCarpeta} className="mt-4" />
           </section>
         </div>
       </div>
@@ -544,37 +525,6 @@ export function RegistrarVenta() {
           </div>
         </div>
       </div>
-      {/* Cómo elegir la carpeta de boletas (Chrome no deja usar Documentos, Descargas ni Escritorio directamente) */}
-      {ayudaCarpeta && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setAyudaCarpeta(false)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="titulo-carpeta" onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
-            <h2 id="titulo-carpeta" className="flex items-center gap-2 text-2xl font-bold text-[#1f1218]">
-              <FolderOpen className="text-[#b5368f]" /> Carpeta de las boletas
-            </h2>
-            <p className="mt-3 text-base text-gray-700">En la ventana que se abrirá:</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-6 text-base text-gray-700">
-              <li>Entra a <b>Documentos</b>.</li>
-              <li>Presiona <b>Nueva carpeta</b> y llámala <b>Boletas Ventas</b> (si ya existe, solo ábrela).</li>
-              <li>Selecciónala y presiona <b>Seleccionar carpeta</b>. Si Chrome pregunta, elige <b>Permitir</b>.</li>
-            </ol>
-            <p className="mt-3 rounded-lg bg-[#fbeef6] p-3 text-sm text-[#7a2461]">
-              Chrome no permite elegir directamente Documentos, Descargas ni Escritorio («contiene archivos del sistema»),
-              pero sí una carpeta dentro de ellas.
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => setAyudaCarpeta(false)}
-                className="h-12 cursor-pointer rounded-lg border border-gray-300 bg-white text-lg font-semibold text-gray-700 hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button type="button" autoFocus onClick={cambiarCarpeta}
-                className="h-12 cursor-pointer rounded-lg bg-[#b5368f] text-lg font-semibold text-white hover:bg-[#9c2d7b]">
-                Abrir ventana
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Venta registrada: imprimir la boleta, otra venta o ver la lista */}
       {registrada && (

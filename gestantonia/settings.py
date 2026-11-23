@@ -70,7 +70,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     #login acepta como máximo 5 peticiones por minuto.
-    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "clave_anulacion": "20/hour"},
+    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "clave_anulacion": "20/hour", "instalacion": "5/min"},
     # A4: hay un proxy delante (Nginx). Con esto el límite usa la IP real que agrega
     # Nginx y no lo que el navegador escriba en la cabecera X-Forwarded-For
     # (si no, bastaba con cambiar esa cabecera para saltarse el límite).

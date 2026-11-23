@@ -1,4 +1,5 @@
 import api from '../../../../api/client.js';
+import { guardarArchivo, prepararCarpeta } from '../../../../utils/carpetas.js';
 
 // Endpoint protegido con JWT; el interceptor global agrega el token automáticamente.
 export async function obtenerReporte({ sucursal, desde, hasta }) {
@@ -20,8 +21,11 @@ export function formatoFecha(fechaISO) {
   return `${day}/${month}/${year}`;
 }
 
-// Descarga el reporte ya filtrado en Excel ("excel") o PDF ("pdf"), generado por Django.
+// Descarga el reporte ya filtrado en Excel ("excel") o PDF ("pdf"), generado por Django, y lo guarda en la
+// carpeta "Reportes Ventas" si ya se eligió (si no, se descarga). Devuelve el texto para avisar dónde quedó.
 export async function descargarReporte(tipo, { sucursal, desde, hasta }) {
+  // La carpeta se pide antes de esperar al servidor (el permiso del navegador necesita el clic reciente)
+  const carpeta = await prepararCarpeta('ventas', { elegirSiFalta: false });
   const respuesta = await api.get(`/api/reportes/${tipo}/`, {
     params: { local_id: sucursal, desde, hasta },
     responseType: 'blob',
@@ -29,15 +33,8 @@ export async function descargarReporte(tipo, { sucursal, desde, hasta }) {
   const extension = tipo === 'excel' ? 'xlsx' : 'pdf';
   const coincide = /filename="?([^";]+)"?/i.exec(respuesta.headers['content-disposition'] ?? '');
   const nombre = coincide ? coincide[1] : `GestAntonia_Reporte_${desde}_${hasta}.${extension}`;
-  const url = URL.createObjectURL(respuesta.data);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = nombre;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-  return nombre;
+  const donde = await guardarArchivo(respuesta.data, nombre, carpeta);
+  return donde === 'carpeta' ? `Reporte guardado en «Reportes Ventas»: ${nombre}` : `Reporte descargado: ${nombre}`;
 }
 
 // Los errores de una descarga llegan como Blob: se leen para mostrar el mensaje de Django.

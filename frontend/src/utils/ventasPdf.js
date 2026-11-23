@@ -26,7 +26,7 @@ const cargarImagen = (url) =>
     img.src = url;
   });
 
-// Genera y descarga el PDF con las ventas indicadas.
+// Genera el PDF con las ventas indicadas y devuelve { blob, nombre }.
 // Si el logo no carga, el PDF se hace igual, solo sin la marca de fondo.
 export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajadorasDe, periodo, localTexto, total, logo }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -132,5 +132,9 @@ export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajado
     doc.text(`Página ${i} de ${paginas}`, ancho - 14, alto - 8, { align: "right" });
   }
 
-  doc.save(`ventas_${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}.pdf`);
+  // Devuelve el archivo para guardarlo en la carpeta "Reportes Ventas" (o descargarlo)
+  return {
+    blob: doc.output("blob"),
+    nombre: `ventas_${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}.pdf`,
+  };
 }
