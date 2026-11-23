@@ -1,8 +1,12 @@
 // Guarda las boletas en PDF dentro de una carpeta "Boletas Ventas" en el computador del local.
 //
-// Los navegadores no dejan que una página escriba en el disco por su cuenta: la primera vez se
-// pregunta DÓNDE crear la carpeta (por ejemplo, en Documentos) y desde ahí cada boleta se guarda
-// sola en "Boletas Ventas". La carpeta elegida se recuerda en este navegador.
+// Los navegadores no dejan que una página escriba en el disco por su cuenta: una vez se elige la
+// carpeta (botón "Elegir carpeta" en Registrar venta) y desde ahí cada boleta se guarda sola en ella.
+// La carpeta elegida se recuerda en este navegador.
+//
+// OJO: Chrome NO deja elegir directamente Documentos, Descargas ni Escritorio ("contiene archivos del
+// sistema"), pero sí una carpeta DENTRO de ellas. Por eso se pide crear "Boletas Ventas" dentro de
+// Documentos y elegir esa.
 //
 // Funciona en Chrome y Edge (API de acceso a archivos). En otros navegadores (Firefox, Safari) o
 // si se cancela la elección, la boleta se descarga normalmente a la carpeta de descargas.
@@ -59,9 +63,11 @@ async function elegirCarpeta() {
 /**
  * Deja lista la carpeta "Boletas Ventas". Hay que llamarla DIRECTO desde el clic del botón
  * (antes de esperar al servidor): el navegador solo muestra sus ventanas de permiso en respuesta a un clic.
- * Devuelve la carpeta o null (navegador sin soporte, o la persona canceló).
+ * cambiar: abre la ventana para elegir otra carpeta.
+ * elegirSiFalta: si aún no hay carpeta, abre la ventana; con false devuelve null (la boleta se descarga).
+ * Devuelve la carpeta o null (navegador sin soporte, sin carpeta elegida, o la persona canceló).
  */
-export async function prepararCarpetaBoletas({ cambiar = false } = {}) {
+export async function prepararCarpetaBoletas({ cambiar = false, elegirSiFalta = true } = {}) {
   if (!soportaCarpeta()) return null;
   try {
     let base = cambiar ? null : await leerCarpetaGuardada();
@@ -70,7 +76,10 @@ export async function prepararCarpetaBoletas({ cambiar = false } = {}) {
       if (permiso !== "granted") permiso = await base.requestPermission({ mode: "readwrite" });
       if (permiso !== "granted") base = null;
     }
-    if (!base) base = await elegirCarpeta();
+    if (!base) {
+      if (!cambiar && !elegirSiFalta) return null;
+      base = await elegirCarpeta();
+    }
     // Si eligieron directamente una carpeta llamada "Boletas Ventas", se usa esa misma
     if (base.name === NOMBRE_CARPETA) return base;
     return await base.getDirectoryHandle(NOMBRE_CARPETA, { create: true });

@@ -482,13 +482,14 @@ export function ListaVentas({ rol }) {
     if (boletaEnCurso) return;
     setBoletaEnCurso(v.id);
     try {
-      const carpeta = accion === "guardar" ? await prepararCarpetaBoletas() : null;
+      // Usa la carpeta elegida en Registrar venta; si no hay, la boleta se descarga
+      const carpeta = accion === "guardar" ? await prepararCarpetaBoletas({ elegirSiFalta: false }) : null;
       const { blob, nombre } = await descargarBoleta(v.id);
       if (accion === "imprimir") {
         imprimirBoleta(blob);
       } else {
         const donde = await guardarBoleta(blob, nombre, carpeta);
-        toast.success(donde === "carpeta" ? "Boleta guardada en «Boletas Ventas»" : "Boleta descargada");
+        toast.success(donde === "carpeta" ? "Boleta guardada en la carpeta de boletas" : "Boleta descargada");
       }
     } catch (err) {
       const sinDetalle = err?.response?.data instanceof Blob;
