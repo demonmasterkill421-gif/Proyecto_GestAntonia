@@ -12,6 +12,8 @@ import {
   Store,
   Package,
   ChartColumn,
+  Tags,
+  UserCog,
 } from "lucide-react";
 
 export function MainAdmin() {
@@ -21,7 +23,8 @@ export function MainAdmin() {
     <Sidebar fondo="bg-[#f1cfe4]">
       <TituloAnimado />
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      {/* auto-rows-fr: todas las filas igual de altas, aunque la descripción de una tarjeta ocupe una sola línea */}
+      <div className="mt-6 grid gap-5 lg:grid-cols-2 lg:auto-rows-fr">
         <PanelAtajo
           titulo="Ventas"
           descripcion="Visualizar las ventas de mis locales y descargar la información"
@@ -86,6 +89,23 @@ export function MainAdmin() {
           boton="Ver reportes"
           ruta="/admin/reportes"
           icono={ChartColumn}
+        />
+
+        {/* Mismos íconos que en el menú lateral */}
+        <PanelAtajo
+          titulo="Precios"
+          descripcion="Precio base y precio de cada local"
+          boton="Ver precios"
+          ruta="/admin/precios"
+          icono={Tags}
+        />
+
+        <PanelAtajo
+          titulo="Usuarios"
+          descripcion="Recepcionistas y administradoras"
+          boton="Ver usuarios"
+          ruta="/admin/usuarios"
+          icono={UserCog}
         />
       </div>
     </Sidebar>
