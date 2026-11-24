@@ -126,6 +126,7 @@ class RegistrarProductoSerializer(serializers.ModelSerializer):
             producto.actualizar_stock(
                 local=local,
                 cantidad=cantidad,
+                motivo=MovimientoInventario.Motivo.REGISTRO,
             )
 
         return producto
@@ -217,29 +218,75 @@ class EditarInventarioView(APIView):
         serializer.save()
         return Response(InventarioSerializer(_inventario_con_ultimo_movimiento(pk)).data)
 
+# Motivos que la dueña puede elegir al ajustar el stock a mano
+MOTIVOS_ENTRADA = {
+    MovimientoInventario.Motivo.COMPRA,
+    MovimientoInventario.Motivo.CORRECCION,
+}
+MOTIVOS_SALIDA = {
+    MovimientoInventario.Motivo.DANADO,
+    MovimientoInventario.Motivo.CORRECCION,
+}
+
 
 class AjustarStockSerializer(serializers.Serializer):
-    # Positivo = reposición (entrada); negativo = salida o corrección.
+    # Positivo = entrada; negativo = salida.
     cantidad = serializers.IntegerField(min_value=-10000, max_value=10000)
+    motivo = serializers.ChoiceField(choices=sorted(MOTIVOS_ENTRADA | MOTIVOS_SALIDA))
 
     def validate_cantidad(self, valor):
         if valor == 0:
             raise serializers.ValidationError("La cantidad no puede ser 0.")
         return valor
 
+    def validate(self, datos):
+        # "Compra" solo sirve para sumar y "Dañado" solo para restar.
+        permitidos = MOTIVOS_ENTRADA if datos["cantidad"] > 0 else MOTIVOS_SALIDA
+        if datos["motivo"] not in permitidos:
+            raise serializers.ValidationError("Ese motivo no corresponde a este tipo de ajuste.")
+        return datos
+
 
 class AjustarStockView(APIView):
-    """POST /api/catalogo/inventario/<pk>/ajustar/  {"cantidad": 10}"""
+    """POST /api/catalogo/inventario/<pk>/ajustar/  {"cantidad": 10, "motivo": "COMPRA"}"""
     permission_classes = [IsAuthenticated, EsAdministrador]
 
     def post(self, request, pk):
         inventario = get_object_or_404(Inventario.objects.select_related("producto", "local"), pk=pk)
         datos = AjustarStockSerializer(data=request.data)
         if not datos.is_valid():
-            return Response({"detail": "Indica una cantidad entera distinta de 0."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Indica una cantidad distinta de 0 y un motivo válido."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             # actualizar_stock() ya valida que no quede bajo cero y deja el movimiento.
-            inventario.producto.actualizar_stock(inventario.local, datos.validated_data["cantidad"])
+            inventario.producto.actualizar_stock(
+                inventario.local,
+                datos.validated_data["cantidad"],
+                motivo=datos.validated_data["motivo"],
+            )
         except ValidationError as error:
             return Response({"detail": error.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
         return Response(InventarioSerializer(_inventario_con_ultimo_movimiento(pk)).data)
+
+
+class HistorialMovimientosView(APIView):
+    """GET /api/catalogo/inventario/<pk>/movimientos/: todos los movimientos de ese registro."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+
+    def get(self, request, pk):
+        inventario = get_object_or_404(Inventario, pk=pk)
+        movimientos = inventario.movimientos.order_by("-fecha", "-pk")
+
+        # "Quedó en": se parte del stock actual y se va hacia atrás.
+        stock = inventario.cantidad
+        lista = []
+        for movimiento in movimientos:
+            lista.append({
+                "id": movimiento.pk,
+                "fecha": movimiento.fecha,
+                "cantidad": movimiento.cantidad,
+                "motivo": movimiento.motivo,
+                "stock_resultante": stock,
+            })
+            stock -= movimiento.cantidad
+
+        return Response({"movimientos": lista})

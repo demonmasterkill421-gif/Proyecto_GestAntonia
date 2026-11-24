@@ -57,9 +57,6 @@ class InventarioAPITests(TestCase):
         self.assertEqual(respuesta.data['resumen'], {'total_productos': 2, 'stock_total': 15, 'stock_bajo': 1})
 
 
-    # test_pantalla_django_original se quitó: probaba la pantalla /inventario/ hecha con plantillas
-    # de Django, que ya no está conectada (Inventario ahora es React y usa /api/catalogo/inventario/,
-    # probado arriba). Por eso fallaba con 404.
 
 class EditarInventarioAPITests(TestCase):
     """M11: editar producto y reponer stock desde la pantalla de Inventario."""
@@ -114,17 +111,18 @@ class EditarInventarioAPITests(TestCase):
 
     def test_reponer_stock_deja_movimiento(self):
         self.client.force_authenticate(self.admin)
-        respuesta = self.client.post(self.url_ajustar, {'cantidad': 10}, format='json')
+        respuesta = self.client.post(self.url_ajustar, {'cantidad': 10, 'motivo': 'COMPRA'}, format='json')
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data['cantidad'], 15)
         self.assertEqual(self.inventario.movimientos.first().cantidad, 10)
+        self.assertEqual(self.inventario.movimientos.first().motivo, 'COMPRA')
         listado = self.client.get('/api/catalogo/inventario/').data['registros'][0]
         self.assertEqual(listado['cantidad'], 15)
         self.assertEqual(listado['ultimo_movimiento'], 10)
 
     def test_no_permite_stock_bajo_cero(self):
         self.client.force_authenticate(self.admin)
-        respuesta = self.client.post(self.url_ajustar, {'cantidad': -6}, format='json')
+        respuesta = self.client.post(self.url_ajustar, {'cantidad': -6, 'motivo': 'DANADO'}, format='json')
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn('Stock insuficiente', respuesta.data['detail'])
         self.inventario.refresh_from_db()
@@ -134,7 +132,7 @@ class EditarInventarioAPITests(TestCase):
     def test_cantidad_invalida(self):
         self.client.force_authenticate(self.admin)
         for valor in [None, 'diez', 0, 1.5]:
-            datos = {} if valor is None else {'cantidad': valor}
+            datos = {'motivo': 'COMPRA'} if valor is None else {'cantidad': valor, 'motivo': 'COMPRA'}
             self.assertEqual(self.client.post(self.url_ajustar, datos, format='json').status_code, 400, valor)
 
     def test_registro_inexistente(self):
@@ -142,4 +140,42 @@ class EditarInventarioAPITests(TestCase):
         self.assertEqual(self.client.patch('/api/catalogo/inventario/9999/', {'nombre': 'X'}, format='json').status_code, 404)
         self.assertEqual(self.client.post('/api/catalogo/inventario/9999/ajustar/', {'cantidad': 1}, format='json').status_code, 404)
 
+    def test_ajuste_requiere_motivo_valido(self):
+        self.client.force_authenticate(self.admin)
+        casos = [
+            {'cantidad': 3},                          # sin motivo
+            {'cantidad': 3, 'motivo': 'DANADO'},      # dañado solo sirve para restar
+            {'cantidad': -1, 'motivo': 'COMPRA'},     # compra solo sirve para sumar
+            {'cantidad': -1, 'motivo': 'VENTA'},      # venta es automático, no se elige
+        ]
+        for datos in casos:
+            self.assertEqual(self.client.post(self.url_ajustar, datos, format='json').status_code, 400, datos)
+        self.assertFalse(self.inventario.movimientos.exists())
 
+    def test_motivos_automaticos_desde_ventas(self):
+        insumo = Producto.objects.create(nombre='Algodón', precio=0, tipo='INSUMO')
+        Inventario.objects.create(producto=insumo, local=self.local, cantidad=5)
+        # Así llama Ventas a actualizar_stock(): sin motivo.
+        self.producto.actualizar_stock(self.local, -1)
+        self.assertEqual(self.inventario.movimientos.first().motivo, 'VENTA')
+        self.producto.actualizar_stock(self.local, 1)
+        self.assertEqual(self.inventario.movimientos.first().motivo, 'ANULACION')
+        insumo.actualizar_stock(self.local, -2)
+        self.assertEqual(insumo.inventarios.get().movimientos.first().motivo, 'USO_SERVICIO')
+
+    def test_historial_movimientos(self):
+        url = f'/api/catalogo/inventario/{self.inventario.pk}/movimientos/'
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.client.force_authenticate(self.trabajador)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.url_ajustar, {'cantidad': 10, 'motivo': 'COMPRA'}, format='json')
+        self.client.post(self.url_ajustar, {'cantidad': -2, 'motivo': 'DANADO'}, format='json')
+        respuesta = self.client.get(url)
+        self.assertEqual(respuesta.status_code, 200)
+        movimientos = respuesta.data['movimientos']
+        # Del más nuevo al más viejo, con el stock que quedó después de cada uno (5 + 10 - 2)
+        self.assertEqual([m['cantidad'] for m in movimientos], [-2, 10])
+        self.assertEqual([m['motivo'] for m in movimientos], ['DANADO', 'COMPRA'])
+        self.assertEqual([m['stock_resultante'] for m in movimientos], [13, 15])
+        self.assertEqual(self.client.get('/api/catalogo/inventario/9999/movimientos/').status_code, 404)
