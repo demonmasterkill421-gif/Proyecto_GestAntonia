@@ -96,16 +96,29 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
 class VentaSerializer(serializers.ModelSerializer):
     detalles = DetalleVentaSerializer(many=True)
     local_nombre = serializers.CharField(source="local.nombre", read_only=True)
+    motivo_anulacion = serializers.SerializerMethodField()
 
     class Meta:
         model = RegistroDeVenta
         fields = ["id", "folio", "fecha", "local", "local_nombre", "recepcionista", "metodo_pago", "descuento",
-                  "descuento_monto", "descripcion", "monto_base", "monto_total", "estado", "detalles"]
+                  "descuento_monto", "descripcion", "monto_base", "monto_total", "estado", "motivo_anulacion",
+                  "detalles"]
         read_only_fields = ["folio", "fecha", "recepcionista", "monto_base", "monto_total", "estado"]
         extra_kwargs = {"local": {"required": False}}
         validators = []
 
 
+
+    def get_motivo_anulacion(self, obj):
+        """Motivo con el que se anuló la venta (el de su solicitud aprobada); None si no está anulada."""
+        if obj.estado != RegistroDeVenta.Estado.ANULADA:
+            return None
+        aprobadas = [
+            s for s in obj.solicitudes_anulacion.all() if s.estado == SolicitudAnulacion.Estado.APROBADA
+        ]
+        if not aprobadas:
+            return None
+        return max(aprobadas, key=lambda s: s.fecha_solicitud).motivo
 
     def validate_descuento(self, value):
         if not 0 <= value <= 100:
