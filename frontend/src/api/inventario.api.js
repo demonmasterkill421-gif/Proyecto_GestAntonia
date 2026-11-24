@@ -14,6 +14,10 @@ export const registrarProducto = (datos) =>
 export const editarInventario = (id, datos) =>
   api.patch(`/api/catalogo/inventario/${id}/`, datos);
 
-// M11: reponer (+) o descontar (-) stock. Deja registro en MovimientoInventario.
-export const ajustarStock = (id, cantidad) =>
-  api.post(`/api/catalogo/inventario/${id}/ajustar/`, { cantidad });
+// M11: reponer (+) o descontar (-) stock con su motivo. Deja registro en MovimientoInventario.
+export const ajustarStock = (id, cantidad, motivo) =>
+  api.post(`/api/catalogo/inventario/${id}/ajustar/`, { cantidad, motivo });
+
+// Historial de movimientos de un registro de inventario.
+export const obtenerMovimientos = (id, signal) =>
+  api.get(`/api/catalogo/inventario/${id}/movimientos/`, { signal });

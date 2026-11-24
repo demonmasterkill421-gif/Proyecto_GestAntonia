@@ -11,7 +11,14 @@ function mensajeDeError(err) {
   if (campo) return `${campo}: ${Array.isArray(mensajes) ? mensajes[0] : mensajes}`;
   return "No se pudieron guardar los cambios.";
 }
-
+// Motivos que la dueña puede elegir: cambian si se suma o se resta stock.
+// (Venta, Uso en servicio, Anulación y Registro inicial los pone el sistema solo.)
+function motivosDelAjuste(cantidad) {
+  if (cantidad > 0) {
+    return [["COMPRA", "Compra / reposición"], ["CORRECCION", "Corrección de conteo"]];
+  }
+  return [["DANADO", "Producto dañado o vencido"], ["CORRECCION", "Corrección de conteo"]];
+}
 export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
   const ventana = useRef(null);
 
@@ -27,6 +34,8 @@ export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
   });
   // Unidades a sumar (reponer) o restar (descontar). 0 = no cambia el stock.
   const [ajuste, setAjuste] = useState("");
+    // Motivo del ajuste: obligatorio si se cambia el stock
+  const [motivoAjuste, setMotivoAjuste] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -85,6 +94,12 @@ export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
       setError(`No puedes descontar ${-cantidad}: solo hay ${registro.cantidad} en stock.`);
       return;
     }
+        // El motivo tiene que ser uno de los que corresponden a sumar o a restar
+    const motivoValido = motivosDelAjuste(cantidad).some(([codigo]) => codigo === motivoAjuste);
+    if (cantidad !== 0 && !motivoValido) {
+      setError("Elige el motivo del ajuste de stock.");
+      return;
+    }
     if (!Object.keys(cambios).length && cantidad === 0) {
       cerrarVentana();
       return;
@@ -93,7 +108,7 @@ export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
     setGuardando(true);
     try {
       if (Object.keys(cambios).length) await editarInventario(registro.id, cambios);
-      if (cantidad !== 0) await ajustarStock(registro.id, cantidad);
+      if (cantidad !== 0) await ajustarStock(registro.id, cantidad, motivoAjuste);
       cerrarVentana();
       onGuardado?.();
     } catch (err) {
@@ -110,7 +125,7 @@ export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
   const etiqueta = "block text-base font-semibold text-[#9c2d7b]";
 
   const cantidadAjuste = Number(ajuste) || 0;
-
+  const motivosPosibles = motivosDelAjuste(cantidadAjuste);
   return (
     <dialog
       ref={ventana}
@@ -259,6 +274,33 @@ export function ModalEditarProducto({ registro, onCerrar, onGuardado }) {
               <> Quedarán <strong>{registro.cantidad + cantidadAjuste}</strong> unidades.</>
             )}
           </p>
+                    {/* Motivo: solo aparece cuando se escribe una cantidad */}
+          {cantidadAjuste !== 0 && (
+            <div role="radiogroup" aria-label="Motivo del ajuste" className="mt-4">
+              <p className={etiqueta}>Motivo del ajuste</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {motivosPosibles.map(([codigo, texto]) => {
+                  const activo = motivoAjuste === codigo;
+                  return (
+                    <button
+                      key={codigo}
+                      type="button"
+                      role="radio"
+                      aria-checked={activo}
+                      onClick={() => setMotivoAjuste(codigo)}
+                      className={`cursor-pointer rounded-full border px-4 py-2 text-base font-semibold ${
+                        activo
+                          ? "border-[#b5368f] bg-[#b5368f] text-white"
+                          : "border-[#e6b8d4] bg-white text-[#b5368f] hover:bg-[#f7e3f1]"
+                      }`}
+                    >
+                      {texto}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </fieldset>
 
         <label className={etiqueta}>

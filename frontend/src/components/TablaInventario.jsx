@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Pencil } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, History, Pencil } from "lucide-react";
 import { ModalEditarProducto } from "./ModalEditarProducto";
+import { ModalHistorial } from "./ModalHistorial";
 
 const pesos = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -109,9 +110,24 @@ function BotonEditar({ registro, onClick, completo = false }) {
     </button>
   );
 }
-
+function BotonHistorial({ registro, onClick, completo = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Ver historial de ${registro.producto} en ${registro.local}`}
+      className={`flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-base font-semibold text-[#9c2d7b] hover:bg-[#f7e3f1] ${
+        completo ? "w-full border border-[#e6b8d4]" : ""
+      }`}
+    >
+      <History size={18} />
+      Historial
+    </button>
+  );
+}
 export function TablaInventario({ registros, onActualizado }) {
   const [productoEditar, setProductoEditar] = useState(null);
+  const [productoHistorial, setProductoHistorial] = useState(null);
 
   const modal = productoEditar && (
     <ModalEditarProducto
@@ -170,9 +186,10 @@ export function TablaInventario({ registros, onActualizado }) {
               </div>
             </div>
 
-            <div className="mt-3">
-              <BotonEditar registro={registro} onClick={() => setProductoEditar(registro)} completo />
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                <BotonHistorial registro={registro} onClick={() => setProductoHistorial(registro)} completo />
+                <BotonEditar registro={registro} onClick={() => setProductoEditar(registro)} completo />
+              </div>
           </li>
         ))}
       </ul>
@@ -215,7 +232,10 @@ export function TablaInventario({ registros, onActualizado }) {
                   <Movimiento valor={registro.ultimo_movimiento}  fecha={registro.ultimo_movimiento_fecha}/>
                 </td>
                 <td className="py-3 text-right">
-                  <BotonEditar registro={registro} onClick={() => setProductoEditar(registro)} />
+                   <div className="flex justify-end gap-1">
+                     <BotonHistorial registro={registro} onClick={() => setProductoHistorial(registro)} />
+                     <BotonEditar registro={registro} onClick={() => setProductoEditar(registro)} />
+                   </div>
                 </td>
               </tr>
             ))}
@@ -224,6 +244,13 @@ export function TablaInventario({ registros, onActualizado }) {
       </div>
 
       {modal}
+      {productoHistorial && (
+          <ModalHistorial
+              key={productoHistorial.id}
+              registro={productoHistorial}
+              onCerrar={() => setProductoHistorial(null)}
+          />
+      )}
     </>
   );
 }

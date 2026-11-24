@@ -66,7 +66,18 @@ class Producto(Item):
         verbose_name_plural = "productos"
 
     @transaction.atomic
-    def actualizar_stock(self, local, cantidad):
+    def actualizar_stock(self, local, cantidad, motivo=None):
+        # Sin motivo = el cambio viene de Ventas (no se toca ese módulo):
+        #   resta un INSUMO   -> se usó en un servicio
+        #   resta un producto -> se vendió
+        #   suma              -> se anuló una venta y volvió el stock
+        if motivo is None:
+            if cantidad > 0:
+                motivo = MovimientoInventario.Motivo.ANULACION
+            elif self.tipo == Producto.Tipo.INSUMO:
+                motivo = MovimientoInventario.Motivo.USO_SERVICIO
+            else:
+                motivo = MovimientoInventario.Motivo.VENTA
         inventario, _ = (
             Inventario.objects
             .select_for_update()
@@ -77,7 +88,7 @@ class Producto(Item):
                 f"hay {inventario.cantidad}, se piden {-cantidad}.")
         if cantidad != 0:
             Inventario.objects.filter(pk=inventario.pk).update(cantidad=F("cantidad") + cantidad)
-            MovimientoInventario.objects.create(inventario=inventario,cantidad=cantidad,)
+            MovimientoInventario.objects.create(inventario=inventario,cantidad=cantidad,motivo=motivo)
             inventario.refresh_from_db()
 
         return inventario
@@ -106,9 +117,24 @@ class Inventario(models.Model):
 
 
 class MovimientoInventario(models.Model):
+    class Motivo(models.TextChoices):
+        # Automáticos: los pone el sistema
+        REGISTRO = "REGISTRO", "Registro inicial"
+        VENTA = "VENTA", "Venta"
+        USO_SERVICIO = "USO_SERVICIO", "Uso en servicio"
+        ANULACION = "ANULACION", "Anulación de venta"
+        # Manuales: los elige la dueña al ajustar el stock
+        COMPRA = "COMPRA", "Compra / reposición"
+        DANADO = "DANADO", "Producto dañado o vencido"
+        CORRECCION = "CORRECCION", "Corrección de conteo"
+
     inventario = models.ForeignKey(Inventario, on_delete=models.CASCADE, related_name="movimientos")
     cantidad = models.IntegerField()
     fecha = models.DateField(auto_now_add=True)
+    # Vacío en los movimientos antiguos (antes de existir este campo)
+    motivo = models.CharField(max_length=15, choices=Motivo.choices, blank=True, default="")
+
+
 
     class Meta:
         ordering = ["-fecha", "-id"]
