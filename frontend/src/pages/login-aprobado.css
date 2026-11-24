@@ -1,0 +1,382 @@
+.ga-login-aprobado {
+  --ga-tinta: #421244;
+  --ga-magenta: #b2218b;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 66px 20px 65px;
+  overflow: hidden;
+  color: var(--ga-tinta);
+  font-family: "Segoe UI", Arial, sans-serif;
+  /* FONDO POR CAPAS: cada recurso independiente, sin agrandar una sola foto. */
+  background-color: #f6d8ed;
+  background-image:
+    url("../assets/flor-login.png"),
+    url("../assets/onda-superior.svg"),
+    url("../assets/onda-inferior.svg"),
+    radial-gradient(ellipse at 48% 39%, #f9e1f2 0%, #f8d9ed 51%, transparent 85%),
+    linear-gradient(115deg, #f1c7e3 0%, #f7d8ed 43%, #f2c5e5 100%);
+  background-size:
+    clamp(390px, 34vw, 560px) auto,
+    100% clamp(210px, 32vh, 320px),
+    100% clamp(200px, 33vh, 310px),
+    cover,
+    cover;
+  background-position:
+    left -48px bottom -94px,
+    left top,
+    right bottom,
+    center,
+    center;
+  background-repeat: no-repeat;
+}
+
+.ga-login-aprobado > img,
+.ga-login-aprobado > h1,
+.ga-login-aprobado > p,
+.ga-login-aprobado > form {
+  position: relative;
+  z-index: 1;
+}
+
+/* Logo auténtico del proyecto: el <img> existente conserva logo.png. */
+.ga-login-aprobado > img {
+  display: block;
+  box-sizing: border-box;
+  width: 275px;
+  max-width: 72vw;
+  height: 118px;
+  max-height: none;
+  margin: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 6px rgb(99 24 74 / 17%));
+}
+
+.ga-login-aprobado > h1 {
+  margin: 4px 0 0;
+  color: #431240;
+  font-size: 49px;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -1.65px;
+  text-align: center;
+}
+
+.ga-login-aprobado > h1 span {
+  color: #c32391;
+}
+
+.ga-login-aprobado > p {
+  margin: 2px 0 0;
+  color: #5a5262;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 27px;
+  text-align: center;
+}
+
+/* Líneas pequeñas a ambos lados del subtítulo de la referencia. */
+.ga-login-aprobado > p::before,
+.ga-login-aprobado > p::after {
+  content: "";
+  display: inline-block;
+  width: 57px;
+  height: 2px;
+  margin: 0 17px 5px;
+  vertical-align: middle;
+  background: #c854aa;
+}
+
+/* Tarjeta central de 460 x 374 aprox. en escritorio 1600 x 800. */
+.ga-login-aprobado form {
+  box-sizing: border-box;
+  width: min(460px, 100%);
+  max-width: 460px;
+  min-height: 373px;
+  margin: 22px 0 0;
+  padding: 23px 34px 34px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 24px;
+  background: rgba(255, 250, 255, .92);
+  box-shadow: 0 18px 29px rgba(136, 46, 112, .17), 0 2px 6px rgba(139, 51, 116, .08);
+  backdrop-filter: blur(3px);
+}
+
+.ga-login-aprobado form h2 {
+  margin: 0;
+  color: var(--ga-tinta);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 37px;
+  text-align: center;
+  letter-spacing: -.8px;
+}
+
+.ga-login-aprobado form > div:nth-of-type(1) {
+  margin-top: 25px;
+}
+
+.ga-login-aprobado form > div:nth-of-type(2) {
+  margin-top: 25px;
+}
+
+.ga-login-aprobado form label {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  min-height: 22px;
+  padding-left: 34px;
+  color: #3c1846;
+  font-size: 15.5px;
+  font-weight: 740;
+  line-height: 22px;
+}
+
+.ga-login-aprobado form label::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 23px;
+  height: 23px;
+  background: #471347;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.ga-login-aprobado form label[for="email"]::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='m4 7 8 6 8-6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='m4 7 8 6 8-6'/%3E%3C/svg%3E");
+}
+
+.ga-login-aprobado form label[for="password"]::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3Ccircle cx='12' cy='15' r='1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Crect x='4' y='10' width='16' height='11' rx='2'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3Ccircle cx='12' cy='15' r='1'/%3E%3C/svg%3E");
+}
+
+.ga-login-aprobado form input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 47px;
+  margin-top: 7px;
+  padding: 0 19px;
+  border: 1px solid #e6d3e7;
+  border-radius: 11px;
+  background: rgba(255, 250, 255, .65);
+  color: #3d1740;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  outline: none;
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+
+.ga-login-aprobado form #email { margin-top: 5px; }
+
+.ga-login-aprobado form input::placeholder {
+  color: #807b8e;
+  opacity: 1;
+}
+
+.ga-login-aprobado form input:focus {
+  border-color: #b83298;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(184, 50, 152, .13);
+}
+
+/* El control de visibilidad sigue siendo el botón React original. */
+.ga-login-aprobado form label[for="password"] + div {
+  display: flex;
+  width: 100%;
+  margin-top: 7px;
+  border: 1px solid #e6d3e7;
+  border-radius: 11px;
+  background: rgba(255, 250, 255, .65);
+  overflow: hidden;
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+
+.ga-login-aprobado form label[for="password"] + div:focus-within {
+  border-color: #b83298;
+  box-shadow: 0 0 0 3px rgba(184, 50, 152, .13);
+}
+
+.ga-login-aprobado form #password {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: 45px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ga-login-aprobado form button[type="button"] {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 54px;
+  height: 45px;
+  border: 0;
+  border-radius: 10px 10px 10px 10px;
+  background: #f4def0;
+  color: #521b53;
+  cursor: pointer;
+}
+
+.ga-login-aprobado form button[type="button"] svg {
+  width: 21px;
+  height: 21px;
+}
+
+.ga-login-aprobado form > div[aria-live] {
+  min-height: 27px;
+  padding-top: 5px;
+  margin: 0;
+  color: #bd234b;
+}
+
+.ga-login-aprobado form > div[aria-live] p {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ga-login-aprobado form button[type="submit"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 51px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(105deg, #8b095f 0%, #9d126f 48%, #c41b94 100%);
+  color: white;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 740;
+  box-shadow: 0 5px 8px rgba(128, 23, 102, .1);
+  cursor: pointer;
+  transition: filter .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+
+.ga-login-aprobado form button[type="submit"] svg {
+  width: 21px;
+  height: 21px;
+}
+
+.ga-login-aprobado form button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 15px rgba(128, 23, 102, .18);
+}
+
+.ga-login-aprobado form button[type="submit"]:focus-visible,
+.ga-login-aprobado form button[type="button"]:focus-visible {
+  outline: 3px solid #c2409c;
+  outline-offset: 3px;
+}
+
+.ga-login-aprobado form button[type="submit"]:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+/* Pantallas más pequeñas: el formulario se vuelve flexible, no se recorta. */
+@media (max-width: 700px) {
+  .ga-login-aprobado {
+    min-height: 100dvh;
+    padding: 40px 18px 55px;
+    /* Menos intrusivo en móviles para que la flor no tape los controles. */
+    background-size:
+      370px auto,
+      110% 160px,
+      150% 180px,
+      cover,
+      cover;
+    background-position:
+      left -165px bottom -40px,
+      left top,
+      right bottom,
+      center,
+      center;
+  }
+
+  .ga-login-aprobado > img {
+    width: 225px;
+    height: 100px;
+  }
+
+  .ga-login-aprobado > h1 {
+    margin-top: 4px;
+    font-size: 38px;
+  }
+
+  .ga-login-aprobado > p {
+    max-width: 400px;
+    font-size: 13px;
+    line-height: 21px;
+  }
+
+  .ga-login-aprobado > p::before,
+  .ga-login-aprobado > p::after {
+    width: 18px;
+    margin: 0 4px 3px;
+  }
+
+  .ga-login-aprobado form {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 25px;
+    min-height: 0;
+    padding: 22px 22px 28px;
+    border-radius: 22px;
+  }
+
+  .ga-login-aprobado form h2 {
+    font-size: 25px;
+  }
+
+  .ga-login-aprobado form label {
+    font-size: 14px;
+  }
+
+  .ga-login-aprobado form input {
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ga-login-aprobado *,
+  .ga-login-aprobado *::before,
+  .ga-login-aprobado *::after {
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Ajustes para laptops: la decoración nunca compite con el formulario. */
+@media (min-width: 701px) and (max-width: 1050px) {
+  .ga-login-aprobado {
+    background-size: 380px auto, 125% 230px, 125% 240px, cover, cover;
+    background-position: left -115px bottom -72px, left top, right bottom, center, center;
+  }
+}

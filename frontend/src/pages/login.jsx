@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import logo from "../assets/logo.png";
+import "./login-aprobado.css";
 
 import { iniciarSesion } from "../api/usuario.api";
 import { estadoInstalacion } from "../api/gestionUsuarios.api";
@@ -135,7 +136,7 @@ export function Login() {
   };
 
   return (
-    <main className="fondo-animado min-h-screen flex flex-col items-center px-4 pt-24 pb-12">
+    <main className="ga-login-aprobado">
       {entrando && <PantallaEntrada />}
 
       <img
