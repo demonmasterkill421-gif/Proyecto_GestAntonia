@@ -27,6 +27,11 @@ def _fecha(fecha):
     return timezone.localtime(fecha).replace(tzinfo=None)
 
 
+def _nombre_item(linea):
+    # En el servicio «Otro» el nombre lo escribe quien vende; en los demás es el del catálogo
+    return linea.nombre_manual or linea.item.nombre
+
+
 def _preparar_hoja(hoja, columnas):
     hoja.append(columnas)
     for celda in hoja[1]:
@@ -59,6 +64,13 @@ def construir_excel(ventas):
         ["Folio", "Fecha", "Local", "Ítem", "Cantidad", "Precio unitario", "Subtotal", "Trabajadora"],
     )
 
+    por_trabajadora = libro.create_sheet("Por trabajadora")
+    _preparar_hoja(
+        por_trabajadora,
+        ["Trabajadora", "Folio", "Fecha", "Local", "Servicio", "Cantidad", "Subtotal"],
+    )
+    filas_trabajadora = []
+
     total_confirmadas = 0
     for v in ventas:
         lineas = list(v.detalles.all())
@@ -79,16 +91,29 @@ def construir_excel(ventas):
             total_confirmadas += v.monto_total
 
         for d in lineas:
+            if d.trabajador and v.estado == "CONFIRMADA":
+                filas_trabajadora.append([
+                    _nombre(d.trabajador), v.folio, _fecha(v.fecha), v.local.nombre,
+                    _nombre_item(d), d.cantidad, d.cantidad * d.precio_unitario,
+                ])
             detalle.append([
                 v.folio,
                 _fecha(v.fecha),
                 v.local.nombre,
-                d.item.nombre,
+                _nombre_item(d),
                 d.cantidad,
                 d.precio_unitario,
                 d.cantidad * d.precio_unitario,
                 _nombre(d.trabajador) if d.trabajador else "",
             ])
+
+    # Lo que hizo cada trabajadora, agrupado por su nombre y de la fecha más antigua a la más nueva
+    for fila in sorted(filas_trabajadora, key=lambda f: (f[0].lower(), f[2], f[1] or 0)):
+        por_trabajadora.append(fila)
+    for fila in por_trabajadora.iter_rows(min_row=2):
+        fila[2].number_format = FORMATO_FECHA
+        fila[6].number_format = FORMATO_CLP
+    por_trabajadora.auto_filter.ref = f"A1:G{por_trabajadora.max_row}"
 
     # Formatos de fecha y dinero
     for fila in hoja.iter_rows(min_row=2):
@@ -112,6 +137,7 @@ def construir_excel(ventas):
 
     _ajustar_anchos(hoja)
     _ajustar_anchos(detalle)
+    _ajustar_anchos(por_trabajadora)
 
     salida = BytesIO()
     libro.save(salida)

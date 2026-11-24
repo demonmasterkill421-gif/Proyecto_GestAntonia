@@ -28,7 +28,17 @@ const cargarImagen = (url) =>
 
 // Genera el PDF con las ventas indicadas y devuelve { blob, nombre }.
 // Si el logo no carga, el PDF se hace igual, solo sin la marca de fondo.
-export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajadorasDe, periodo, localTexto, total, logo }) {
+export async function generarPdfVentas({
+  ventas,
+  esAdmin,
+  nombreLocal,
+  trabajadorasDe,
+  lineasDe,
+  periodo,
+  localTexto,
+  total,
+  logo,
+}) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const ancho = doc.internal.pageSize.getWidth();
   const alto = doc.internal.pageSize.getHeight();
@@ -50,7 +60,7 @@ export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajado
     const w = 130;
     const h = (w * imagen.naturalHeight) / imagen.naturalWidth;
     doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.5 }));
+    doc.setGState(new doc.GState({ opacity: 0.12 }));
     doc.addImage(imagen, "PNG", (ancho - w) / 2, (alto - h) / 2, w, h);
     doc.restoreGraphicsState();
   };
@@ -78,12 +88,13 @@ export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajado
   doc.setTextColor(...GRIS);
   doc.text(`Emitido el ${fechaHora(ahora)}`, ancho - 14, 20, { align: "right" });
 
-  const encabezado = ["Folio", "Fecha", ...(esAdmin ? ["Local"] : []), "Trabajadora", "Pago", "Estado", "Total"];
+  const encabezado = ["Folio", "Fecha", ...(esAdmin ? ["Local"] : []), "Trabajadora", "Detalle", "Pago", "Estado", "Total"];
   const filas = ventas.map((v) => [
     v.folio ?? "-",
     fechaHora(v.fecha),
     ...(esAdmin ? [nombreLocal(v.local)] : []),
     trabajadorasDe(v).join(", ") || "-",
+    lineasDe(v).join("\n") || "-",
     PAGOS[v.metodo_pago] ?? v.metodo_pago,
     ESTADOS[v.estado] ?? v.estado,
     clp(v.monto_total),
@@ -96,7 +107,7 @@ export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajado
     body: filas,
     theme: "plain",
     margin: { top: 20, left: 14, right: 14, bottom: 18 },
-    styles: { font: "helvetica", fontSize: 9, cellPadding: 2, textColor: TEXTO, lineColor: [230, 184, 212], lineWidth: 0.1 },
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: TEXTO, lineColor: [230, 184, 212], lineWidth: 0.1 },
     headStyles: { fillColor: MORADO, textColor: [255, 255, 255], fontStyle: "bold" },
     // Las celdas no llevan color de fondo para que se vea el logo detrás
     willDrawPage: marcaDeAgua,
@@ -135,6 +146,6 @@ export async function generarPdfVentas({ ventas, esAdmin, nombreLocal, trabajado
   // Devuelve el archivo para guardarlo en la carpeta "Reportes Ventas" (o descargarlo)
   return {
     blob: doc.output("blob"),
-    nombre: `ventas_${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}.pdf`,
+    nombre: `ANTONIA_ventas_${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}.pdf`,
   };
 }

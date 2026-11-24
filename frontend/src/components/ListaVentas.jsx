@@ -80,6 +80,14 @@ const ESTADOS = {
 const MOTIVO_MINIMO = 5;
 const MOTIVO_MAXIMO = 500;
 
+// El motivo con el que se anuló una venta; se busca por nombre porque viene del servidor
+const motivoDeAnulacion = (v) => {
+  if (v.estado !== "ANULADA") return "";
+  if (typeof v.motivo_anulacion === "string") return v.motivo_anulacion.trim();
+  const par = Object.entries(v).find(([k, valor]) => /motivo/i.test(k) && typeof valor === "string");
+  return par ? par[1].trim() : "";
+};
+
 // Saca un texto legible del error que devuelve el servidor
 const mensajeError = (err) => {
   // 429: demasiados intentos seguidos (el servidor lo responde en inglés)
@@ -165,6 +173,8 @@ export function ListaVentas({ rol }) {
   const [errorDescarga, setErrorDescarga] = useState("");
   const [exportando, setExportando] = useState(false);
   const [exportandoPdf, setExportandoPdf] = useState(false);
+  const [periodoElegido, setPeriodoElegido] = useState("Hoy"); // último botón de período que se tocó
+  const [periodoPanel, setPeriodoPanel] = useState("Hoy"); // lo mismo, dentro del panel de filtros
 
   // Ventana para anular una venta con la clave de anulación
   const [dialogo, setDialogo] = useState(false); // ventana abierta o cerrada
@@ -247,6 +257,7 @@ export function ListaVentas({ rol }) {
 
   const abrirPanel = () => {
     setBorrador(filtros);
+    setPeriodoPanel(periodoElegido);
     setPanel(true);
   };
   // Quita el foco antes de ocultar el panel, para que el navegador no avise
@@ -256,6 +267,7 @@ export function ListaVentas({ rol }) {
   };
   const aplicar = () => {
     setFiltros(borrador);
+    setPeriodoElegido(periodoPanel);
     cerrarPanel();
   };
   const abrirDescarga = () => {
@@ -384,6 +396,7 @@ export function ListaVentas({ rol }) {
   const PERIODOS_RAPIDOS = ["Hoy", "Esta semana", "Este mes"];
   const elegirPeriodo = (nombre) => {
     const a = atajos.find((x) => x.nombre === nombre);
+    setPeriodoElegido(nombre);
     setFiltros((f) => ({ ...f, desde: a.desde, hasta: a.hasta }));
   };
 
@@ -396,7 +409,15 @@ export function ListaVentas({ rol }) {
   ];
 
   // Período que coincide con las fechas aplicadas (para marcar su botón)
-  const periodoRapido = atajos.find((a) => a.desde === filtros.desde && a.hasta === filtros.hasta)?.nombre;
+  // Si dos botones tienen las mismas fechas (el lunes, "Hoy" y "Esta semana"), queda marcado el que se tocó
+  const coincide = (a) => a.desde === filtros.desde && a.hasta === filtros.hasta;
+  const periodoRapido = (atajos.find((a) => a.nombre === periodoElegido && coincide(a)) ?? atajos.find(coincide))
+    ?.nombre;
+
+  // Lo mismo para el panel de filtros: queda marcado el botón que se tocó dentro del panel
+  const coincideBorrador = (a) => a.desde === borrador.desde && a.hasta === borrador.hasta;
+  const periodoDelPanel = (atajos.find((a) => a.nombre === periodoPanel && coincideBorrador(a)) ?? atajos.find(coincideBorrador))
+    ?.nombre;
 
   const nombreItem = Object.fromEntries([...servicios, ...productos].map((i) => [i.id, i.nombre]));
   // El nombre viene desde la API en cada detalle (trabajador_nombre)
@@ -404,6 +425,9 @@ export function ListaVentas({ rol }) {
   const nombreLocal = (id) => SUCURSALES.find((s) => String(s.id) === String(id))?.nombre ?? `Local #${id}`;
   const trabajadorasDe = (v) =>
     [...new Set(v.detalles.filter((d) => d.trabajador).map((d) => nombreTrabajadora(d)))];
+  // Una línea de texto por ítem de la venta; en «Otro» sale el nombre que se escribió
+  const lineasDe = (v) =>
+    v.detalles.map((d) => `${d.cantidad} x ${d.nombre_manual || (nombreItem[d.item] ?? `Ítem #${d.item}`)}`);
   const estadoDe = (v) => ESTADOS[v.estado] ?? { texto: v.estado, clase: "bg-gray-200 text-gray-600" };
 
   const rangoValido = !filtros.desde || !filtros.hasta || filtros.desde <= filtros.hasta;
@@ -450,7 +474,7 @@ export function ListaVentas({ rol }) {
       // Carpeta "Reportes Ventas" (si ya se eligió); se pide antes de esperar al servidor
       const carpeta = await prepararCarpeta("ventas", { elegirSiFalta: false });
       const archivo = await exportarVentas(filtradas.map((v) => v.id));
-      const nombre = `ventas_${hoy()}.xlsx`;
+      const nombre = `ANTONIA_ventas_${hoy()}.xlsx`;
       const donde = await guardarArchivo(archivo, nombre, carpeta);
       toast.success(donde === "carpeta" ? `Guardado en «Reportes Ventas»: ${nombre}` : `Descargado: ${nombre}`);
       cerrarDescarga();
@@ -474,6 +498,7 @@ export function ListaVentas({ rol }) {
         esAdmin,
         nombreLocal,
         trabajadorasDe,
+        lineasDe,
         periodo:
           !filtros.desde && !filtros.hasta
             ? "todo el historial"
@@ -562,6 +587,16 @@ export function ListaVentas({ rol }) {
         <div className="py-3">
           <p className="text-base text-[#9c2d7b]">Descripción</p>
           <p className="break-words text-base text-[#1f1218]">{v.descripcion}</p>
+        </div>
+      )}
+
+      {motivoDeAnulacion(v) && (
+        <div className="py-3">
+          <p className="flex items-center gap-2 text-base text-[#9c2d7b]">
+            <Ban size={18} className="shrink-0" />
+            Motivo de la anulación
+          </p>
+          <p className="break-words text-base font-semibold text-[#1f1218]">{motivoDeAnulacion(v)}</p>
         </div>
       )}
 
@@ -920,9 +955,10 @@ export function ListaVentas({ rol }) {
               <label className={etiqueta}>Período</label>
               <div className="mb-3">
                 <Opciones
-                  valor={atajos.find((a) => a.desde === borrador.desde && a.hasta === borrador.hasta)?.nombre}
+                  valor={periodoDelPanel}
                   onChange={(nombre) => {
                     const a = atajos.find((x) => x.nombre === nombre);
+                    setPeriodoPanel(nombre);
                     setBorrador({ ...borrador, desde: a.desde, hasta: a.hasta });
                   }}
                   opciones={atajos.map((a) => [a.nombre, a.nombre])}
@@ -992,7 +1028,10 @@ export function ListaVentas({ rol }) {
           <div className="flex items-center justify-between gap-3 border-t border-[#f0cfe3] px-6 py-4">
             <button
               type="button"
-              onClick={() => setBorrador(porDefecto())}
+              onClick={() => {
+                setBorrador(porDefecto());
+                setPeriodoPanel("Hoy");
+              }}
               className="cursor-pointer text-base font-semibold text-[#b5368f] hover:underline"
             >
               Restablecer filtros
@@ -1153,7 +1192,7 @@ export function ListaVentas({ rol }) {
                     aria-label={verClaveNueva ? "Ocultar clave" : "Mostrar clave"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#b5368f]"
                   >
-                    {verClaveNueva ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {verClaveNueva ? <Eye size={20} /> : <EyeOff size={20} />}
                   </button>
                 </div>
               </div>
@@ -1297,7 +1336,7 @@ export function ListaVentas({ rol }) {
                       aria-label={verClave ? "Ocultar clave" : "Mostrar clave"}
                       className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#b5368f]"
                     >
-                      {verClave ? <EyeOff size={20} /> : <Eye size={20} />}
+                      {verClave ? <Eye size={20} /> : <EyeOff size={20} />}
                     </button>
                   </div>
                 </div>
