@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, Clock, Download, FileText, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -14,7 +14,6 @@ import { guardarArchivo, prepararCarpeta } from "../utils/carpetas";
 import { CarpetaDestino } from "./CarpetaDestino";
 
 // ---------- Utilidades de fecha y hora ----------
-const dos = (n) => String(n).padStart(2, "0");
 const hoy = () => new Date().toLocaleDateString("sv-SE"); // aaaa-mm-dd
 const verFecha = (f) => f.split("-").reverse().join("-"); // aaaa-mm-dd → dd-mm-aaaa
 const hora = (h) =>
@@ -23,36 +22,9 @@ const horaInput = (h) =>
   h ? new Date(h).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : ""; // hh:mm
 const horas = (n) => `${Number(n).toLocaleString("es-CL", { maximumFractionDigits: 2 })} h`;
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-
-// Los últimos 4 meses, cada uno con sus dos quincenas y el mes completo
-function crearPeriodos() {
-  const ahora = new Date();
-  const grupos = [];
-  for (let i = 0; i < 4; i++) {
-    const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
-    const anio = d.getFullYear();
-    const mes = d.getMonth();
-    const ultimo = new Date(anio, mes + 1, 0).getDate();
-    const base = `${anio}-${dos(mes + 1)}`;
-    grupos.push({
-      grupo: `${MESES[mes]} ${anio}`,
-      opciones: [
-        { id: `${base}-q1`, nombre: "1ª quincena (1 al 15)", desde: `${base}-01`, hasta: `${base}-15` },
-        { id: `${base}-q2`, nombre: `2ª quincena (16 al ${ultimo})`, desde: `${base}-16`, hasta: `${base}-${dos(ultimo)}` },
-        { id: `${base}-mes`, nombre: "Mes completo", desde: `${base}-01`, hasta: `${base}-${dos(ultimo)}` },
-      ],
-    });
-  }
-  return grupos;
-}
-
-const periodoActual = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${d.getDate() <= 15 ? "q1" : "q2"}`;
+const textoColacion = (a) => {
+  if (!a?.inicio_colacion && !a?.fin_colacion) return "—";
+  return `${hora(a?.inicio_colacion)} – ${hora(a?.fin_colacion)}`;
 };
 
 // Saca el mensaje de error que manda el backend
@@ -65,7 +37,6 @@ const mensajeError = (e, porDefecto) => {
 };
 
 // ---------- Carga de datos con refresco automático ----------
-// "funcion" debe venir de useCallback para que no se vuelva a cargar en cada render.
 function useCarga(funcion, cadaMs) {
   const [estado, setEstado] = useState({ origen: null, datos: null, error: "" });
   const contador = useRef(0);
@@ -104,9 +75,17 @@ function useCarga(funcion, cadaMs) {
 // ---------- Estilos ----------
 const BADGES = {
   PRESENTE: { texto: "Presente", clase: "bg-emerald-100 text-emerald-700" },
+  EN_COLACION: { texto: "En colación", clase: "bg-orange-100 text-orange-800" },
   SIN_ENTRADA: { texto: "Sin entrada", clase: "bg-red-100 text-red-700" },
   CERRADA: { texto: "Salida registrada", clase: "bg-gray-200 text-gray-700" },
   SIN_SALIDA: { texto: "Sin salida", clase: "bg-amber-100 text-amber-800" },
+};
+
+const ETIQUETA_ACCION = {
+  entrada: "Entrada",
+  inicio_colacion: "Salida a colación",
+  fin_colacion: "Regreso de colación",
+  salida: "Salida",
 };
 
 const campo =
@@ -133,52 +112,66 @@ function Tarjeta({ icono: Icono, titulo, valor }) {
   );
 }
 
-// rol: "ADMIN" o "RECEP". Los dos marcan entrada y salida; solo ADMIN corrige (lápiz), elimina (basurero),
-// descarga el Excel y cambia de sucursal con los botones. La recepcionista solo ve su local (lo filtra el backend).
+// rol: "ADMIN" o "RECEP". Los dos marcan entrada, colación y salida; solo ADMIN corrige (lápiz),
+// elimina (basurero), descarga Excel/PDF y cambia de sucursal con los botones.
 export function ListaAsistencia({ rol }) {
-  const SUCURSALES = useSucursales(); // locales de la base de datos
+  const SUCURSALES = useSucursales();
   const esAdmin = rol === "ADMIN";
   const sucursalId = useSucursalId();
 
   const [fecha, setFecha] = useState(hoy);
-  const [localId, setLocalId] = useState(String(sucursalId)); // sucursal que se está viendo
-  const [periodoId, setPeriodoId] = useState(periodoActual);
+  const [localId, setLocalId] = useState(String(sucursalId));
+  const [desde, setDesde] = useState(hoy);
+  const [hasta, setHasta] = useState(hoy);
   const [ahora, setAhora] = useState(() => new Date());
-  const [marcando, setMarcando] = useState(null); // id de la trabajadora en proceso
-  const [edicion, setEdicion] = useState(null); // diálogo del lápiz
-  const [eliminacion, setEliminacion] = useState(null); // diálogo del basurero
+  const [marcando, setMarcando] = useState(null);
+  const [edicion, setEdicion] = useState(null);
+  const [eliminacion, setEliminacion] = useState(null);
   const [descargando, setDescargando] = useState(false);
 
-  // Si se cambia la sucursal en el encabezado, el panel la sigue
   useEffect(() => {
     setLocalId(String(sucursalId));
   }, [sucursalId]);
 
   const sucursal = SUCURSALES.find((s) => String(s.id) === localId);
 
-  const grupos = useMemo(crearPeriodos, []);
-  const periodo = grupos.flatMap((g) => g.opciones).find((o) => o.id === periodoId);
-
   const cargarDia = useCallback(() => obtenerDia({ fecha, local: localId }), [fecha, localId]);
   const cargarResumen = useCallback(
-    () => obtenerResumen({ desde: periodo.desde, hasta: periodo.hasta, local: localId }),
-    [periodo.desde, periodo.hasta, localId]
+    () => obtenerResumen({ desde, hasta, local: localId }),
+    [desde, hasta, localId]
   );
 
   const dia = useCarga(cargarDia, 30000);
   const resumen = useCarga(cargarResumen, 60000);
 
   const esHoy = fecha === hoy();
+  const esRangoHoy = desde === hoy() && hasta === hoy();
   const filas = dia.datos?.filas ?? [];
   const filasResumen = resumen.datos?.filas ?? [];
 
-  // Reloj de la tarjeta "Hora actual"
+  const cambiarDesde = (valor) => {
+    if (!valor) return;
+    setDesde(valor);
+    if (valor > hasta) setHasta(valor);
+  };
+
+  const cambiarHasta = (valor) => {
+    if (!valor) return;
+    setHasta(valor);
+    if (valor < desde) setDesde(valor);
+  };
+
+  const ponerHoyRango = () => {
+    const fechaHoy = hoy();
+    setDesde(fechaHoy);
+    setHasta(fechaHoy);
+  };
+
   useEffect(() => {
     const id = setInterval(() => setAhora(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
 
-  // Diálogo abierto: Escape lo cierra y la página de atrás no se desplaza
   const dialogoAbierto = edicion !== null || eliminacion !== null;
   useEffect(() => {
     if (!dialogoAbierto) return;
@@ -201,23 +194,24 @@ export function ListaAsistencia({ rol }) {
     const a = fila.asistencia;
     if (!a) return "SIN_ENTRADA";
     if (a.hora_salida) return "CERRADA";
+    if (a.inicio_colacion && !a.fin_colacion) return esHoy ? "EN_COLACION" : "SIN_SALIDA";
     return esHoy ? "PRESENTE" : "SIN_SALIDA";
   };
 
   const estados = filas.map(estadoDe);
-  const presentes = estados.filter((e) => e === "PRESENTE").length;
+  const presentes = estados.filter((e) => e === "PRESENTE" || e === "EN_COLACION").length;
   const sinEntrada = estados.filter((e) => e === "SIN_ENTRADA").length;
   const cerradas = estados.filter((e) => e === "CERRADA").length;
 
   const recargarTodo = () => Promise.all([dia.recargar(), resumen.recargar()]);
 
-  // ---------- Marcar entrada / salida ----------
+  // ---------- Marcar entrada / colación / salida ----------
   const marcar = async (fila, accion) => {
     setMarcando(fila.trabajador);
     try {
       await marcarAsistencia({ trabajador: fila.trabajador, accion });
       await recargarTodo();
-      toast.success(`${accion === "entrada" ? "Entrada" : "Salida"} registrada: ${fila.trabajador_nombre}`);
+      toast.success(`${ETIQUETA_ACCION[accion]} registrada: ${fila.trabajador_nombre}`);
     } catch (e) {
       toast.error(mensajeError(e, "No se pudo registrar la asistencia"));
     } finally {
@@ -225,18 +219,13 @@ export function ListaAsistencia({ rol }) {
     }
   };
 
-  // ---------- Descargar el Excel del período (solo ADMIN) ----------
+  // ---------- Descargar Excel o PDF del período (solo ADMIN) ----------
   const descargar = async (formato = "excel") => {
     setDescargando(formato);
     try {
-      // Carpeta "Reportes Asistencia" (si ya se eligió); se pide antes de esperar al servidor
       const carpeta = await prepararCarpeta("asistencia", { elegirSiFalta: false });
-      const archivo = await exportarAsistencias({
-        desde: periodo.desde,
-        hasta: periodo.hasta,
-        local: localId,
-      }, formato);
-      const nombre = `asistencia_${periodo.desde}_a_${periodo.hasta}.${formato === "pdf" ? "pdf" : "xlsx"}`;
+      const archivo = await exportarAsistencias({ desde, hasta, local: localId }, formato);
+      const nombre = `asistencia_${desde}_a_${hasta}.${formato === "pdf" ? "pdf" : "xlsx"}`;
       const donde = await guardarArchivo(archivo, nombre, carpeta);
       toast.success(donde === "carpeta" ? `Guardado en «Reportes Asistencia»: ${nombre}` : `Descargado: ${nombre}`);
     } catch {
@@ -251,6 +240,8 @@ export function ListaAsistencia({ rol }) {
     setEdicion({
       fila,
       entrada: horaInput(fila.asistencia?.hora_entrada),
+      inicioColacion: horaInput(fila.asistencia?.inicio_colacion),
+      finColacion: horaInput(fila.asistencia?.fin_colacion),
       salida: horaInput(fila.asistencia?.hora_salida),
       motivo: "",
       error: "",
@@ -260,11 +251,19 @@ export function ListaAsistencia({ rol }) {
   const cambiarEdicion = (nombre) => (e) => setEdicion({ ...edicion, [nombre]: e.target.value });
 
   const guardar = async () => {
-    const { fila, entrada, salida, motivo } = edicion;
+    const { fila, entrada, inicioColacion, finColacion, salida, motivo } = edicion;
     const fallo = (error) => setEdicion((ed) => ({ ...ed, error, guardando: false }));
 
     if (!entrada || !salida) return fallo("Falta la hora de entrada o de salida");
     if (salida <= entrada) return fallo("La salida debe ser posterior a la entrada");
+    if ((inicioColacion && !finColacion) || (!inicioColacion && finColacion)) {
+      return fallo("Indica tanto el inicio como el fin de colación, o deja ambos vacíos");
+    }
+    if (inicioColacion && finColacion) {
+      if (!(entrada < inicioColacion && inicioColacion < finColacion && finColacion < salida)) {
+        return fallo("La colación debe quedar dentro del horario entre entrada y salida");
+      }
+    }
     if (!motivo.trim()) return fallo("Escribe el motivo de la corrección");
 
     setEdicion((ed) => ({ ...ed, guardando: true, error: "" }));
@@ -273,6 +272,8 @@ export function ListaAsistencia({ rol }) {
         trabajador: fila.trabajador,
         fecha,
         hora_entrada: new Date(`${fecha}T${entrada}`).toISOString(),
+        inicio_colacion: inicioColacion ? new Date(`${fecha}T${inicioColacion}`).toISOString() : null,
+        fin_colacion: finColacion ? new Date(`${fecha}T${finColacion}`).toISOString() : null,
         hora_salida: new Date(`${fecha}T${salida}`).toISOString(),
         motivo: motivo.trim(),
       });
@@ -333,14 +334,25 @@ export function ListaAsistencia({ rol }) {
 
   const acciones = (fila, estado) => {
     const ocupada = marcando === fila.trabajador;
+    const a = fila.asistencia;
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {estado === "SIN_ENTRADA" && esHoy && (
           <button type="button" disabled={ocupada} onClick={() => marcar(fila, "entrada")} className={botonEntrada}>
             Marcar entrada
           </button>
         )}
-        {estado === "PRESENTE" && (
+        {estado === "PRESENTE" && !a?.inicio_colacion && (
+          <button type="button" disabled={ocupada} onClick={() => marcar(fila, "inicio_colacion")} className={botonSalida}>
+            Salida a colación
+          </button>
+        )}
+        {estado === "EN_COLACION" && (
+          <button type="button" disabled={ocupada} onClick={() => marcar(fila, "fin_colacion")} className={botonEntrada}>
+            Regreso colación
+          </button>
+        )}
+        {estado === "PRESENTE" && a?.fin_colacion && (
           <button type="button" disabled={ocupada} onClick={() => marcar(fila, "salida")} className={botonSalida}>
             Marcar salida
           </button>
@@ -423,7 +435,7 @@ export function ListaAsistencia({ rol }) {
         </div>
       </div>
 
-      {/* Atajos de sucursal (solo la administradora): cambian el panel al instante */}
+      {/* Atajos de sucursal (solo la administradora) */}
       {esAdmin && (
         <div role="group" aria-label="Sucursal" className="flex flex-wrap gap-2">
           {SUCURSALES.map((s) => {
@@ -476,7 +488,8 @@ export function ListaAsistencia({ rol }) {
                 <p className="truncate text-lg font-bold text-[#b5368f]">{fila.trabajador_nombre}</p>
                 <div className="mt-1">{insignia(fila, estado)}</div>
                 <p className="mt-2 text-base text-[#9c2d7b]">
-                  Entrada <span className="font-semibold text-[#1f1218]">{hora(a?.hora_entrada)}</span> · Salida{" "}
+                  Entrada <span className="font-semibold text-[#1f1218]">{hora(a?.hora_entrada)}</span> · Colación{" "}
+                  <span className="font-semibold text-[#1f1218]">{textoColacion(a)}</span> · Salida{" "}
                   <span className="font-semibold text-[#1f1218]">{hora(a?.hora_salida)}</span>
                 </p>
                 <div className="mt-3">{acciones(fila, estado)}</div>
@@ -488,12 +501,13 @@ export function ListaAsistencia({ rol }) {
         {/* Computador: tabla */}
         {filas.length > 0 && (
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[40rem] text-left text-base text-[#1f1218]">
+            <table className="w-full min-w-[46rem] text-left text-base text-[#1f1218]">
               <thead>
                 <tr className="border-b border-[#e6b8d4] text-[#9c2d7b]">
                   <th className="py-2 pr-3 font-semibold">Especialista</th>
                   <th className="py-2 pr-3 font-semibold">Estado</th>
                   <th className="py-2 pr-3 font-semibold">Entrada</th>
+                  <th className="py-2 pr-3 font-semibold">Colación</th>
                   <th className="py-2 pr-3 font-semibold">Salida</th>
                   <th className="py-2 font-semibold">Acción</th>
                 </tr>
@@ -507,6 +521,7 @@ export function ListaAsistencia({ rol }) {
                       <td className="py-3 pr-3 font-bold text-[#b5368f]">{fila.trabajador_nombre}</td>
                       <td className="py-3 pr-3">{insignia(fila, estado)}</td>
                       <td className="py-3 pr-3">{hora(a?.hora_entrada)}</td>
+                      <td className="py-3 pr-3">{textoColacion(a)}</td>
                       <td className="py-3 pr-3">{hora(a?.hora_salida)}</td>
                       <td className="py-3">{acciones(fila, estado)}</td>
                     </tr>
@@ -518,28 +533,56 @@ export function ListaAsistencia({ rol }) {
         )}
       </div>
 
-      {/* Días trabajados por período */}
+      {/* Días trabajados por período (rango de fechas fijas + Hoy) */}
       <div className="rounded-2xl border border-[#e6b8d4] bg-white p-4 shadow-sm shadow-[#b5368f]/10 sm:p-5">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h3 className="text-xl font-bold text-[#1f1218]">Días trabajados por período</h3>
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-[#1f1218]">Días trabajados por período</h3>
+            <p className="text-sm font-medium text-[#9c2d7b]">
+              {esRangoHoy
+                ? `Solo hoy (${verFecha(desde)})`
+                : `Del ${verFecha(desde)} al ${verFecha(hasta)}`}
+            </p>
+          </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <select
-              value={periodoId}
-              onChange={(e) => setPeriodoId(e.target.value)}
-              aria-label="Período"
-              className={`${campo} sm:w-72`}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-44">
+              <label htmlFor="resumen-desde" className={etiqueta}>
+                Desde
+              </label>
+              <input
+                id="resumen-desde"
+                type="date"
+                value={desde}
+                max={hoy()}
+                onChange={(e) => cambiarDesde(e.target.value)}
+                className={campo}
+              />
+            </div>
+
+            <div className="w-full sm:w-44">
+              <label htmlFor="resumen-hasta" className={etiqueta}>
+                Hasta
+              </label>
+              <input
+                id="resumen-hasta"
+                type="date"
+                value={hasta}
+                min={desde}
+                max={hoy()}
+                onChange={(e) => cambiarHasta(e.target.value)}
+                className={campo}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={ponerHoyRango}
+              disabled={esRangoHoy}
+              className={`${botonSalida} h-12 px-5`}
             >
-              {grupos.map((g) => (
-                <optgroup key={g.grupo} label={g.grupo}>
-                  {g.opciones.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.nombre}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              Hoy
+            </button>
 
             {esAdmin && (
               <>
@@ -565,7 +608,7 @@ export function ListaAsistencia({ rol }) {
             )}
           </div>
         </div>
-        {esAdmin && <CarpetaDestino tipo="asistencia" className="-mt-2 mb-4 lg:justify-end" />}
+        {esAdmin && <CarpetaDestino tipo="asistencia" className="-mt-2 mb-4 xl:justify-end" />}
 
         {resumen.error && <p className="mb-2 text-base font-medium text-[#b5368f]">{resumen.error}</p>}
         {resumen.cargando && <p className="py-2 text-base font-medium text-[#9c2d7b]">Cargando...</p>}
@@ -656,6 +699,33 @@ export function ListaAsistencia({ rol }) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="edit-ini-col" className={etiqueta}>
+                    Inicio colación (opcional)
+                  </label>
+                  <input
+                    id="edit-ini-col"
+                    type="time"
+                    value={edicion.inicioColacion}
+                    onChange={cambiarEdicion("inicioColacion")}
+                    className={campo}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-fin-col" className={etiqueta}>
+                    Fin colación (opcional)
+                  </label>
+                  <input
+                    id="edit-fin-col"
+                    type="time"
+                    value={edicion.finColacion}
+                    onChange={cambiarEdicion("finColacion")}
+                    className={campo}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="edit-motivo" className={etiqueta}>
                   Motivo (obligatorio)
@@ -665,7 +735,7 @@ export function ListaAsistencia({ rol }) {
                   rows={3}
                   value={edicion.motivo}
                   onChange={cambiarEdicion("motivo")}
-                  placeholder="Ej.: Olvidó marcar la salida"
+                  placeholder="Ej.: Olvidó marcar el regreso de colación"
                   className={`${campo} h-auto py-2`}
                 />
               </div>

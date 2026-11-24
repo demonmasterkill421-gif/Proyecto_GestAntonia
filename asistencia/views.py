@@ -52,13 +52,12 @@ def _periodo_pedido(request):
 
 
 def _filas_resumen(trabajadoras, registros):
-    """Días y horas trabajadas por cada trabajadora."""
+    """Días y horas trabajadas (descontando colación) por cada trabajadora."""
     dias = {t.id: 0 for t in trabajadoras}
-    segundos = {t.id: 0 for t in trabajadoras}
+    segundos = {t.id: 0.0 for t in trabajadoras}
     for r in registros:
         dias[r.trabajador_id] += 1
-        if r.hora_entrada and r.hora_salida:
-            segundos[r.trabajador_id] += (r.hora_salida - r.hora_entrada).total_seconds()
+        segundos[r.trabajador_id] += r.segundos_trabajados
 
     return [
         {
@@ -186,7 +185,6 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
         local = modelo_local.objects.filter(pk=local_id).first()
         local_nombre = local.nombre if local else f"Local {local_id}"
 
-        # ?formato=pdf → PDF; si no, Excel (como antes)
         es_pdf = request.query_params.get("formato") == "pdf"
         construir = construir_pdf if es_pdf else construir_excel
         contenido = construir(
@@ -249,9 +247,41 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
                     {"detail": "Ya tiene la salida marcada hoy"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            registro.hora_salida = ahora
-            registro.estado = "COMPLETA"
-            registro.save()
+
+            if accion == "inicio_colacion":
+                if registro.inicio_colacion:
+                    return Response(
+                        {"detail": "Ya tiene la salida a colación marcada hoy"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                registro.inicio_colacion = ahora
+                registro.estado = "EN_COLACION"
+                registro.save()
+
+            elif accion == "fin_colacion":
+                if not registro.inicio_colacion:
+                    return Response(
+                        {"detail": "No tiene salida a colación marcada hoy"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if registro.fin_colacion:
+                    return Response(
+                        {"detail": "Ya tiene el regreso de colación marcado hoy"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                registro.fin_colacion = ahora
+                registro.estado = "EN_JORNADA"
+                registro.save()
+
+            elif accion == "salida":
+                if registro.inicio_colacion and not registro.fin_colacion:
+                    return Response(
+                        {"detail": "Primero debe marcar el regreso de colación"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                registro.hora_salida = ahora
+                registro.estado = "COMPLETA"
+                registro.save()
 
         return Response(
             AsistenciaSerializer(registro).data,
@@ -271,6 +301,8 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
             defaults={
                 "local": trabajadora.local,
                 "hora_entrada": datos["hora_entrada"],
+                "inicio_colacion": datos.get("inicio_colacion"),
+                "fin_colacion": datos.get("fin_colacion"),
                 "hora_salida": datos["hora_salida"],
                 "estado": "CORREGIDA",
             },
@@ -282,6 +314,8 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
                 datos["motivo"],
                 datos["hora_entrada"],
                 datos["hora_salida"],
+                datos.get("inicio_colacion"),
+                datos.get("fin_colacion"),
             )
         except (ErrorDjango, ValueError) as error:
             return Response(
@@ -397,11 +431,15 @@ class AsistenciaViewSet(viewsets.ReadOnlyModelViewSet):
 
         try:
             registro = RegistroDeAsistencia.registrar_por_qr(user, token_qr)
-            mensaje_exito = (
-                "¡Salida registrada correctamente!"
-                if registro.hora_salida
-                else "¡Entrada registrada correctamente!"
-            )
+            if registro.hora_salida:
+                mensaje_exito = "¡Salida definitiva registrada correctamente!"
+            elif registro.fin_colacion:
+                mensaje_exito = "¡Regreso de colación (2° turno) registrado correctamente!"
+            elif registro.inicio_colacion:
+                mensaje_exito = "¡Salida a colación registrada correctamente!"
+            else:
+                mensaje_exito = "¡Entrada registrada correctamente!"
+
             return Response(
                 {"mensaje": mensaje_exito},
                 status=status.HTTP_200_OK,

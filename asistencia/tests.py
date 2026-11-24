@@ -20,15 +20,45 @@ class AsistenciaQRTests(TestCase):
                                                    rol=Usuario.Rol.TRABAJADOR, local=self.local)
         self.qr = CodigoQR.generar(self.local, self.admin)
 
-    def test_primer_escaneo_entrada_y_segundo_salida(self):
+    def test_cuatro_escaneos_con_colacion_y_descuento_horas(self):
+        # 1. Entrada
         reg = self.trab.escanear_codigo_qr(self.qr.token)
         self.assertIsNotNone(reg.hora_entrada)
+        self.assertEqual(reg.estado, RegistroDeAsistencia.Estado.EN_JORNADA)
+        self.assertIsNone(reg.inicio_colacion)
         self.assertIsNone(reg.hora_salida)
-        reg.hora_entrada = timezone.now() - timedelta(hours=8)
+
+        # 2. Salida a colación (después de 4 horas)
+        reg.hora_entrada = timezone.now() - timedelta(hours=4)
         reg.save()
         reg = self.trab.escanear_codigo_qr(self.qr.token)
+        self.assertIsNotNone(reg.inicio_colacion)
+        self.assertEqual(reg.estado, RegistroDeAsistencia.Estado.EN_COLACION)
+
+        # 3. Regreso de colación / 2° turno (1 hora de colación)
+        ahora = timezone.now()
+        reg.hora_entrada = ahora - timedelta(hours=5)
+        reg.inicio_colacion = ahora - timedelta(hours=1)
+        reg.save()
+        reg = self.trab.escanear_codigo_qr(self.qr.token)
+        self.assertIsNotNone(reg.fin_colacion)
+        self.assertEqual(reg.estado, RegistroDeAsistencia.Estado.EN_JORNADA)
+
+        # 4. Salida definitiva (9 horas totales - 1 hora de colación = 8 horas trabajadas)
+        ahora = timezone.now()
+        reg.hora_entrada = ahora - timedelta(hours=9)
+        reg.inicio_colacion = ahora - timedelta(hours=5)
+        reg.fin_colacion = ahora - timedelta(hours=4)
+        reg.save()
+        reg = self.trab.escanear_codigo_qr(self.qr.token)
+        self.assertIsNotNone(reg.hora_salida)
         self.assertEqual(reg.estado, RegistroDeAsistencia.Estado.COMPLETA)
         self.assertAlmostEqual(reg.horas_trabajadas, 8, delta=0.05)
+
+    def test_rechaza_escaneo_antes_de_cinco_minutos(self):
+        self.trab.escanear_codigo_qr(self.qr.token)
+        with self.assertRaises(ValidationError):
+            self.trab.escanear_codigo_qr(self.qr.token)
 
     def test_qr_vencido_es_rechazado(self):
         self.qr.vigente_hasta = timezone.now() - timedelta(minutes=1)

@@ -13,6 +13,7 @@ FORMATO_HORAS = "0.00"
 
 ESTADOS = {
     "EN_JORNADA": "En jornada",
+    "EN_COLACION": "En colación",
     "COMPLETA": "Completa",
     "CORREGIDA": "Corregida",
 }
@@ -33,11 +34,14 @@ def _hora_local(fecha):
     return timezone.localtime(fecha).replace(tzinfo=None)
 
 
-def _horas(entrada, salida):
-    """Horas trabajadas con 2 decimales; None si falta la entrada o la salida."""
+def _horas(entrada, salida, inicio_colacion=None, fin_colacion=None):
+    """Horas trabajadas con 2 decimales (descontando colación); None si falta entrada o salida."""
     if not entrada or not salida:
         return None
-    return round((salida - entrada).total_seconds() / 3600, 2)
+    total = (salida - entrada).total_seconds()
+    if inicio_colacion and fin_colacion and fin_colacion > inicio_colacion:
+        total -= (fin_colacion - inicio_colacion).total_seconds()
+    return round(max(0.0, total) / 3600, 2)
 
 
 def _preparar_hoja(hoja, columnas):
@@ -58,11 +62,8 @@ def _ajustar_anchos(hoja):
 def construir_excel(registros, resumen, desde, hasta, local_nombre):
     """
     Devuelve los bytes de un .xlsx con dos hojas:
-    - Registros: una fila por registro de asistencia del período.
+    - Registros: una fila por registro de asistencia del período (con colación).
     - Resumen: días y horas por trabajadora, con el total abajo.
-
-    registros: registros de asistencia del período.
-    resumen: lista de dicts con "trabajador_nombre", "dias" y "horas".
     """
     libro = Workbook()
 
@@ -71,7 +72,11 @@ def construir_excel(registros, resumen, desde, hasta, local_nombre):
     hoja.title = "Registros"
     _preparar_hoja(
         hoja,
-        ["Trabajadora", "Local", "Fecha", "Entrada", "Salida", "Horas", "Estado", "Corregida por", "Motivo"],
+        [
+            "Trabajadora", "Local", "Fecha", "Entrada",
+            "Inicio colación", "Fin colación", "Salida",
+            "Horas", "Estado", "Corregida por", "Motivo",
+        ],
     )
 
     for r in registros:
@@ -80,8 +85,10 @@ def construir_excel(registros, resumen, desde, hasta, local_nombre):
             r.local.nombre if r.local else "",
             r.fecha,
             _hora_local(r.hora_entrada),
+            _hora_local(r.inicio_colacion) or "—",
+            _hora_local(r.fin_colacion) or "—",
             _hora_local(r.hora_salida) or "Sin salida",
-            _horas(r.hora_entrada, r.hora_salida),
+            _horas(r.hora_entrada, r.hora_salida, r.inicio_colacion, r.fin_colacion),
             ESTADOS.get(r.estado, r.estado),
             _nombre(r.corregido_por),
             r.motivo_correccion or "",
@@ -91,9 +98,11 @@ def construir_excel(registros, resumen, desde, hasta, local_nombre):
         fila[2].number_format = FORMATO_FECHA
         fila[3].number_format = FORMATO_HORA
         fila[4].number_format = FORMATO_HORA
-        fila[5].number_format = FORMATO_HORAS
+        fila[5].number_format = FORMATO_HORA
+        fila[6].number_format = FORMATO_HORA
+        fila[7].number_format = FORMATO_HORAS
 
-    hoja.auto_filter.ref = f"A1:I{max(hoja.max_row, 1)}"
+    hoja.auto_filter.ref = f"A1:K{max(hoja.max_row, 1)}"
 
     # ---------- Hoja 2: Resumen ----------
     hoja2 = libro.create_sheet("Resumen")
@@ -111,7 +120,6 @@ def construir_excel(registros, resumen, desde, hasta, local_nombre):
 
     ultima = hoja2.max_row
 
-    # Total debajo (mismo estilo que el total de ventas)
     etiqueta = hoja2.cell(row=ultima + 2, column=1, value="Total")
     dias = hoja2.cell(row=ultima + 2, column=2, value=total_dias)
     horas = hoja2.cell(row=ultima + 2, column=3, value=round(total_horas, 2))
@@ -119,7 +127,6 @@ def construir_excel(registros, resumen, desde, hasta, local_nombre):
         celda.font = Font(bold=True)
     horas.number_format = FORMATO_HORAS
 
-    # Datos del filtro, para saber de qué período y local es el archivo
     hoja2.cell(row=ultima + 4, column=1, value=f"Local: {local_nombre}")
     hoja2.cell(
         row=ultima + 5,

@@ -25,8 +25,9 @@ class AsistenciaSerializer(serializers.ModelSerializer):
         model = RegistroDeAsistencia
         fields = [
             "id", "trabajador", "trabajador_nombre", "local", "local_nombre", "fecha",
-            "hora_entrada", "hora_salida", "horas_trabajadas", "estado",
-            "motivo_correccion", "corregido_por", "corregido_por_nombre",
+            "hora_entrada", "inicio_colacion", "fin_colacion", "hora_salida",
+            "horas_trabajadas", "estado", "motivo_correccion",
+            "corregido_por", "corregido_por_nombre",
         ]
         read_only_fields = fields
 
@@ -38,12 +39,14 @@ class AsistenciaSerializer(serializers.ModelSerializer):
 
 
 class MarcarSerializer(serializers.Serializer):
-    """Datos para marcar entrada o salida a mano (ADMIN y RECEP)."""
+    """Datos para marcar entrada, colación o salida a mano (ADMIN y RECEP)."""
 
     trabajador = serializers.PrimaryKeyRelatedField(
         queryset=Usuario.objects.filter(rol="TRAB")
     )
-    accion = serializers.ChoiceField(choices=["entrada", "salida"])
+    accion = serializers.ChoiceField(
+        choices=["entrada", "inicio_colacion", "fin_colacion", "salida"]
+    )
 
 
 class CorregirSerializer(serializers.Serializer):
@@ -54,17 +57,32 @@ class CorregirSerializer(serializers.Serializer):
     )
     fecha = serializers.DateField()
     hora_entrada = serializers.DateTimeField()
+    inicio_colacion = serializers.DateTimeField(required=False, allow_null=True)
+    fin_colacion = serializers.DateTimeField(required=False, allow_null=True)
     hora_salida = serializers.DateTimeField()
     motivo = serializers.CharField(allow_blank=False, trim_whitespace=True)
 
     def validate(self, datos):
         entrada = datos["hora_entrada"]
+        inicio_col = datos.get("inicio_colacion")
+        fin_col = datos.get("fin_colacion")
         salida = datos["hora_salida"]
 
         if salida <= entrada:
             raise serializers.ValidationError(
                 "La salida debe ser posterior a la entrada"
             )
+
+        if (inicio_col is None) != (fin_col is None):
+            raise serializers.ValidationError(
+                "Debes indicar inicio y fin de colación, o dejar ambos vacíos"
+            )
+
+        if inicio_col and fin_col:
+            if not (entrada < inicio_col < fin_col < salida):
+                raise serializers.ValidationError(
+                    "La colación debe quedar dentro del horario entre la entrada y la salida"
+                )
 
         if timezone.is_aware(entrada):
             dia_entrada = timezone.localtime(entrada).date()
