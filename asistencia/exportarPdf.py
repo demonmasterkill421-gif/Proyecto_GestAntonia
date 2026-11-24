@@ -63,9 +63,11 @@ def construir_pdf(registros, resumen, desde, hasta, local_nombre):
     salida = BytesIO()
     pagina = landscape(A4)
     periodo = f"{desde:%d-%m-%Y} al {hasta:%d-%m-%Y}"
-    doc = SimpleDocTemplate(salida, pagesize=pagina, leftMargin=14 * mm, rightMargin=14 * mm,
-                            topMargin=12 * mm, bottomMargin=14 * mm,
-                            title=f"Asistencia {local_nombre} {periodo}", author="GestAntonia")
+    doc = SimpleDocTemplate(
+        salida, pagesize=pagina, leftMargin=14 * mm, rightMargin=14 * mm,
+        topMargin=12 * mm, bottomMargin=14 * mm,
+        title=f"Asistencia {local_nombre} {periodo}", author="GestAntonia",
+    )
     ancho = pagina[0] - 28 * mm
 
     def pie(canvas, documento):
@@ -93,7 +95,7 @@ def construir_pdf(registros, resumen, desde, hasta, local_nombre):
     e += [Spacer(1, 4), Paragraph("Registros del período", H2)]
     filas = []
     for r in registros:
-        horas = _horas(r.hora_entrada, r.hora_salida)
+        horas = _horas(r.hora_entrada, r.hora_salida, r.inicio_colacion, r.fin_colacion)
         correccion = ""
         if r.corregido_por_id:
             correccion = _nombre(r.corregido_por) + (f": {r.motivo_correccion}" if r.motivo_correccion else "")
@@ -101,16 +103,22 @@ def construir_pdf(registros, resumen, desde, hasta, local_nombre):
             f"{r.fecha:%d-%m-%Y}",
             Paragraph(_nombre(r.trabajador), CELDA),
             _hora(r.hora_entrada),
+            _hora(r.inicio_colacion) or "—",
+            _hora(r.fin_colacion) or "—",
             _hora(r.hora_salida) or "Sin salida",
             _num(horas) if horas is not None else "",
             ESTADOS.get(r.estado, r.estado),
             Paragraph(correccion, CELDA),
         ])
     e.append(_tabla(
-        ["Fecha", "Especialista", "Entrada", "Salida", "Horas", "Estado", "Corrección"],
+        ["Fecha", "Especialista", "Entrada", "Ini. col.", "Fin col.", "Salida", "Horas", "Estado", "Corrección"],
         filas,
-        [ancho * 0.1, ancho * 0.22, ancho * 0.08, ancho * 0.09, ancho * 0.07, ancho * 0.11, ancho * 0.33],
-        derecha=(4,),
+        [
+            ancho * 0.09, ancho * 0.19, ancho * 0.07,
+            ancho * 0.08, ancho * 0.08, ancho * 0.08,
+            ancho * 0.07, ancho * 0.10, ancho * 0.24,
+        ],
+        derecha=(6,),
     ))
 
     doc.build(e, onFirstPage=pie, onLaterPages=pie)

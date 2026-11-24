@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { QrCode, RefreshCw, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { QrCode, RefreshCw, Copy, ExternalLink, Loader2, Download } from "lucide-react";
+import QRCode from "qrcode";
 import { Sidebar } from "../../../components/Sidebar";
 import { ListaAsistencia } from "../../../components/ListaAsistencia";
 import { useTitulo } from "../../../hooks/useTitulo";
@@ -19,13 +20,15 @@ function formatearVigencia(fechaIso) {
 }
 
 export function AsistenciaAdmin() {
-  const SUCURSALES = useSucursales(); // locales de la base de datos
   useTitulo("Asistencia");
+  const SUCURSALES = useSucursales();
   const sucursalId = useSucursalId();
   const nombreSucursal =
-    SUCURSALES.find((s) => s.id === sucursalId)?.nombre || `Local #${sucursalId}`;
+    SUCURSALES.find((s) => String(s.id) === String(sucursalId))?.nombre ||
+    `Local #${sucursalId}`;
 
   const [qr, setQr] = useState(null);
+  const [qrImagen, setQrImagen] = useState("");
   const [cargandoQr, setCargandoQr] = useState(true);
   const [generando, setGenerando] = useState(false);
 
@@ -52,6 +55,34 @@ export function AsistenciaAdmin() {
     };
   }, [sucursalId]);
 
+  useEffect(() => {
+    let activo = true;
+    if (!qr?.existe || !qr?.url) {
+      setQrImagen("");
+      return;
+    }
+
+    QRCode.toDataURL(qr.url, {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: "H",
+      color: {
+        dark: "#1f1218",
+        light: "#ffffff",
+      },
+    })
+      .then((url) => {
+        if (activo) setQrImagen(url);
+      })
+      .catch(() => {
+        if (activo) setQrImagen("");
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [qr]);
+
   const handleGenerar = async () => {
     setGenerando(true);
     try {
@@ -76,6 +107,20 @@ export function AsistenciaAdmin() {
     }
   };
 
+  const handleDescargarQR = () => {
+    if (!qrImagen) {
+      toast.error("No se pudo generar la imagen del QR.");
+      return;
+    }
+    const enlace = document.createElement("a");
+    enlace.href = qrImagen;
+    enlace.download = `QR_${nombreSucursal.replace(/\s+/g, "_")}.png`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    toast.success("Imagen QR descargada");
+  };
+
   return (
     <Sidebar>
       <h1 className="text-3xl font-bold text-[#a8238f]">Asistencia</h1>
@@ -85,12 +130,26 @@ export function AsistenciaAdmin() {
 
       {/* Panel de gestión de Token QR por sucursal */}
       <section className="mb-6 rounded-2xl border border-pink-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-pink-50 p-3 text-[#a8238f]">
-              <QrCode size={26} />
-            </div>
-            <div>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            {qr?.existe && !cargandoQr && qrImagen ? (
+              <div className="flex shrink-0 flex-col items-center rounded-2xl border border-[#e6b8d4] bg-[#fbeef6] p-3">
+                <img
+                  src={qrImagen}
+                  alt={`Código QR de ${nombreSucursal}`}
+                  className="h-36 w-36 rounded-lg bg-white"
+                />
+                <span className="mt-1.5 text-xs font-semibold text-[#9c2d7b]">
+                  Escaneable en cámara
+                </span>
+              </div>
+            ) : (
+              <div className="w-fit rounded-xl bg-pink-50 p-3 text-[#a8238f]">
+                <QrCode size={26} />
+              </div>
+            )}
+
+            <div className="min-w-0">
               <h2 className="text-lg font-bold text-gray-900">
                 Código QR — {nombreSucursal}
               </h2>
@@ -101,10 +160,10 @@ export function AsistenciaAdmin() {
                 </p>
               ) : qr?.existe ? (
                 <div className="mt-1 space-y-1">
-                  <p className="text-sm text-green-700 font-medium">
+                  <p className="text-sm font-medium text-green-700">
                     Token activo · Vigente hasta {formatearVigencia(qr.vigente_hasta)}
                   </p>
-                  <p className="max-w-xl truncate text-xs text-gray-500 font-mono">
+                  <p className="max-w-xl truncate font-mono text-xs text-gray-500">
                     {qr.url}
                   </p>
                 </div>
@@ -121,7 +180,7 @@ export function AsistenciaAdmin() {
               type="button"
               onClick={handleGenerar}
               disabled={generando || cargandoQr}
-              className="flex items-center gap-2 rounded-lg bg-[#a8238f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8d1c78] disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-2 rounded-lg bg-[#a8238f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8d1c78] disabled:opacity-50"
             >
               {generando ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -135,8 +194,18 @@ export function AsistenciaAdmin() {
               <>
                 <button
                   type="button"
+                  onClick={handleDescargarQR}
+                  disabled={!qrImagen}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#b5368f] bg-[#fbeef6] px-4 py-2.5 text-sm font-semibold text-[#b5368f] transition hover:bg-[#f7e3f1] disabled:opacity-50"
+                >
+                  <Download size={16} />
+                  Descargar QR
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleCopiar}
-                  className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                 >
                   <Copy size={16} />
                   Copiar enlace
