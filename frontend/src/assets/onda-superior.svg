@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 320" preserveAspectRatio="none">
+<defs>
+  <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#a83891" stop-opacity=".52"/>
+    <stop offset=".48" stop-color="#ce7bb9" stop-opacity=".23"/>
+    <stop offset="1" stop-color="#f8dded" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="b" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0" stop-color="#8f296e" stop-opacity=".23"/>
+    <stop offset="1" stop-color="#eeb7df" stop-opacity="0"/>
+  </linearGradient>
+</defs>
+<!-- Original upper-left rounded mauve corner; scalable vector -->
+<path d="M0 0H660C445 33 274 92 0 312Z" fill="url(#a)"/>
+<path d="M0 0H470C280 53 137 132 0 239Z" fill="url(#b)"/>
+<!-- Delicate light arcs -->
+<path d="M-24 247C168 107 317 25 558 -24" fill="none" stroke="#fff5fc" stroke-width="2.3" stroke-opacity=".89"/>
+<path d="M-16 271C154 168 306 71 648 -15" fill="none" stroke="#fff9ff" stroke-width="1.1" stroke-opacity=".66"/>
+<path d="M-18 290C184 181 324 110 640 25" fill="none" stroke="#ffc6ed" stroke-width="1.1" stroke-opacity=".43"/>
+</svg>
